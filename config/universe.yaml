@@ -1,0 +1,37 @@
+# Tradable ETF universe for research. Each entry: symbol, asset_class, description.
+- symbol: SPY
+  asset_class: us_equity
+  description: SPDR S&P 500 ETF Trust (US large-cap equities)
+- symbol: QQQ
+  asset_class: us_equity
+  description: Invesco QQQ Trust (Nasdaq-100 large-cap growth)
+- symbol: IWM
+  asset_class: us_equity
+  description: iShares Russell 2000 ETF (US small-cap equities)
+- symbol: EFA
+  asset_class: intl_equity
+  description: iShares MSCI EAFE ETF (developed ex-US equities)
+- symbol: EEM
+  asset_class: intl_equity
+  description: iShares MSCI Emerging Markets ETF
+- symbol: VNQ
+  asset_class: real_estate
+  description: Vanguard Real Estate ETF (US REITs)
+- symbol: TLT
+  asset_class: fixed_income
+  description: iShares 20+ Year Treasury Bond ETF (long-duration US Treasuries)
+- symbol: IEF
+  asset_class: fixed_income
+  description: iShares 7-10 Year Treasury Bond ETF (intermediate US Treasuries)
+- symbol: LQD
+  asset_class: fixed_income
+  description: iShares iBoxx Investment Grade Corporate Bond ETF
+- symbol: GLD
+  asset_class: commodity
+  description: SPDR Gold Shares (gold bullion)
+- symbol: DBC
+  asset_class: commodity
+  description: Invesco DB Commodity Index Tracking Fund (broad commodities)
+- symbol: BIL
+  asset_class: cash
+  description: SPDR Bloomberg 1-3 Month T-Bill ETF (cash proxy)

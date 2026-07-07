@@ -1,0 +1,26 @@
+# Secrets
+.env
+
+# Data & reports (generated; keep the directories via .gitkeep)
+data/*
+reports/*
+!data/.gitkeep
+!reports/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data artifacts
+*.parquet
+*.duckdb
+
+# OS / editor
+.DS_Store

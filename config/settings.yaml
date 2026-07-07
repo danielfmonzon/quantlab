@@ -1,0 +1,6 @@
+# quantlab structured settings (non-secret). Secrets live in .env / environment.
+project_name: quantlab
+timezone: America/New_York
+data_dir: data
+reports_dir: reports
+log_level: INFO
