@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +69,7 @@ def configure_logging(
         ],
     )
 
-    stream_handler = logging.StreamHandler()
+    stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setFormatter(formatter)
 
     file_handler = logging.handlers.RotatingFileHandler(
