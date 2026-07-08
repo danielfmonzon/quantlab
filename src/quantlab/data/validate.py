@@ -39,6 +39,18 @@ def _fmt_dates(dates: list[date], limit: int = 10) -> str:
     return ", ".join(shown)
 
 
+def staleness_sessions(calendar: TradingCalendar, last_date: date, now: datetime) -> int:
+    """Number of completed NYSE sessions between ``last_date`` and now.
+
+    0 means ``last_date`` is the last completed session (fresh). Shared by
+    :func:`validate` and the health preflight so both agree on "how stale".
+    """
+    lcs = calendar.last_completed_session(now)
+    if lcs <= last_date:
+        return 0
+    return sum(1 for d in calendar.sessions_between(last_date, lcs) if d > last_date)
+
+
 def validate(
     df: pd.DataFrame,
     symbol: str,
@@ -148,10 +160,7 @@ def validate(
         )
 
     # -- Staleness (warning) -------------------------------------------------
-    staleness = 0
-    lcs = cal.last_completed_session(now)
-    if lcs > last_date:
-        staleness = sum(1 for d in cal.sessions_between(last_date, lcs) if d > last_date)
+    staleness = staleness_sessions(cal, last_date, now)
     if staleness > 1:
         warnings.append(
             f"stale: {staleness} completed session(s) behind the last NYSE close"
@@ -183,4 +192,4 @@ def validate(
     )
 
 
-__all__ = ["ValidationReport", "validate"]
+__all__ = ["ValidationReport", "staleness_sessions", "validate"]

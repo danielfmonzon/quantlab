@@ -3,17 +3,23 @@
 Subcommands:
     quantlab ingest --start 2000-01-01 [--symbols SPY,QQQ]
     quantlab validate [--symbols SPY,QQQ]
+    quantlab reconcile [--symbols ...] [--days 400] [--tolerance 0.0075]
+    quantlab health
 
-The Tiingo API key is read via Settings.require_keys and is never logged.
+API keys are read via Settings.require_keys and are never logged.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from quantlab.config import ConfigError, get_settings, load_universe
+from quantlab.data.alpaca_client import AlpacaDataClient
+from quantlab.data.calendar import TradingCalendar
+from quantlab.data.health import HealthReport, preflight
+from quantlab.data.reconcile import ReconcileReport, reconcile
 from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
@@ -113,6 +119,115 @@ def _print_summary(reports: list[ValidationReport]) -> None:
           + (f": {', '.join(failed)}" if failed else ""))
 
 
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    symbols = _selected_symbols(_parse_symbols(args.symbols))
+    days = int(args.days)
+    tolerance = float(args.tolerance)
+
+    settings = get_settings()
+    settings.require_keys("ALPACA_API_KEY", "ALPACA_SECRET_KEY")
+    assert settings.ALPACA_API_KEY is not None  # narrowed by require_keys
+    assert settings.ALPACA_SECRET_KEY is not None
+
+    client = AlpacaDataClient(
+        settings.ALPACA_API_KEY,
+        settings.ALPACA_SECRET_KEY,
+        base_trading_url=settings.ALPACA_BASE_URL,
+    )
+    store = ParquetStore()
+
+    today = datetime.now(UTC).date()
+    window_start = today - timedelta(days=days)
+
+    reports: list[ReconcileReport] = []
+    for symbol in symbols:
+        tiingo_df = store.load(symbol, start=window_start)
+        # Alpaca RAW bars vs Tiingo RAW close (see reconcile module docstring).
+        alpaca_df = client.fetch_daily_bars(
+            symbol, window_start, today, adjustment="raw", feed="iex"
+        )
+        report = reconcile(tiingo_df, alpaca_df, symbol, tolerance=tolerance)
+        reports.append(report)
+        log.info("reconcile_report", **report.model_dump(mode="json"))
+
+    _print_reconcile_summary(reports)
+    return 0 if all(r.passed for r in reports) else 1
+
+
+def _print_reconcile_summary(reports: list[ReconcileReport]) -> None:
+    header = (
+        f"{'SYMBOL':<8}{'PASS':<6}{'OVERLAP':>9}{'MISM':>6}  "
+        f"{'START':<12}{'END':<12}{'oT':>4}{'oA':>4}"
+    )
+    print(header)
+    print("-" * len(header))
+    for r in reports:
+        print(
+            f"{r.symbol:<8}"
+            f"{'OK' if r.passed else 'FAIL':<6}"
+            f"{r.n_overlap:>9}"
+            f"{r.n_mismatches:>6}  "
+            f"{(r.overlap_start.isoformat() if r.overlap_start else '-'):<12}"
+            f"{(r.overlap_end.isoformat() if r.overlap_end else '-'):<12}"
+            f"{len(r.dates_only_in_tiingo):>4}"
+            f"{len(r.dates_only_in_alpaca):>4}"
+        )
+        for err in r.errors:
+            print(f"    ERROR: {err}")
+    failed = [r.symbol for r in reports if not r.passed]
+    print("-" * len(header))
+    print(
+        f"{len(reports)} symbol(s), {len(failed)} failed"
+        + (f": {', '.join(failed)}" if failed else "")
+    )
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    store = ParquetStore()
+    calendar = TradingCalendar()
+    now = datetime.now(UTC)
+
+    settings = get_settings()
+    clock = None
+    if settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
+        client = AlpacaDataClient(
+            settings.ALPACA_API_KEY,
+            settings.ALPACA_SECRET_KEY,
+            base_trading_url=settings.ALPACA_BASE_URL,
+        )
+        clock = client.fetch_clock()
+
+    symbols = store.symbols()
+    report = preflight(symbols, store, calendar, clock, now)
+    log.info("health_report", **report.model_dump(mode="json"))
+
+    _print_health(report)
+    return 0 if report.data_fresh else 1
+
+
+def _print_health(report: HealthReport) -> None:
+    if report.market_open is None:
+        market = "unknown"
+    else:
+        market = "OPEN" if report.market_open else "closed"
+    print(f"Data health @ {report.generated_at.isoformat()}  (market: {market})")
+    header = f"{'SYMBOL':<8}{'DATA':<6}{'LAST':<12}{'STALE':>6}"
+    print(header)
+    print("-" * len(header))
+    for sh in report.symbols:
+        stale = "n/a" if not sh.has_data else str(sh.staleness_sessions)
+        print(
+            f"{sh.symbol:<8}"
+            f"{'yes' if sh.has_data else 'no':<6}"
+            f"{(sh.last_date.isoformat() if sh.last_date else '-'):<12}"
+            f"{stale:>6}"
+        )
+    print("-" * len(header))
+    print(f"data_fresh: {report.data_fresh}")
+    for reason in report.blocking_reasons:
+        print(f"    BLOCKING: {reason}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -125,6 +240,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate = sub.add_parser("validate", help="validate stored EOD data")
     p_validate.add_argument("--symbols", default=None, help="comma-separated symbols (default all)")
     p_validate.set_defaults(func=cmd_validate)
+
+    p_reconcile = sub.add_parser("reconcile", help="reconcile stored data against Alpaca IEX")
+    p_reconcile.add_argument("--symbols", default=None, help="comma-separated symbols (all)")
+    p_reconcile.add_argument("--days", default=400, type=int, help="lookback window in days")
+    p_reconcile.add_argument(
+        "--tolerance", default=0.0075, type=float, help="relative close tolerance"
+    )
+    p_reconcile.set_defaults(func=cmd_reconcile)
+
+    p_health = sub.add_parser("health", help="data-health preflight over stored symbols")
+    p_health.set_defaults(func=cmd_health)
 
     return parser
 
