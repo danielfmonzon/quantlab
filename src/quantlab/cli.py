@@ -5,6 +5,8 @@ Subcommands:
     quantlab validate [--symbols SPY,QQQ]
     quantlab reconcile [--symbols ...] [--days 400] [--tolerance 0.0075]
     quantlab health
+    quantlab backtest --strategy buyhold|sixty40 [--symbol SPY] [--start ...]
+                      [--cost-bps 5] [--benchmark SPY]
 
 API keys are read via Settings.require_keys and are never logged.
 """
@@ -12,10 +14,16 @@ API keys are read via Settings.require_keys and are never logged.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import UTC, date, datetime, timedelta
 
+from quantlab.backtest.engine import run_backtest
+from quantlab.backtest.metrics import Metrics, compute_metrics
+from quantlab.backtest.panel import build_price_panel, returns_panel
+from quantlab.backtest.strategy import BuyAndHold, FixedWeights, Strategy
 from quantlab.config import ConfigError, get_settings, load_universe
+from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import AlpacaDataClient
 from quantlab.data.calendar import TradingCalendar
 from quantlab.data.health import HealthReport, preflight
@@ -228,6 +236,93 @@ def _print_health(report: HealthReport) -> None:
         print(f"    BLOCKING: {reason}")
 
 
+def cmd_backtest(args: argparse.Namespace) -> int:
+    store = ParquetStore()
+
+    if args.strategy == "buyhold":
+        strategy: Strategy = BuyAndHold(symbol=args.symbol)
+        required = [args.symbol]
+    elif args.strategy == "sixty40":
+        strategy = FixedWeights({"SPY": 0.6, "IEF": 0.4}, name="sixty40")
+        required = ["SPY", "IEF"]
+    else:  # pragma: no cover - argparse choices guard this
+        raise ConfigError(f"unknown strategy {args.strategy!r}")
+
+    benchmark = args.benchmark
+    panel_symbols = list(dict.fromkeys(required + ([benchmark] if benchmark else [])))
+
+    panel = build_price_panel(store, panel_symbols, start=args.start)
+    # First session on which every strategy-required symbol has a price.
+    usable = panel[required].dropna()
+    if usable.empty:
+        raise ConfigError(f"no sessions where all of {required} have prices")
+    first_usable = usable.index.min()
+    panel = panel.loc[first_usable:]
+
+    # The benchmark column (if any) rides along with weight 0; the engine skips it.
+    result = run_backtest(panel, strategy, cost_bps=args.cost_bps)
+
+    benchmark_returns = None
+    if benchmark:
+        benchmark_returns = returns_panel(panel)[benchmark].loc[result.daily_returns.index]
+
+    metrics = compute_metrics(
+        result.daily_returns,
+        result.equity,
+        benchmark_returns=benchmark_returns,
+        weights=result.weights_history[required],
+        turnover=result.turnover,
+        costs=result.costs_paid,
+    )
+
+    log.info("backtest_metrics", strategy=strategy.name, **metrics.model_dump(mode="json"))
+    print(f"panel first usable date: {first_usable.date().isoformat()}")
+    _print_metrics(strategy.name, metrics, benchmark)
+    _write_backtest_report(args.strategy, result.config, metrics)
+    return 0
+
+
+def _print_metrics(name: str, metrics: Metrics, benchmark: str | None) -> None:
+    def fmt(x: float | None, pct: bool = False) -> str:
+        if x is None:
+            return "n/a"
+        return f"{x:.2%}" if pct else f"{x:.3f}"
+
+    print(f"=== backtest: {name} ===")
+    print(f"  period            {metrics.start} -> {metrics.end}  ({metrics.n_sessions} sessions)")
+    print(f"  CAGR              {fmt(metrics.cagr, pct=True)}")
+    print(f"  annualized vol    {fmt(metrics.annualized_vol, pct=True)}")
+    print(f"  sharpe            {fmt(metrics.sharpe)}")
+    print(f"  sortino           {fmt(metrics.sortino)}")
+    print(f"  calmar            {fmt(metrics.calmar)}")
+    print(f"  max drawdown      {fmt(metrics.max_drawdown, pct=True)}")
+    print(f"  max dd duration   {metrics.max_drawdown_duration_days} sessions")
+    print(f"  win rate monthly  {fmt(metrics.win_rate_monthly, pct=True)}")
+    best_worst = f"{fmt(metrics.best_month, pct=True)} / {fmt(metrics.worst_month, pct=True)}"
+    print(f"  best / worst mo   {best_worst}")
+    print(f"  avg exposure      {fmt(metrics.exposure_avg, pct=True)}")
+    print(f"  annual turnover   {fmt(metrics.annual_turnover)}")
+    print(f"  total costs ($)   {metrics.total_costs:,.2f}")
+    if benchmark:
+        print(f"  benchmark ({benchmark})")
+        print(f"    CAGR            {fmt(metrics.benchmark_cagr, pct=True)}")
+        print(f"    max drawdown    {fmt(metrics.benchmark_max_drawdown, pct=True)}")
+
+
+def _write_backtest_report(strategy_key: str, config: dict, metrics: Metrics) -> None:
+    reports_dir = PROJECT_ROOT / "reports" / "backtests"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    path = reports_dir / f"{strategy_key}_{stamp}.json"
+    payload = {
+        "config": config,
+        "metrics": metrics.model_dump(mode="json"),
+        "monthly_returns": metrics.monthly_returns,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"report written: {path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -251,6 +346,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_health = sub.add_parser("health", help="data-health preflight over stored symbols")
     p_health.set_defaults(func=cmd_health)
+
+    p_bt = sub.add_parser("backtest", help="run a baseline strategy backtest")
+    p_bt.add_argument("--strategy", required=True, choices=["buyhold", "sixty40"])
+    p_bt.add_argument("--symbol", default="SPY", help="symbol for buyhold (default SPY)")
+    p_bt.add_argument("--start", default=None, help="ISO start date, e.g. 2000-01-01")
+    p_bt.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
+    p_bt.add_argument("--benchmark", default=None, help="benchmark symbol (e.g. SPY)")
+    p_bt.set_defaults(func=cmd_backtest)
 
     return parser
 
