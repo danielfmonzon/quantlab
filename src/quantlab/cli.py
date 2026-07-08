@@ -18,10 +18,19 @@ import json
 import sys
 from datetime import UTC, date, datetime, timedelta
 
+import pandas as pd
+
 from quantlab.backtest.engine import run_backtest
 from quantlab.backtest.metrics import Metrics, compute_metrics
 from quantlab.backtest.panel import build_price_panel, returns_panel
-from quantlab.backtest.strategy import BuyAndHold, FixedWeights, Strategy
+from quantlab.backtest.strategies import (
+    BuyAndHold,
+    DualMomentum,
+    FixedWeights,
+    Strategy,
+    TrendSMA10,
+    VolTarget,
+)
 from quantlab.config import ConfigError, get_settings, load_universe
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import AlpacaDataClient
@@ -236,22 +245,40 @@ def _print_health(report: HealthReport) -> None:
         print(f"    BLOCKING: {reason}")
 
 
+def _make_strategy(name: str, symbol: str = "SPY") -> Strategy:
+    if name == "buyhold":
+        return BuyAndHold(symbol=symbol)
+    if name == "sixty40":
+        return FixedWeights({"SPY": 0.6, "IEF": 0.4}, name="sixty40")
+    if name == "trend":
+        return TrendSMA10()
+    if name == "dualmom":
+        return DualMomentum()
+    if name == "voltarget":
+        return VolTarget()
+    raise ConfigError(f"unknown strategy {name!r}")  # pragma: no cover
+
+
+def _first_effective_signal(panel: pd.DataFrame, strategy: Strategy) -> pd.Timestamp | None:
+    """First session on which the strategy's (warmed-up) signal takes effect."""
+    dates = list(panel.index)
+    pos = {d: i for i, d in enumerate(dates)}
+    for r in strategy.rebalance_dates(dates):
+        if strategy.is_warmed_up(panel.loc[:r], r):
+            i = pos[r]
+            return dates[i + 1] if i + 1 < len(dates) else r
+    return None
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     store = ParquetStore()
-
-    if args.strategy == "buyhold":
-        strategy: Strategy = BuyAndHold(symbol=args.symbol)
-        required = [args.symbol]
-    elif args.strategy == "sixty40":
-        strategy = FixedWeights({"SPY": 0.6, "IEF": 0.4}, name="sixty40")
-        required = ["SPY", "IEF"]
-    else:  # pragma: no cover - argparse choices guard this
-        raise ConfigError(f"unknown strategy {args.strategy!r}")
-
+    strategy = _make_strategy(args.strategy, symbol=args.symbol)
+    required = strategy.required_symbols
     benchmark = args.benchmark
-    panel_symbols = list(dict.fromkeys(required + ([benchmark] if benchmark else [])))
 
+    panel_symbols = list(dict.fromkeys(strategy.all_symbols + ([benchmark] if benchmark else [])))
     panel = build_price_panel(store, panel_symbols, start=args.start)
+
     # First session on which every strategy-required symbol has a price.
     usable = panel[required].dropna()
     if usable.empty:
@@ -261,6 +288,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
     # The benchmark column (if any) rides along with weight 0; the engine skips it.
     result = run_backtest(panel, strategy, cost_bps=args.cost_bps)
+    first_signal = _first_effective_signal(panel, strategy)
 
     benchmark_returns = None
     if benchmark:
@@ -270,13 +298,17 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         result.daily_returns,
         result.equity,
         benchmark_returns=benchmark_returns,
-        weights=result.weights_history[required],
+        # Sum over all columns (non-held are 0) for TRUE exposure, including any
+        # time spent in the safe asset.
+        weights=result.weights_history,
         turnover=result.turnover,
         costs=result.costs_paid,
     )
 
     log.info("backtest_metrics", strategy=strategy.name, **metrics.model_dump(mode="json"))
     print(f"panel first usable date: {first_usable.date().isoformat()}")
+    signal_str = first_signal.date().isoformat() if first_signal is not None else "never"
+    print(f"first effective signal date: {signal_str}")
     _print_metrics(strategy.name, metrics, benchmark)
     _write_backtest_report(args.strategy, result.config, metrics)
     return 0
@@ -323,6 +355,99 @@ def _write_backtest_report(strategy_key: str, config: dict, metrics: Metrics) ->
     print(f"report written: {path}")
 
 
+# The five strategies compared, and the symbols any of them may reference.
+_COMPARE_STRATEGIES = ["buyhold", "sixty40", "trend", "dualmom", "voltarget"]
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    store = ParquetStore()
+    strategies = [_make_strategy(name) for name in _COMPARE_STRATEGIES]
+
+    # Symbols any strategy references, and those required to establish a start.
+    all_symbols = list(dict.fromkeys(s for strat in strategies for s in strat.all_symbols))
+    required = list(dict.fromkeys(s for strat in strategies for s in strat.required_symbols))
+
+    panel = build_price_panel(store, all_symbols, start=args.start)
+    usable = panel[required].dropna()
+    if usable.empty:
+        raise ConfigError(f"no common window where all of {required} have prices")
+    # IDENTICAL date range for every strategy: the first date all required
+    # symbols have prices (>= --start) through the last available session.
+    common_start = usable.index.min()
+    panel = panel.loc[common_start:]
+    common_end = panel.index.max()
+
+    rows: list[tuple[str, Metrics]] = []
+    for strat in strategies:
+        result = run_backtest(panel, strat, cost_bps=args.cost_bps)
+        metrics = compute_metrics(
+            result.daily_returns,
+            result.equity,
+            weights=result.weights_history,  # all columns -> true total exposure
+            turnover=result.turnover,
+            costs=result.costs_paid,
+        )
+        rows.append((strat.name, metrics))
+        log.info("compare_metrics", strategy=strat.name, **metrics.model_dump(mode="json"))
+
+    def _sharpe_key(row: tuple[str, Metrics]) -> float:
+        return row[1].sharpe if row[1].sharpe is not None else float("-inf")
+
+    rows.sort(key=_sharpe_key, reverse=True)
+
+    window = (common_start.date().isoformat(), common_end.date().isoformat())
+    print(f"common window (identical for all): {window[0]} -> {window[1]}  "
+          f"({panel.shape[0]} sessions), cost_bps={args.cost_bps}")
+    _print_compare_table(rows)
+    _write_compare_report(window, args.cost_bps, rows)
+    return 0
+
+
+def _print_compare_table(rows: list[tuple[str, Metrics]]) -> None:
+    def f(x: float | None, pct: bool = False) -> str:
+        if x is None:
+            return "n/a"
+        return f"{x:.1%}" if pct else f"{x:.2f}"
+
+    header = (
+        f"{'STRATEGY':<14}{'CAGR':>8}{'VOL':>8}{'SHARPE':>8}{'SORTINO':>9}"
+        f"{'MAXDD':>9}{'CALMAR':>8}{'WIN_M':>8}{'ANN_TO':>8}{'COSTS$':>11}"
+    )
+    print(header)
+    print("-" * len(header))
+    for name, m in rows:
+        print(
+            f"{name:<14}"
+            f"{f(m.cagr, pct=True):>8}"
+            f"{f(m.annualized_vol, pct=True):>8}"
+            f"{f(m.sharpe):>8}"
+            f"{f(m.sortino):>9}"
+            f"{f(m.max_drawdown, pct=True):>9}"
+            f"{f(m.calmar):>8}"
+            f"{f(m.win_rate_monthly, pct=True):>8}"
+            f"{f(m.annual_turnover):>8}"
+            f"{m.total_costs:>11,.2f}"
+        )
+    print("-" * len(header))
+    print("(sorted by sharpe desc)")
+
+
+def _write_compare_report(
+    window: tuple[str, str], cost_bps: float, rows: list[tuple[str, Metrics]]
+) -> None:
+    reports_dir = PROJECT_ROOT / "reports" / "backtests"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    path = reports_dir / f"compare_{stamp}.json"
+    payload = {
+        "common_window": {"start": window[0], "end": window[1]},
+        "cost_bps": cost_bps,
+        "strategies": {name: m.model_dump(mode="json") for name, m in rows},
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"report written: {path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -348,12 +473,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_health.set_defaults(func=cmd_health)
 
     p_bt = sub.add_parser("backtest", help="run a baseline strategy backtest")
-    p_bt.add_argument("--strategy", required=True, choices=["buyhold", "sixty40"])
+    p_bt.add_argument(
+        "--strategy",
+        required=True,
+        choices=["buyhold", "sixty40", "trend", "dualmom", "voltarget"],
+    )
     p_bt.add_argument("--symbol", default="SPY", help="symbol for buyhold (default SPY)")
     p_bt.add_argument("--start", default=None, help="ISO start date, e.g. 2000-01-01")
     p_bt.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
     p_bt.add_argument("--benchmark", default=None, help="benchmark symbol (e.g. SPY)")
     p_bt.set_defaults(func=cmd_backtest)
+
+    p_cmp = sub.add_parser("compare", help="compare all baseline+tactical strategies")
+    p_cmp.add_argument("--start", default="2003-01-01", help="ISO start date")
+    p_cmp.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
+    p_cmp.set_defaults(func=cmd_compare)
 
     return parser
 

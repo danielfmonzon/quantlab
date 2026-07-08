@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 
+from quantlab.backtest.signals import month_end_sessions
+
 
 class Strategy(ABC):
     """Abstract base for weight-emitting strategies."""
@@ -34,13 +36,26 @@ class Strategy(ABC):
         ``window`` contains only rows with ``date <= current_date``.
         """
 
+    # -- Optional metadata (used by the CLI; safe defaults for ad-hoc strategies).
 
-def month_end_sessions(dates: list[pd.Timestamp]) -> list[pd.Timestamp]:
-    """Return the last session of each calendar month present in ``dates``."""
-    last_by_month: dict[tuple[int, int], pd.Timestamp] = {}
-    for d in dates:
-        last_by_month[(d.year, d.month)] = d  # dates ascending -> last wins
-    return sorted(last_by_month.values())
+    @property
+    def required_symbols(self) -> list[str]:
+        """Symbols that MUST have prices for the strategy to take a position.
+
+        Used to pick a backtest's first usable date. Symbols the strategy only
+        falls back to (e.g. a safe asset it can skip in favor of cash) are not
+        required and belong in :meth:`all_symbols` instead.
+        """
+        return []
+
+    @property
+    def all_symbols(self) -> list[str]:
+        """Every symbol the strategy may reference (required + optional)."""
+        return self.required_symbols
+
+    def is_warmed_up(self, window: pd.DataFrame, current_date: pd.Timestamp) -> bool:
+        """Whether enough history exists to emit a real (non-warmup) signal."""
+        return True
 
 
 class BuyAndHold(Strategy):
@@ -52,6 +67,10 @@ class BuyAndHold(Strategy):
     @property
     def name(self) -> str:
         return f"buyhold_{self.symbol}"
+
+    @property
+    def required_symbols(self) -> list[str]:
+        return [self.symbol]
 
     def rebalance_dates(self, dates: list[pd.Timestamp]) -> list[pd.Timestamp]:
         return [dates[0]] if dates else []
@@ -77,6 +96,10 @@ class FixedWeights(Strategy):
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def required_symbols(self) -> list[str]:
+        return list(self._weights)
 
     def rebalance_dates(self, dates: list[pd.Timestamp]) -> list[pd.Timestamp]:
         if not dates:
