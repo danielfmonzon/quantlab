@@ -43,9 +43,12 @@ from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
 from quantlab.logging_setup import get_logger
 from quantlab.paper.runner import PaperRunReport, run_paper
+from quantlab.reporting.alerts import send_test_alert
+from quantlab.reporting.digest import build_digest, render_markdown, write_digest
 from quantlab.risk.engine import RiskEngine
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import load_risk_state, reset_risk_state
+from quantlab.scheduling import tasks as schedule_tasks
 from quantlab.validation import (
     BootstrapReport,
     PerturbReport,
@@ -636,6 +639,39 @@ def cmd_validate_strategy(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_digest(args: argparse.Namespace) -> int:
+    broker = _build_trading_client()
+    store = ParquetStore()
+    calendar = TradingCalendar()
+    now = datetime.now(UTC)
+
+    digest = build_digest(broker, store, calendar, now)
+    md_path, json_path = write_digest(digest)
+    print(render_markdown(digest))
+    print(f"\ndigest written: {md_path}")
+    print(f"digest written: {json_path}")
+
+    if args.send_test_alert:
+        results = send_test_alert()
+        active = [r.channel for r in results if r.ok]
+        failed = [f"{r.channel} ({r.error})" for r in results if not r.ok]
+        print("\ntest alert dispatched.")
+        print("  active channels: " + (", ".join(active) if active else "(none)"))
+        if failed:
+            print("  failed channels: " + ", ".join(failed))
+    return 0
+
+
+def cmd_schedule(args: argparse.Namespace) -> int:
+    if args.schedule_command == "install":
+        return schedule_tasks.install(args.confirm)
+    if args.schedule_command == "uninstall":
+        return schedule_tasks.uninstall()
+    if args.schedule_command == "show":
+        return schedule_tasks.show()
+    raise ConfigError(f"unknown schedule command {args.schedule_command!r}")  # pragma: no cover
+
+
 def _build_trading_client() -> AlpacaTradingClient:
     settings = get_settings()
     settings.require_keys("ALPACA_API_KEY", "ALPACA_SECRET_KEY")
@@ -820,6 +856,27 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
     p_val.add_argument("--seed", default=42, type=int, help="bootstrap RNG seed")
     p_val.set_defaults(func=cmd_validate_strategy)
+
+    p_digest = sub.add_parser("digest", help="build + write the daily paper digest")
+    p_digest.add_argument(
+        "--send-test-alert", action="store_true", dest="send_test_alert",
+        help="dispatch a test alert through all active channels",
+    )
+    p_digest.set_defaults(func=cmd_digest)
+
+    p_sched = sub.add_parser("schedule", help="install/uninstall scheduled paper tasks")
+    sched_sub = p_sched.add_subparsers(dest="schedule_command", required=True)
+    p_sched_install = sched_sub.add_parser(
+        "install", help="create the daily paper-run + digest tasks (needs --confirm YES)"
+    )
+    p_sched_install.add_argument("--confirm", default=None, help="must be exactly YES")
+    p_sched_install.set_defaults(func=cmd_schedule)
+    p_sched_uninstall = sched_sub.add_parser(
+        "uninstall", help="remove the scheduled tasks (idempotent)"
+    )
+    p_sched_uninstall.set_defaults(func=cmd_schedule)
+    p_sched_show = sched_sub.add_parser("show", help="query the scheduled tasks")
+    p_sched_show.set_defaults(func=cmd_schedule)
 
     p_paper = sub.add_parser("paper", help="paper-trading (paper-only, risk-gated)")
     paper_sub = p_paper.add_subparsers(dest="paper_command", required=True)

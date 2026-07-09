@@ -56,6 +56,7 @@ from quantlab.data.store import ParquetStore
 from quantlab.data.validate import ValidationReport, validate
 from quantlab.logging_setup import get_logger
 from quantlab.paper.rebalance import RebalancePlan, plan_rebalance
+from quantlab.reporting.alerts import Alert, dispatch
 from quantlab.risk.engine import (
     HALT_DAILY_LOSS,
     HALT_WEEKLY_LOSS,
@@ -154,6 +155,7 @@ def run_paper(
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
     write_report: bool = True,
+    alert_fn: Callable[[Alert], None] | None = None,
 ) -> PaperRunReport:
     """Execute the gated paper pipeline. Returns a report; never submits on dry run.
 
@@ -169,12 +171,24 @@ def run_paper(
         report.stages.append(StageOutcome(stage=stage, ok=ok, detail=detail))
         log.info("paper_stage", strategy=strategy_name, stage=stage, ok=ok, detail=detail)
 
-    def _abort(stage: str, reason: str) -> PaperRunReport:
+    def _emit(alert: Alert) -> None:
+        # Alerting must NEVER break a run or prevent a state write.
+        fn = alert_fn if alert_fn is not None else _default_runner_alert
+        try:
+            fn(alert)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("alert_dispatch_failed", error=str(exc))
+
+    def _abort(stage: str, reason: str, level: str = "WARNING") -> PaperRunReport:
         _stage(stage, False, reason)
         report.aborted = True
         report.abort_stage = stage
         report.abort_reason = reason
-        _finish(report, reports_dir, write_report)
+        _finish(report, reports_dir, write_report)  # state written first ...
+        _emit(Alert(  # ... then alert (never before the write)
+            level=level, title=f"paper {strategy_name} aborted at '{stage}'",
+            body=reason, source="paper.runner",
+        ))
         return report
 
     # -- (a) risk state: FIRST, before any broker/network touch --------------
@@ -234,10 +248,10 @@ def run_paper(
     try:
         account = the_broker.get_account()
     except Exception as exc:  # noqa: BLE001
-        return _abort("account", f"account unverifiable: {exc}")
+        return _abort("account", f"account unverifiable: {exc}", level="CRITICAL")
     bad = _account_problem(account)
     if bad is not None:
-        return _abort("account", bad)
+        return _abort("account", bad, level="CRITICAL")
     report.equity = account.equity
     _stage("account", True, f"equity={account.equity:.2f} cash={account.cash:.2f}")
 
@@ -272,7 +286,9 @@ def run_paper(
                 ),
                 risk_state_path,
             )
-            return _abort("evaluate_portfolio", f"{pdec.action}: {pdec.reason}")
+            return _abort(
+                "evaluate_portfolio", f"{pdec.action}: {pdec.reason}", level="CRITICAL"
+            )
         _stage("evaluate_portfolio", True, f"{pdec.action} (dd={pdec.drawdown})")
     else:
         _stage("evaluate_portfolio", True, "insufficient history (<2 snapshots)")
@@ -294,22 +310,39 @@ def run_paper(
     if dry_run:
         _stage("submit", True, "DRY-RUN: no orders submitted")
     else:
-        submitted = _submit_plan(
-            the_broker, strategy_name, plan, run_now.date(),
-            poll_timeout, poll_interval, sleep_fn, monotonic_fn,
-        )
+        try:
+            submitted = _submit_plan(
+                the_broker, strategy_name, plan, run_now.date(),
+                poll_timeout, poll_interval, sleep_fn, monotonic_fn,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return _abort("submit", f"order submission failed: {exc}", level="CRITICAL")
         report.submitted_orders = submitted
         dupes = sum(1 for o in submitted if o.was_duplicate)
         _stage("submit", True, f"submitted {len(submitted)} order(s), {dupes} duplicate(s)")
 
     # -- (k) report ----------------------------------------------------------
     _finish(report, reports_dir, write_report)
+    if not dry_run and report.submitted_orders:
+        total = sum(i.notional for i in plan.intents)
+        _emit(Alert(
+            level="INFO",
+            title=(f"paper {strategy_name}: {len(report.submitted_orders)} order(s) "
+                   f"submitted, ${total:,.2f} notional"),
+            body=f"weights={report.target_weights}; turnover={plan.est_turnover:.4f}",
+            source="paper.runner",
+        ))
     return report
 
 
 # --------------------------------------------------------------------------- #
 # Helpers                                                                     #
 # --------------------------------------------------------------------------- #
+
+def _default_runner_alert(alert: Alert) -> None:
+    """Dispatch to the default channels (console + file + email if configured)."""
+    dispatch(alert)
+
 
 def _require_broker() -> AlpacaTradingClient:  # pragma: no cover - exercised via CLI
     raise ConfigError("run_paper needs a broker; construct one from Settings in the CLI")

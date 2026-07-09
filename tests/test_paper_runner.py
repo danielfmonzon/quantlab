@@ -12,7 +12,7 @@ from quantlab.broker.alpaca_trading import AccountInfo, OrderInfo, Position
 from quantlab.data.health import HealthReport
 from quantlab.data.validate import ValidationReport
 from quantlab.paper.runner import run_paper
-from quantlab.risk.state import RiskState, save_risk_state
+from quantlab.risk.state import RiskState, load_risk_state, save_risk_state
 
 NOW = datetime(2026, 7, 9, 13, 0, 0)
 
@@ -196,3 +196,76 @@ def test_in_band_no_trades_exits_clean(tmp_path) -> None:
     report = _run("trend", False, broker, _trend_store(), tmp_path)
     assert not report.aborted and report.no_trades
     broker.submit_order.assert_not_called()
+
+
+# --------------------------------------------------------------------------- #
+# Alert wiring                                                                #
+# --------------------------------------------------------------------------- #
+
+def _seed_equity(path, values: list[float]) -> None:
+    ts = pd.date_range("2026-07-01", periods=len(values), freq="D")
+    pd.DataFrame({"timestamp": ts, "equity": values}).to_parquet(path, index=False)
+
+
+def _kill_run(tmp_path, alert_fn):
+    # Prior peak 100000; this run's equity is 70000 -> -30% drawdown -> KILL.
+    eq_path = tmp_path / "equity_history.parquet"
+    _seed_equity(eq_path, [100_000.0])
+    state_path = tmp_path / "risk_state.json"
+    broker = _happy_broker()
+    broker.get_account.return_value = _account(equity=70_000.0)
+    report = run_paper(
+        "trend", dry_run=False, store=_trend_store(), broker=broker, do_ingest=False,
+        validation_override=_passing_validation(["SPY", "IEF"]),
+        health_override=_fresh_health(), now=NOW, risk_state_path=state_path,
+        equity_history_path=eq_path, write_report=False,
+        sleep_fn=lambda _s: None, monotonic_fn=lambda: 0.0, alert_fn=alert_fn,
+    )
+    return report, state_path, broker
+
+
+def test_kill_fires_critical_alert_after_state_written(tmp_path) -> None:
+    seen: dict[str, object] = {}
+    state_path = tmp_path / "risk_state.json"
+
+    def alert_fn(alert) -> None:
+        # At alert time the kill-switch state must ALREADY be persisted & halted.
+        seen["halted_at_alert"] = load_risk_state(state_path).halted
+        seen["alert"] = alert
+
+    _seed_equity(tmp_path / "equity_history.parquet", [100_000.0])
+    broker = _happy_broker()
+    broker.get_account.return_value = _account(equity=70_000.0)
+    report = run_paper(
+        "trend", dry_run=False, store=_trend_store(), broker=broker, do_ingest=False,
+        validation_override=_passing_validation(["SPY", "IEF"]),
+        health_override=_fresh_health(), now=NOW, risk_state_path=state_path,
+        equity_history_path=tmp_path / "equity_history.parquet", write_report=False,
+        sleep_fn=lambda _s: None, monotonic_fn=lambda: 0.0, alert_fn=alert_fn,
+    )
+    assert report.aborted and report.abort_stage == "evaluate_portfolio"
+    assert seen["halted_at_alert"] is True  # state written BEFORE the alert fired
+    assert seen["alert"].level == "CRITICAL"  # type: ignore[attr-defined]
+    assert load_risk_state(state_path).requires_manual_reset is True  # KILL
+    broker.submit_order.assert_not_called()  # aborted before any order
+
+
+def test_alert_failure_does_not_prevent_state_write(tmp_path) -> None:
+    def boom(_alert) -> None:
+        raise RuntimeError("alerting is down")
+
+    report, state_path, _ = _kill_run(tmp_path, boom)
+    assert report.aborted and report.abort_stage == "evaluate_portfolio"
+    # The RiskState write happened despite the alert raising.
+    assert load_risk_state(state_path).halted is True
+    assert load_risk_state(state_path).requires_manual_reset is True
+
+
+def test_successful_submit_fires_info_alert(tmp_path) -> None:
+    alerts: list[object] = []
+    broker = _happy_broker()
+    report = _run("trend", False, broker, _trend_store(), tmp_path, alert_fn=alerts.append)
+    assert not report.aborted
+    info = [a for a in alerts if a.level == "INFO"]  # type: ignore[attr-defined]
+    assert len(info) == 1
+    assert "order(s) submitted" in info[0].title  # type: ignore[attr-defined]
