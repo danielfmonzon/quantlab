@@ -31,6 +31,7 @@ from quantlab.backtest.strategies import (
     TrendSMA10,
     VolTarget,
 )
+from quantlab.broker.alpaca_trading import AlpacaTradingClient
 from quantlab.config import ConfigError, get_settings, load_universe
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import AlpacaDataClient
@@ -41,6 +42,7 @@ from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
 from quantlab.logging_setup import get_logger
+from quantlab.paper.runner import PaperRunReport, run_paper
 from quantlab.risk.engine import RiskEngine
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import load_risk_state, reset_risk_state
@@ -634,6 +636,138 @@ def cmd_validate_strategy(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_trading_client() -> AlpacaTradingClient:
+    settings = get_settings()
+    settings.require_keys("ALPACA_API_KEY", "ALPACA_SECRET_KEY")
+    assert settings.ALPACA_API_KEY is not None
+    assert settings.ALPACA_SECRET_KEY is not None
+    return AlpacaTradingClient(
+        settings.ALPACA_API_KEY, settings.ALPACA_SECRET_KEY, base_url=settings.ALPACA_BASE_URL
+    )
+
+
+def _paper_ingest_fn(symbols: list[str], store: ParquetStore) -> None:
+    """Top up recent bars for ``symbols`` (reuses the Tiingo ingest path)."""
+    settings = get_settings()
+    settings.require_keys("TIINGO_API_KEY")
+    assert settings.TIINGO_API_KEY is not None
+    client = TiingoClient(settings.TIINGO_API_KEY)
+    today = datetime.now(UTC).date()
+    for symbol in symbols:
+        existing = store.load(symbol)
+        if len(existing):
+            start = existing["date"].max().date() - timedelta(days=5)
+        else:
+            start = today - timedelta(days=400)
+        df = client.fetch(symbol, start)
+        store.save_metadata(symbol, df.attrs.get("inception_date"), requested_start=start)
+        store.upsert(symbol, df)
+
+
+def _print_paper_report(report: PaperRunReport) -> None:
+    mode = "DRY-RUN" if report.dry_run else "SUBMIT"
+    print(f"=== PAPER RUN: {report.strategy}  ({mode})  @ {report.timestamp.isoformat()} ===")
+    for s in report.stages:
+        print(f"  [{'OK' if s.ok else 'XX'}] {s.stage:<18} {s.detail}")
+    if report.aborted:
+        print(f"\nABORTED at '{report.abort_stage}': {report.abort_reason}")
+        return
+    if report.equity is not None:
+        print(f"\n  account equity : {report.equity:,.2f}")
+    print(f"  target weights : {report.target_weights}")
+    if report.no_trades:
+        print("  result         : in-band, no trades")
+        return
+    plan = report.plan
+    if plan is not None:
+        print(f"\n  PLAN (sells first, buy_scale={plan.buy_scale:.4f}, "
+              f"turnover={plan.est_turnover:.4f}):")
+        for intent in plan.intents:
+            print(f"    {intent.side:<4} {intent.symbol:<6} ${intent.notional:>12,.2f}  "
+                  f"({intent.current_w:.3f} -> {intent.target_w:.3f})")
+        for sk in plan.skipped:
+            print(f"    skip {sk.symbol:<6} diff {sk.diff:+.4f} (<= {plan.min_trade_frac})")
+    if report.submitted_orders:
+        print("\n  SUBMITTED ORDERS:")
+        for o in report.submitted_orders:
+            dup = "  [DUPLICATE]" if o.was_duplicate else ""
+            print(f"    {o.side:<4} {o.symbol:<6} id={o.id} coid={o.client_order_id} "
+                  f"status={o.status}{dup}")
+    elif not report.dry_run:
+        print("\n  (no orders submitted)")
+
+
+def cmd_paper_run(args: argparse.Namespace) -> int:
+    broker = _build_trading_client()
+    store = ParquetStore()
+    # A read-only clock sharpens the health preflight (optional; keys already present).
+    settings = get_settings()
+    clock = None
+    if settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
+        data_client = AlpacaDataClient(
+            settings.ALPACA_API_KEY, settings.ALPACA_SECRET_KEY,
+            base_trading_url=settings.ALPACA_BASE_URL,
+        )
+        clock = data_client.fetch_clock()
+
+    report = run_paper(
+        args.strategy,
+        dry_run=not args.submit,
+        store=store,
+        broker=broker,
+        ingest_fn=_paper_ingest_fn,
+        clock=clock,
+    )
+    _print_paper_report(report)
+    return 1 if report.aborted else 0
+
+
+def cmd_paper_status(args: argparse.Namespace) -> int:
+    broker = _build_trading_client()
+    account = broker.get_account()
+    positions = broker.get_positions()
+    today = datetime.now(UTC).date()
+    orders = broker.get_orders(status="all", after=today)
+    state = load_risk_state()
+
+    print("=== PAPER ACCOUNT ===")
+    print(f"  equity  : {account.equity:,.2f} {account.currency}")
+    print(f"  cash    : {account.cash:,.2f} {account.currency}")
+    print(f"  blocked : account={account.account_blocked} trading={account.trading_blocked}")
+
+    print("\n=== POSITIONS ===")
+    if not positions:
+        print("  (none)")
+    for p in positions:
+        print(f"  {p.symbol:<6} qty={p.qty:<12g} mv=${p.market_value:,.2f} "
+              f"avg=${p.avg_entry_price:,.2f}")
+
+    print(f"\n=== TODAY'S ORDERS ({today.isoformat()}) ===")
+    if not orders:
+        print("  (none)")
+    for o in orders:
+        print(f"  {o.side:<4} {o.symbol:<6} status={o.status:<12} coid={o.client_order_id}")
+
+    print("\n=== RISK STATE ===")
+    print(f"  halted={state.halted} reason={state.reason!r} "
+          f"requires_manual_reset={state.requires_manual_reset}")
+
+    print("\n=== LAST RUN ===")
+    reports_dir = PROJECT_ROOT / "reports" / "paper"
+    runs = sorted(reports_dir.glob("run_*.json")) if reports_dir.exists() else []
+    if not runs:
+        print("  (no prior runs)")
+    else:
+        payload = json.loads(runs[-1].read_text(encoding="utf-8"))
+        verdict = "ABORTED" if payload.get("aborted") else (
+            "no-trades" if payload.get("no_trades") else "traded/planned")
+        print(f"  {runs[-1].name}: {payload.get('strategy')} "
+              f"{'DRY-RUN' if payload.get('dry_run') else 'SUBMIT'} -> {verdict}")
+        if payload.get("aborted"):
+            print(f"    abort: {payload.get('abort_stage')} - {payload.get('abort_reason')}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -686,6 +820,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
     p_val.add_argument("--seed", default=42, type=int, help="bootstrap RNG seed")
     p_val.set_defaults(func=cmd_validate_strategy)
+
+    p_paper = sub.add_parser("paper", help="paper-trading (paper-only, risk-gated)")
+    paper_sub = p_paper.add_subparsers(dest="paper_command", required=True)
+    p_paper_run = paper_sub.add_parser("run", help="run the gated rebalance pipeline")
+    p_paper_run.add_argument("--strategy", required=True, choices=["voltarget", "trend"])
+    p_paper_run.add_argument(
+        "--submit", action="store_true",
+        help="submit REAL paper orders (default is dry-run: plan only)",
+    )
+    p_paper_run.set_defaults(func=cmd_paper_run)
+    p_paper_status = paper_sub.add_parser("status", help="account, positions, orders, risk state")
+    p_paper_status.set_defaults(func=cmd_paper_status)
 
     p_risk = sub.add_parser("risk", help="risk-engine limits and kill-switch state")
     risk_sub = p_risk.add_subparsers(dest="risk_command", required=True)

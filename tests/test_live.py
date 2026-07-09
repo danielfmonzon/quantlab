@@ -74,3 +74,22 @@ def test_live_alpaca_clock() -> None:
     clock = client.fetch_clock()
     assert isinstance(clock, ClockInfo)
     assert isinstance(clock.is_open, bool)
+
+
+@pytest.mark.skipif(not _HAS_ALPACA, reason="Alpaca keys not set")
+def test_live_paper_account_and_positions_read_only() -> None:
+    # Read-only against the real PAPER account. Submits nothing.
+    from quantlab.broker.alpaca_trading import AccountInfo, AlpacaTradingClient
+
+    assert _ALPACA is not None and _ALPACA_SECRET is not None
+    client = AlpacaTradingClient(_ALPACA, _ALPACA_SECRET, base_url=_settings.ALPACA_BASE_URL)
+
+    account = client.get_account()
+    assert isinstance(account, AccountInfo)
+    assert account.equity >= 0.0
+    assert account.currency  # non-empty
+
+    positions = client.get_positions()
+    assert isinstance(positions, list)  # may be empty
+    for p in positions:
+        assert p.symbol
