@@ -44,6 +44,14 @@ from quantlab.logging_setup import get_logger
 from quantlab.risk.engine import RiskEngine
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import load_risk_state, reset_risk_state
+from quantlab.validation import (
+    BootstrapReport,
+    PerturbReport,
+    WalkForwardReport,
+    perturb,
+    stationary_block_bootstrap,
+    walk_forward,
+)
 
 log = get_logger("quantlab.cli")
 
@@ -501,6 +509,131 @@ def cmd_risk_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+_VALIDATE_STRATEGIES = ["trend", "dualmom", "voltarget"]
+
+
+def _fmt_params(params: dict[str, float]) -> str:
+    parts = []
+    for key, val in params.items():
+        shown = f"{val:g}" if val != int(val) else str(int(val))
+        parts.append(f"{key}={shown}")
+    return ", ".join(parts)
+
+
+def _print_walkforward(name: str, wf: WalkForwardReport) -> None:
+    def f(x: float | None, pct: bool = False) -> str:
+        if x is None:
+            return "n/a"
+        return f"{x:.1%}" if pct else f"{x:.2f}"
+
+    print(f"\n=== WALK-FORWARD: {name}  (window {wf.window_years}y, {wf.n_segments} segments) ===")
+    header = f"{'SEGMENT':<26}{'CAGR':>9}{'SHARPE':>9}{'MAXDD':>9}{'TOTRET':>9}"
+    print(header)
+    print("-" * len(header))
+    for s in wf.segments:
+        label = f"{s.start.isoformat()} -> {s.end.isoformat()}"
+        print(f"{label:<26}{f(s.cagr, pct=True):>9}{f(s.sharpe):>9}"
+              f"{f(s.max_drawdown, pct=True):>9}{f(s.total_return, pct=True):>9}")
+    print("-" * len(header))
+    print(f"  segments positive return : {f(wf.pct_segments_positive_return, pct=True)}")
+    print(f"  segments beat cash (>0)  : {f(wf.pct_segments_beat_cash, pct=True)}")
+    print(f"  sharpe min/median/max    : {f(wf.sharpe_min)} / "
+          f"{f(wf.sharpe_median)} / {f(wf.sharpe_max)}")
+
+
+def _print_perturb(name: str, pt: PerturbReport) -> None:
+    def f(x: float | None, pct: bool = False) -> str:
+        if x is None:
+            return "n/a"
+        return f"{x:.1%}" if pct else f"{x:.2f}"
+
+    print(f"\n=== PERTURBATION GRID: {name}  (REPORT-ONLY - baseline stands regardless) ===")
+    header = f"{'':<2}{'PARAMS':<32}{'CAGR':>9}{'SHARPE':>9}{'MAXDD':>9}"
+    print(header)
+    print("-" * len(header))
+    for g in pt.grid:
+        mark = "* " if g.is_baseline else "  "
+        print(f"{mark}{_fmt_params(g.params):<32}{f(g.cagr, pct=True):>9}"
+              f"{f(g.sharpe):>9}{f(g.max_drawdown, pct=True):>9}")
+    print("-" * len(header))
+    print("  (* = literature baseline)")
+    verdict = "FRAGILE" if pt.fragility_flag else "ROBUST"
+    print(f"  fragility verdict: {verdict} - {pt.fragility_reason}")
+
+
+def _print_bootstrap(name: str, bs: BootstrapReport) -> None:
+    print(f"\n=== BLOCK BOOTSTRAP: {name}  (n={bs.n_samples}, block~{bs.avg_block_len}, "
+          f"seed={bs.seed}, len={bs.sample_length}) ===")
+    header = f"{'METRIC':<16}{'P5':>10}{'P50':>10}{'P95':>10}"
+    print(header)
+    print("-" * len(header))
+    print(f"{'CAGR':<16}{bs.cagr_p5:>10.1%}{bs.cagr_p50:>10.1%}{bs.cagr_p95:>10.1%}")
+    print(f"{'Sharpe':<16}{bs.sharpe_p5:>10.2f}{bs.sharpe_p50:>10.2f}{bs.sharpe_p95:>10.2f}")
+    print(f"{'MaxDrawdown':<16}{bs.max_drawdown_p5:>10.1%}"
+          f"{bs.max_drawdown_p50:>10.1%}{bs.max_drawdown_p95:>10.1%}")
+    print("-" * len(header))
+    print(f"  P(CAGR < 0)          : {bs.prob_negative_cagr:.1%}")
+    print(f"  P(MaxDD worse -30%)  : {bs.prob_drawdown_worse_than_30pct:.1%}")
+
+
+def _write_validation_report(
+    strategy_key: str,
+    start: str | None,
+    cost_bps: float,
+    seed: int,
+    wf: WalkForwardReport,
+    pt: PerturbReport,
+    bs: BootstrapReport,
+) -> None:
+    reports_dir = PROJECT_ROOT / "reports" / "validation"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    path = reports_dir / f"{strategy_key}_{stamp}.json"
+    payload = {
+        "strategy": strategy_key,
+        "start": start,
+        "cost_bps": cost_bps,
+        "seed": seed,
+        "walk_forward": wf.model_dump(mode="json"),
+        "perturbation": pt.model_dump(mode="json"),
+        "bootstrap": bs.model_dump(mode="json"),
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"\nreport written: {path}")
+
+
+def cmd_validate_strategy(args: argparse.Namespace) -> int:
+    if args.strategy not in _VALIDATE_STRATEGIES:
+        raise ConfigError(
+            f"validate-strategy supports {_VALIDATE_STRATEGIES}; got {args.strategy!r}"
+        )
+    store = ParquetStore()
+    strategy = _make_strategy(args.strategy)
+    panel = build_price_panel(store, strategy.all_symbols, start=args.start)
+    usable = panel[strategy.required_symbols].dropna()
+    if usable.empty:
+        raise ConfigError(f"no sessions where all of {strategy.required_symbols} have prices")
+    panel = panel.loc[usable.index.min():]
+
+    wf = walk_forward(panel, lambda: _make_strategy(args.strategy), cost_bps=args.cost_bps)
+    pt = perturb(args.strategy, panel, cost_bps=args.cost_bps)
+    result = run_backtest(panel, strategy, cost_bps=args.cost_bps)
+    bs = stationary_block_bootstrap(result.daily_returns, seed=args.seed)
+
+    log.info("walk_forward", strategy=args.strategy, **wf.model_dump(mode="json"))
+    log.info("perturbation", **pt.model_dump(mode="json"))  # dump already carries strategy
+    log.info("bootstrap", strategy=args.strategy, **bs.model_dump(mode="json"))
+
+    print(f"validation battery for '{strategy.name}'  "
+          f"(panel {panel.index.min().date()} -> {panel.index.max().date()}, "
+          f"{panel.shape[0]} sessions)")
+    _print_walkforward(strategy.name, wf)
+    _print_perturb(strategy.name, pt)
+    _print_bootstrap(strategy.name, bs)
+    _write_validation_report(args.strategy, args.start, args.cost_bps, args.seed, wf, pt, bs)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -543,6 +676,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_cmp.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
     p_cmp.add_argument("--risk", action="store_true", help="apply the risk overlay")
     p_cmp.set_defaults(func=cmd_compare)
+
+    p_val = sub.add_parser(
+        "validate-strategy",
+        help="report-only validation battery (walk-forward, perturbation, bootstrap)",
+    )
+    p_val.add_argument("--strategy", required=True, choices=_VALIDATE_STRATEGIES)
+    p_val.add_argument("--start", default="2003-01-01", help="ISO start date")
+    p_val.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
+    p_val.add_argument("--seed", default=42, type=int, help="bootstrap RNG seed")
+    p_val.set_defaults(func=cmd_validate_strategy)
 
     p_risk = sub.add_parser("risk", help="risk-engine limits and kill-switch state")
     risk_sub = p_risk.add_subparsers(dest="risk_command", required=True)
