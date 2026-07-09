@@ -246,6 +246,7 @@ def test_kill_fires_critical_alert_after_state_written(tmp_path) -> None:
     assert report.aborted and report.abort_stage == "evaluate_portfolio"
     assert seen["halted_at_alert"] is True  # state written BEFORE the alert fired
     assert seen["alert"].level == "CRITICAL"  # type: ignore[attr-defined]
+    assert "trend" in seen["alert"].title  # type: ignore[attr-defined]  carries the label
     assert load_risk_state(state_path).requires_manual_reset is True  # KILL
     broker.submit_order.assert_not_called()  # aborted before any order
 
@@ -269,3 +270,35 @@ def test_successful_submit_fires_info_alert(tmp_path) -> None:
     info = [a for a in alerts if a.level == "INFO"]  # type: ignore[attr-defined]
     assert len(info) == 1
     assert "order(s) submitted" in info[0].title  # type: ignore[attr-defined]
+    assert "trend" in info[0].title  # alert carries the strategy label
+
+
+def test_kill_in_one_account_does_not_halt_the_other(tmp_path) -> None:
+    # --- trend: a -30% drawdown KILLs and writes ONLY trend's state ---
+    trend_rs = tmp_path / "risk_state_trend.json"
+    trend_eq = tmp_path / "equity_history_trend.parquet"
+    _seed_equity(trend_eq, [100_000.0])
+    tbroker = _happy_broker()
+    tbroker.get_account.return_value = _account(equity=70_000.0)
+    trend_report = run_paper(
+        "trend", dry_run=False, store=_trend_store(), broker=tbroker, do_ingest=False,
+        validation_override=_passing_validation(["SPY", "IEF"]),
+        health_override=_fresh_health(), now=NOW, risk_state_path=trend_rs,
+        equity_history_path=trend_eq, write_report=False, alert_fn=lambda _a: None,
+        sleep_fn=lambda _s: None, monotonic_fn=lambda: 0.0,
+    )
+    assert trend_report.aborted and trend_report.abort_stage == "evaluate_portfolio"
+    assert load_risk_state(trend_rs).halted is True
+
+    # --- voltarget: its OWN clean state -> proceeds; trend's KILL is invisible ---
+    vt_rs = tmp_path / "risk_state_voltarget.json"
+    vt_eq = tmp_path / "equity_history_voltarget.parquet"
+    vt_report = run_paper(
+        "voltarget", dry_run=True, store=_trend_store(), broker=_happy_broker(), do_ingest=False,
+        validation_override=_passing_validation(["SPY", "IEF"]),
+        health_override=_fresh_health(), now=NOW, risk_state_path=vt_rs,
+        equity_history_path=vt_eq, write_report=False, alert_fn=lambda _a: None,
+        sleep_fn=lambda _s: None, monotonic_fn=lambda: 0.0,
+    )
+    assert vt_report.abort_stage != "risk_state"  # NOT halted by trend's KILL
+    assert load_risk_state(vt_rs).halted is False  # voltarget's state stayed clean

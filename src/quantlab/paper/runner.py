@@ -65,16 +65,43 @@ from quantlab.risk.engine import (
 )
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import (
-    DEFAULT_STATE_PATH,
     RiskState,
     load_risk_state,
+    risk_state_path_for,
     save_risk_state,
 )
 
 log = get_logger("quantlab.paper")
 
-DEFAULT_EQUITY_HISTORY: Path = PROJECT_ROOT / "data" / "equity_history.parquet"
+DATA_DIR: Path = PROJECT_ROOT / "data"
+DEFAULT_EQUITY_HISTORY: Path = DATA_DIR / "equity_history.parquet"
 PAPER_REPORTS_DIR: Path = PROJECT_ROOT / "reports" / "paper"
+
+
+def equity_history_path_for(label: str, data_dir: Path = DATA_DIR) -> Path:
+    """Per-account equity-history path, e.g. ``data/equity_history_trend.parquet``."""
+    return data_dir / f"equity_history_{label}.parquet"
+
+
+def migrate_legacy_state(data_dir: Path = DATA_DIR) -> list[str]:
+    """Rename Batch-9 single-account files to voltarget's namespace (idempotent).
+
+    The legacy ``equity_history.parquet`` / ``risk_state.json`` held voltarget's
+    state, so they migrate to the ``*_voltarget.*`` names. Returns the files
+    created (empty on a no-op). Safe to call every run.
+    """
+    migrations = [
+        (data_dir / "equity_history.parquet", data_dir / "equity_history_voltarget.parquet"),
+        (data_dir / "risk_state.json", data_dir / "risk_state_voltarget.json"),
+    ]
+    migrated: list[str] = []
+    for legacy, target in migrations:
+        if legacy.exists() and not target.exists():
+            legacy.rename(target)
+            migrated.append(target.name)
+    if migrated:
+        log.info("legacy_state_migrated", files=migrated)
+    return migrated
 
 # Order statuses that will never change again (Alpaca lifecycle).
 _TERMINAL_STATUSES = frozenset({
@@ -146,8 +173,8 @@ def run_paper(
     validation_override: list[ValidationReport] | None = None,
     health_override: HealthReport | None = None,
     clock: ClockInfo | None = None,
-    risk_state_path: Path = DEFAULT_STATE_PATH,
-    equity_history_path: Path = DEFAULT_EQUITY_HISTORY,
+    risk_state_path: Path | None = None,
+    equity_history_path: Path | None = None,
     reports_dir: Path = PAPER_REPORTS_DIR,
     min_trade_frac: float = 0.01,
     poll_timeout: float = 120.0,
@@ -166,6 +193,14 @@ def run_paper(
     run_now = now if now is not None else datetime.now(UTC)
     strategy = make_paper_strategy(strategy_name)
     report = PaperRunReport(strategy=strategy_name, dry_run=dry_run, timestamp=run_now)
+
+    # Per-account state isolation: default each path to this strategy's own label
+    # so a KILL/history in one account never touches another's.
+    rs_path = risk_state_path if risk_state_path is not None else risk_state_path_for(strategy_name)
+    eq_path = (
+        equity_history_path if equity_history_path is not None
+        else equity_history_path_for(strategy_name)
+    )
 
     def _stage(stage: str, ok: bool, detail: str) -> None:
         report.stages.append(StageOutcome(stage=stage, ok=ok, detail=detail))
@@ -192,7 +227,7 @@ def run_paper(
         return report
 
     # -- (a) risk state: FIRST, before any broker/network touch --------------
-    state = load_risk_state(risk_state_path)
+    state = load_risk_state(rs_path)
     if state.halted:
         if state.requires_manual_reset:
             reason = f"halted: {state.reason}; quantlab risk reset required"
@@ -274,7 +309,7 @@ def run_paper(
             "; ".join(decision.adjustments) if decision.adjustments else "no adjustment")
 
     # -- (h) evaluate_portfolio on account equity history -------------------
-    equity_series = _append_equity_snapshot(equity_history_path, run_now, account.equity)
+    equity_series = _append_equity_snapshot(eq_path, run_now, account.equity)
     if len(equity_series) >= 2:
         pdec = engine.evaluate_portfolio(equity_series, len(equity_series) - 1)
         if pdec.action in (KILL_DRAWDOWN, HALT_DAILY_LOSS, HALT_WEEKLY_LOSS):
@@ -284,7 +319,7 @@ def run_paper(
                     triggered_at=run_now,
                     requires_manual_reset=(pdec.action == KILL_DRAWDOWN),
                 ),
-                risk_state_path,
+                rs_path,
             )
             return _abort(
                 "evaluate_portfolio", f"{pdec.action}: {pdec.reason}", level="CRITICAL"
@@ -447,12 +482,40 @@ def _finish(report: PaperRunReport, reports_dir: Path, write_report: bool) -> No
     path.write_text(json.dumps(report.model_dump(mode="json"), indent=2), encoding="utf-8")
 
 
+def run_all_strategies(
+    strategies: list[str],
+    run_one: Callable[[str], int],
+    printer: Callable[[str], None] = print,
+) -> int:
+    """Run each strategy in order, isolating failures; nonzero if ANY failed.
+
+    One strategy raising or aborting must never prevent the next from running —
+    each account is independent. Returns 0 only if every strategy returned 0.
+    """
+    overall = 0
+    for strategy in strategies:
+        printer(f"\n========== {strategy} ==========")
+        try:
+            rc = run_one(strategy)
+        except Exception as exc:  # noqa: BLE001 - isolate: keep going to the next account
+            log.error("run_all_strategy_failed", strategy=strategy, error=str(exc))
+            printer(f"[{strategy}] FAILED: {exc}")
+            rc = 1
+        if rc != 0:
+            overall = 1
+    return overall
+
+
 __all__ = [
     "run_paper",
+    "run_all_strategies",
     "PaperRunReport",
     "StageOutcome",
     "make_paper_strategy",
     "current_target_weights",
+    "migrate_legacy_state",
+    "equity_history_path_for",
+    "DATA_DIR",
     "DEFAULT_EQUITY_HISTORY",
     "PAPER_REPORTS_DIR",
 ]

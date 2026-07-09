@@ -22,6 +22,7 @@ _TIINGO = _settings.TIINGO_API_KEY
 _ALPACA = _settings.ALPACA_API_KEY
 _ALPACA_SECRET = _settings.ALPACA_SECRET_KEY
 _HAS_ALPACA = bool(_ALPACA and _ALPACA_SECRET)
+_HAS_TREND = bool(_settings.ALPACA_TREND_API_KEY and _settings.ALPACA_TREND_SECRET_KEY)
 
 pytestmark = pytest.mark.live
 
@@ -93,3 +94,17 @@ def test_live_paper_account_and_positions_read_only() -> None:
     assert isinstance(positions, list)  # may be empty
     for p in positions:
         assert p.symbol
+
+
+@pytest.mark.skipif(not _HAS_TREND, reason="trend account keys not set")
+def test_live_trend_account_read_only() -> None:
+    # Read-only against trend's DEDICATED paper account (isolated from voltarget).
+    from quantlab.broker.alpaca_trading import AccountInfo, AlpacaTradingClient
+    from quantlab.config import account_for
+
+    creds = account_for("trend")
+    broker = AlpacaTradingClient(creds.api_key, creds.secret_key, base_url=creds.base_url)
+    account = broker.get_account()
+    assert isinstance(account, AccountInfo)
+    assert account.equity >= 0.0
+    assert creds.label == "trend"

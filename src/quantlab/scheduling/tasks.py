@@ -2,8 +2,8 @@
 
 Two weekday tasks are installed:
 
-* ``quantlab-paper-run`` at 10:00 - runs ``quantlab paper run --strategy
-  voltarget --submit``.
+* ``quantlab-paper-run`` at 10:00 - runs ``quantlab paper run-all --submit``
+  (each approved strategy in its own isolated paper account, in order).
 * ``quantlab-digest`` at 16:45 - runs ``quantlab digest``.
 
 Why 10:00 (local, intended as ET): starting 30 minutes after the 09:30 open
@@ -67,7 +67,7 @@ def build_install_commands(exe: str) -> list[list[str]]:
         [
             "schtasks", "/Create", "/TN", TASK_PAPER_RUN, "/SC", "WEEKLY",
             "/D", _WEEKDAYS, "/ST", _RUN_TIME,
-            "/TR", _tr(exe, "paper run --strategy voltarget --submit"), "/F",
+            "/TR", _tr(exe, "paper run-all --submit"), "/F",
         ],
         [
             "schtasks", "/Create", "/TN", TASK_DIGEST, "/SC", "WEEKLY",

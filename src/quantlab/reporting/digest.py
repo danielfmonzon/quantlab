@@ -1,9 +1,11 @@
-"""Daily paper-trading digest: account, positions, orders, risk, track record.
+"""Daily paper-trading digest across ALL paper accounts (one section per label).
 
-Report-only. ``build_digest`` snapshots current broker/store/risk state into a
-pydantic :class:`Digest`; ``render_markdown`` formats it; ``write_digest`` writes
-both a ``.md`` and ``.json`` under ``reports/digests/`` (same-day reruns
-overwrite).
+Report-only. ``build_digest`` snapshots each approved strategy's dedicated
+account (equity, positions with unrealized P&L, orders, that label's risk state,
+staleness, target weights, per-label track record) plus a combined total. A label
+whose keys are absent is skipped cleanly with a note. ``render_markdown`` formats
+it; ``write_digest`` writes ``.md`` + ``.json`` under ``reports/digests/``
+(same-day reruns overwrite).
 """
 
 from __future__ import annotations
@@ -17,23 +19,22 @@ from pydantic import BaseModel
 
 from quantlab.backtest.panel import build_price_panel
 from quantlab.broker.alpaca_trading import AlpacaTradingClient
+from quantlab.config import APPROVED_STRATEGIES
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import ClockInfo
 from quantlab.data.calendar import TradingCalendar
 from quantlab.data.health import preflight
 from quantlab.data.store import ParquetStore
 from quantlab.paper.runner import (
-    DEFAULT_EQUITY_HISTORY,
+    DATA_DIR,
     PAPER_REPORTS_DIR,
     current_target_weights,
+    equity_history_path_for,
     make_paper_strategy,
 )
-from quantlab.risk.state import DEFAULT_STATE_PATH, RiskState, load_risk_state
+from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
 
 DIGESTS_DIR: Path = PROJECT_ROOT / "reports" / "digests"
-
-# Strategies whose current target we surface in the digest (paper-approved only).
-APPROVED_STRATEGIES = ("voltarget",)
 
 
 class DigestAccount(BaseModel):
@@ -73,16 +74,27 @@ class TrackRecord(BaseModel):
     total_return_since_start: float | None
 
 
+class AccountDigest(BaseModel):
+    """One paper account's slice of the digest."""
+
+    label: str
+    available: bool
+    note: str | None = None  # why unavailable, when available is False
+    account: DigestAccount | None = None
+    positions: list[DigestPosition] = []
+    orders: list[DigestOrder] = []
+    risk_state: RiskState | None = None
+    staleness: list[DigestStaleness] = []
+    target_weights: dict[str, float] = {}
+    track_record: TrackRecord | None = None
+    latest_run_note: str | None = None
+
+
 class Digest(BaseModel):
     generated_at: datetime
-    account: DigestAccount
-    positions: list[DigestPosition]
-    orders: list[DigestOrder]
-    risk_state: RiskState
-    staleness: list[DigestStaleness]
-    target_weights: dict[str, dict[str, float]]
-    track_record: TrackRecord
-    latest_run_note: str | None
+    accounts: list[AccountDigest]
+    combined_equity: float
+    combined_cash: float
 
 
 def _equity_history(path: Path) -> pd.DataFrame:
@@ -92,10 +104,10 @@ def _equity_history(path: Path) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def _latest_run_note(paper_reports_dir: Path) -> str | None:
+def _latest_run_note(paper_reports_dir: Path, label: str) -> str | None:
     if not paper_reports_dir.exists():
         return None
-    runs = sorted(paper_reports_dir.glob("run_*.json"))
+    runs = sorted(paper_reports_dir.glob(f"run_{label}_*.json"))
     if not runs:
         return None
     payload = json.loads(runs[-1].read_text(encoding="utf-8"))
@@ -108,28 +120,30 @@ def _latest_run_note(paper_reports_dir: Path) -> str | None:
     return f"{runs[-1].name}: {'DRY-RUN' if payload.get('dry_run') else 'SUBMIT'}, {n} order(s)"
 
 
-def build_digest(
-    broker: AlpacaTradingClient,
+def _account_digest(
+    label: str,
+    broker: AlpacaTradingClient | None,
     store: ParquetStore,
     calendar: TradingCalendar,
     now: datetime,
-    *,
-    clock: ClockInfo | None = None,
-    equity_history_path: Path = DEFAULT_EQUITY_HISTORY,
-    paper_reports_dir: Path = PAPER_REPORTS_DIR,
-    risk_state_path: Path = DEFAULT_STATE_PATH,
-) -> Digest:
-    """Assemble the daily digest from live broker/store/risk state."""
+    clock: ClockInfo | None,
+    data_dir: Path,
+    paper_reports_dir: Path,
+) -> AccountDigest:
+    if broker is None:
+        return AccountDigest(label=label, available=False,
+                             note="account keys not configured")
+
+    strat = make_paper_strategy(label)
     account_raw = broker.get_account()
     positions_raw = broker.get_positions()
     orders_raw = broker.get_orders(status="all", after=now.date())
 
-    history = _equity_history(equity_history_path)
+    history = _equity_history(equity_history_path_for(label, data_dir))
     prev_equity = float(history["equity"].iloc[-1]) if len(history) else None
     day_change = (
         account_raw.equity / prev_equity - 1.0
-        if prev_equity is not None and prev_equity > 0.0
-        else None
+        if prev_equity is not None and prev_equity > 0.0 else None
     )
 
     positions: list[DigestPosition] = []
@@ -148,54 +162,73 @@ def build_digest(
         for o in orders_raw
     ]
 
-    # Union of approved strategies' symbols for the staleness view.
-    strategies = {name: make_paper_strategy(name) for name in APPROVED_STRATEGIES}
-    symbols = sorted({s for strat in strategies.values() for s in strat.all_symbols})
-    health = preflight(symbols, store, calendar, clock, now)
+    health = preflight(strat.all_symbols, store, calendar, clock, now)
     staleness = [
         DigestStaleness(symbol=sh.symbol, has_data=sh.has_data,
                         last_date=sh.last_date, staleness_sessions=sh.staleness_sessions)
         for sh in health.symbols
     ]
 
-    target_weights: dict[str, dict[str, float]] = {}
-    for name, strat in strategies.items():
-        panel = build_price_panel(store, strat.all_symbols)
-        usable = panel[strat.required_symbols].dropna()
-        if usable.empty:
-            target_weights[name] = {}
-            continue
+    panel = build_price_panel(store, strat.all_symbols)
+    usable = panel[strat.required_symbols].dropna()
+    if usable.empty:
+        target_weights: dict[str, float] = {}
+    else:
         panel = panel.loc[usable.index.min():]
-        weights, _ = current_target_weights(strat, panel)
-        target_weights[name] = weights
+        target_weights, _ = current_target_weights(strat, panel)
 
-    start_date = (
-        pd.Timestamp(history["timestamp"].iloc[0]).date() if len(history) else None
-    )
+    start_date = pd.Timestamp(history["timestamp"].iloc[0]).date() if len(history) else None
     first_equity = float(history["equity"].iloc[0]) if len(history) else None
     total_return = (
         account_raw.equity / first_equity - 1.0
-        if first_equity is not None and first_equity > 0.0
-        else None
-    )
-    track_record = TrackRecord(
-        start_date=start_date, n_run_days=int(len(history)),
-        total_return_since_start=total_return,
+        if first_equity is not None and first_equity > 0.0 else None
     )
 
-    return Digest(
-        generated_at=now,
+    return AccountDigest(
+        label=label,
+        available=True,
         account=DigestAccount(
             equity=account_raw.equity, cash=account_raw.cash,
             currency=account_raw.currency, day_change_pct=day_change,
         ),
         positions=positions,
         orders=orders,
-        risk_state=load_risk_state(risk_state_path),
+        risk_state=load_risk_state(risk_state_path_for(label, data_dir)),
         staleness=staleness,
         target_weights=target_weights,
-        track_record=track_record,
-        latest_run_note=_latest_run_note(paper_reports_dir),
+        track_record=TrackRecord(
+            start_date=start_date, n_run_days=int(len(history)),
+            total_return_since_start=total_return,
+        ),
+        latest_run_note=_latest_run_note(paper_reports_dir, label),
+    )
+
+
+def build_digest(
+    brokers: dict[str, AlpacaTradingClient | None],
+    store: ParquetStore,
+    calendar: TradingCalendar,
+    now: datetime,
+    *,
+    clock: ClockInfo | None = None,
+    data_dir: Path = DATA_DIR,
+    paper_reports_dir: Path = PAPER_REPORTS_DIR,
+) -> Digest:
+    """Assemble the digest across every approved account (missing keys -> skipped)."""
+    accounts: list[AccountDigest] = []
+    combined_equity = 0.0
+    combined_cash = 0.0
+    for label in APPROVED_STRATEGIES:
+        acct = _account_digest(
+            label, brokers.get(label), store, calendar, now, clock, data_dir, paper_reports_dir
+        )
+        accounts.append(acct)
+        if acct.available and acct.account is not None:
+            combined_equity += acct.account.equity
+            combined_cash += acct.account.cash
+    return Digest(
+        generated_at=now, accounts=accounts,
+        combined_equity=combined_equity, combined_cash=combined_cash,
     )
 
 
@@ -203,79 +236,74 @@ def _pct(x: float | None) -> str:
     return "n/a" if x is None else f"{x:+.2%}"
 
 
-def render_markdown(digest: Digest) -> str:
-    """Render a compact, readable daily report."""
-    a = digest.account
-    lines: list[str] = []
-    lines.append(f"# quantlab paper digest - {digest.generated_at.date().isoformat()}")
-    lines.append("")
-    lines.append(f"_generated {digest.generated_at.isoformat()}_")
-    lines.append("")
+def _render_account(acct: AccountDigest) -> list[str]:
+    lines: list[str] = [f"## Account: {acct.label}"]
+    if not acct.available:
+        lines.append(f"- _skipped: {acct.note}_")
+        lines.append("")
+        return lines
 
-    lines.append("## Account")
+    a = acct.account
+    assert a is not None
     lines.append(
         f"- equity: **{a.equity:,.2f} {a.currency}**  (day change {_pct(a.day_change_pct)})"
     )
     lines.append(f"- cash: {a.cash:,.2f} {a.currency}")
-    lines.append("")
 
-    lines.append("## Positions")
-    if not digest.positions:
-        lines.append("- (none)")
-    else:
+    if acct.positions:
+        lines.append("")
         lines.append("| symbol | qty | market value | avg entry | unrealized P&L |")
         lines.append("|---|---:|---:|---:|---:|")
-        for p in digest.positions:
+        for p in acct.positions:
             lines.append(
                 f"| {p.symbol} | {p.qty:g} | {p.market_value:,.2f} | "
                 f"{p.avg_entry_price:,.2f} | {p.unrealized_pl:+,.2f} "
                 f"({_pct(p.unrealized_pl_pct)}) |"
             )
-    lines.append("")
-
-    lines.append(f"## Today's orders ({digest.generated_at.date().isoformat()})")
-    if not digest.orders:
-        lines.append("- (none)")
     else:
-        for o in digest.orders:
-            note = f" ${o.notional:,.2f}" if o.notional is not None else ""
-            lines.append(f"- {o.side} {o.symbol}{note} - {o.status}  (`{o.client_order_id}`)")
-    lines.append("")
+        lines.append("- positions: (none)")
 
-    rs = digest.risk_state
-    lines.append("## Risk state")
-    halted_detail = (
-        f" - {rs.reason} (manual reset required: {rs.requires_manual_reset})"
-        if rs.halted else ""
-    )
-    lines.append(f"- halted: **{rs.halted}**{halted_detail}")
-    lines.append("")
-
-    lines.append("## Data staleness")
-    for s in digest.staleness:
-        last = s.last_date.isoformat() if s.last_date else "-"
-        lines.append(f"- {s.symbol}: last {last}, {s.staleness_sessions} session(s) behind"
-                     + ("" if s.has_data else " (NO DATA)"))
-    lines.append("")
-
-    lines.append("## Current target weights")
-    for name, weights in digest.target_weights.items():
-        pretty = ", ".join(f"{k}={v:.3f}" for k, v in weights.items()) or "cash"
-        lines.append(f"- {name}: {pretty}")
-    lines.append("")
-
-    tr = digest.track_record
-    lines.append("## Paper track record")
-    start = tr.start_date.isoformat() if tr.start_date else "-"
-    lines.append(f"- since {start} over {tr.n_run_days} run-day(s): "
-                 f"total return {_pct(tr.total_return_since_start)}")
-    lines.append("")
-
-    if digest.latest_run_note:
-        lines.append("## Latest run")
-        lines.append(f"- {digest.latest_run_note}")
+    if acct.orders:
         lines.append("")
+        lines.append("- orders today:")
+        for o in acct.orders:
+            note = f" ${o.notional:,.2f}" if o.notional is not None else ""
+            lines.append(f"  - {o.side} {o.symbol}{note} - {o.status}  (`{o.client_order_id}`)")
 
+    rs = acct.risk_state
+    halted = rs.halted if rs is not None else False
+    lines.append(f"- risk: halted **{halted}**"
+                 + (f" - {rs.reason}" if rs is not None and rs.halted else ""))
+
+    weights = ", ".join(f"{k}={v:.3f}" for k, v in acct.target_weights.items()) or "cash"
+    lines.append(f"- target weights: {weights}")
+
+    tr = acct.track_record
+    if tr is not None:
+        start = tr.start_date.isoformat() if tr.start_date else "-"
+        lines.append(f"- track record: since {start} over {tr.n_run_days} run-day(s), "
+                     f"total return {_pct(tr.total_return_since_start)}")
+    if acct.latest_run_note:
+        lines.append(f"- latest run: {acct.latest_run_note}")
+    lines.append("")
+    return lines
+
+
+def render_markdown(digest: Digest) -> str:
+    """Render the multi-account daily report."""
+    lines: list[str] = [
+        f"# quantlab paper digest - {digest.generated_at.date().isoformat()}",
+        "",
+        f"_generated {digest.generated_at.isoformat()}_",
+        "",
+    ]
+    for acct in digest.accounts:
+        lines.extend(_render_account(acct))
+
+    lines.append("## Combined")
+    lines.append(f"- total equity across accounts: **{digest.combined_equity:,.2f}**")
+    lines.append(f"- total cash across accounts: {digest.combined_cash:,.2f}")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -295,11 +323,11 @@ __all__ = [
     "render_markdown",
     "write_digest",
     "Digest",
+    "AccountDigest",
     "DigestAccount",
     "DigestPosition",
     "DigestOrder",
     "DigestStaleness",
     "TrackRecord",
     "DIGESTS_DIR",
-    "APPROVED_STRATEGIES",
 ]

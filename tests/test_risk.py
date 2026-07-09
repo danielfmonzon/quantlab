@@ -370,7 +370,7 @@ def test_risk_overlay_changes_equity_vs_plain() -> None:
 def test_cli_reset_refuses_without_confirm(capsys) -> None:
     from quantlab.cli import cmd_risk_reset
 
-    rc = cmd_risk_reset(argparse.Namespace(confirm=None))
+    rc = cmd_risk_reset(argparse.Namespace(strategy="voltarget", confirm=None))
     assert rc == 2
     err = capsys.readouterr().err
     assert "--confirm YES" in err
@@ -379,8 +379,16 @@ def test_cli_reset_refuses_without_confirm(capsys) -> None:
 def test_cli_reset_refuses_wrong_confirm(capsys) -> None:
     from quantlab.cli import cmd_risk_reset
 
-    assert cmd_risk_reset(argparse.Namespace(confirm="yes")) == 2
-    assert cmd_risk_reset(argparse.Namespace(confirm="Y")) == 2
+    assert cmd_risk_reset(argparse.Namespace(strategy="voltarget", confirm="yes")) == 2
+    assert cmd_risk_reset(argparse.Namespace(strategy="trend", confirm="Y")) == 2
+
+
+def test_cli_reset_requires_valid_strategy() -> None:
+    from quantlab.cli import cmd_risk_reset
+    from quantlab.config import ConfigError
+
+    with pytest.raises(ConfigError, match="--strategy"):
+        cmd_risk_reset(argparse.Namespace(strategy="bogus", confirm="YES"))
 
 
 def test_cli_reset_accepts_exact_confirm(monkeypatch) -> None:
@@ -388,14 +396,14 @@ def test_cli_reset_accepts_exact_confirm(monkeypatch) -> None:
 
     called = {}
 
-    def fake_reset() -> RiskState:
-        called["hit"] = True
+    def fake_reset(path) -> RiskState:
+        called["path"] = path
         return RiskState(halted=True, reason="KILL", requires_manual_reset=True)
 
     monkeypatch.setattr(cli, "reset_risk_state", fake_reset)
-    rc = cli.cmd_risk_reset(argparse.Namespace(confirm="YES"))
+    rc = cli.cmd_risk_reset(argparse.Namespace(strategy="trend", confirm="YES"))
     assert rc == 0
-    assert called.get("hit") is True
+    assert "risk_state_trend.json" in str(called["path"])  # reset the trend label only
 
 
 # --------------------------------------------------------------------------- #

@@ -32,7 +32,14 @@ from quantlab.backtest.strategies import (
     VolTarget,
 )
 from quantlab.broker.alpaca_trading import AlpacaTradingClient
-from quantlab.config import ConfigError, get_settings, load_universe
+from quantlab.config import (
+    APPROVED_STRATEGIES,
+    ConfigError,
+    account_for,
+    get_settings,
+    load_env_file,
+    load_universe,
+)
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import AlpacaDataClient
 from quantlab.data.calendar import TradingCalendar
@@ -42,12 +49,17 @@ from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
 from quantlab.logging_setup import get_logger
-from quantlab.paper.runner import PaperRunReport, run_paper
+from quantlab.paper.runner import (
+    PaperRunReport,
+    migrate_legacy_state,
+    run_all_strategies,
+    run_paper,
+)
 from quantlab.reporting.alerts import send_test_alert
 from quantlab.reporting.digest import build_digest, render_markdown, write_digest
 from quantlab.risk.engine import RiskEngine
 from quantlab.risk.limits import load_risk_limits
-from quantlab.risk.state import load_risk_state, reset_risk_state
+from quantlab.risk.state import load_risk_state, reset_risk_state, risk_state_path_for
 from quantlab.scheduling import tasks as schedule_tasks
 from quantlab.validation import (
     BootstrapReport,
@@ -484,33 +496,40 @@ def _write_compare_report(
 
 def cmd_risk_show(args: argparse.Namespace) -> int:
     limits = load_risk_limits()
-    state = load_risk_state()
     print("=== RiskLimits (config/risk.yaml) ===")
     for field_name, value in limits.model_dump().items():
         print(f"  {field_name:<24} {value}")
-    print("=== RiskState (data/risk_state.json) ===")
-    for field_name, value in state.model_dump(mode="json").items():
-        print(f"  {field_name:<24} {value}")
+    # One kill-switch state per account label; isolated from one another.
+    for label in APPROVED_STRATEGIES:
+        state = load_risk_state(risk_state_path_for(label))
+        print(f"=== RiskState [{label}] (data/risk_state_{label}.json) ===")
+        for field_name, value in state.model_dump(mode="json").items():
+            print(f"  {field_name:<24} {value}")
     return 0
 
 
 def cmd_risk_reset(args: argparse.Namespace) -> int:
+    if args.strategy not in APPROVED_STRATEGIES:
+        raise ConfigError(
+            f"--strategy must be one of {list(APPROVED_STRATEGIES)}; got {args.strategy!r}"
+        )
     if args.confirm != "YES":
         print("Refusing to reset: pass --confirm YES to clear a halted state.", file=sys.stderr)
         return 2
-    cleared = reset_risk_state()
+    cleared = reset_risk_state(risk_state_path_for(args.strategy))
     log.info(
         "risk_reset",
+        strategy=args.strategy,
         was_halted=cleared.halted,
         reason=cleared.reason,
         required_manual_reset=cleared.requires_manual_reset,
     )
     if cleared.halted:
-        print(f"Cleared halted state: reason={cleared.reason!r} "
+        print(f"[{args.strategy}] cleared halted state: reason={cleared.reason!r} "
               f"triggered_at={cleared.triggered_at} "
               f"requires_manual_reset={cleared.requires_manual_reset}")
     else:
-        print("No halted state was set; state is now clean.")
+        print(f"[{args.strategy}] no halted state was set; state is now clean.")
     return 0
 
 
@@ -640,12 +659,19 @@ def cmd_validate_strategy(args: argparse.Namespace) -> int:
 
 
 def cmd_digest(args: argparse.Namespace) -> int:
-    broker = _build_trading_client()
     store = ParquetStore()
     calendar = TradingCalendar()
     now = datetime.now(UTC)
 
-    digest = build_digest(broker, store, calendar, now)
+    # One broker per approved account; absent keys -> None (rendered as skipped).
+    brokers: dict[str, AlpacaTradingClient | None] = {}
+    for label in APPROVED_STRATEGIES:
+        try:
+            brokers[label], _ = _trading_client_for(label)
+        except ConfigError:
+            brokers[label] = None
+
+    digest = build_digest(brokers, store, calendar, now)
     md_path, json_path = write_digest(digest)
     print(render_markdown(digest))
     print(f"\ndigest written: {md_path}")
@@ -672,14 +698,20 @@ def cmd_schedule(args: argparse.Namespace) -> int:
     raise ConfigError(f"unknown schedule command {args.schedule_command!r}")  # pragma: no cover
 
 
-def _build_trading_client() -> AlpacaTradingClient:
-    settings = get_settings()
-    settings.require_keys("ALPACA_API_KEY", "ALPACA_SECRET_KEY")
-    assert settings.ALPACA_API_KEY is not None
-    assert settings.ALPACA_SECRET_KEY is not None
-    return AlpacaTradingClient(
-        settings.ALPACA_API_KEY, settings.ALPACA_SECRET_KEY, base_url=settings.ALPACA_BASE_URL
+def _trading_client_for(strategy: str) -> tuple[AlpacaTradingClient, str]:
+    """Build the paper broker for ``strategy``'s dedicated account (never falls back)."""
+    creds = account_for(strategy)
+    client = AlpacaTradingClient(creds.api_key, creds.secret_key, base_url=creds.base_url)
+    return client, creds.label
+
+
+def _clock_for(label: str) -> object | None:
+    """Read-only market clock via this account's keys (sharpens health preflight)."""
+    creds = account_for(label)
+    data_client = AlpacaDataClient(
+        creds.api_key, creds.secret_key, base_trading_url=creds.base_url
     )
+    return data_client.fetch_clock()
 
 
 def _paper_ingest_fn(symbols: list[str], store: ParquetStore) -> None:
@@ -733,74 +765,70 @@ def _print_paper_report(report: PaperRunReport) -> None:
         print("\n  (no orders submitted)")
 
 
-def cmd_paper_run(args: argparse.Namespace) -> int:
-    broker = _build_trading_client()
-    store = ParquetStore()
-    # A read-only clock sharpens the health preflight (optional; keys already present).
-    settings = get_settings()
-    clock = None
-    if settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
-        data_client = AlpacaDataClient(
-            settings.ALPACA_API_KEY, settings.ALPACA_SECRET_KEY,
-            base_trading_url=settings.ALPACA_BASE_URL,
-        )
-        clock = data_client.fetch_clock()
-
+def _run_one_paper(strategy: str, submit: bool) -> int:
+    """Run one strategy in ITS OWN account with per-label state isolation."""
+    broker, label = _trading_client_for(strategy)
+    clock = _clock_for(strategy)
     report = run_paper(
-        args.strategy,
-        dry_run=not args.submit,
-        store=store,
+        strategy,
+        dry_run=not submit,
+        store=ParquetStore(),
         broker=broker,
         ingest_fn=_paper_ingest_fn,
-        clock=clock,
+        clock=clock,  # type: ignore[arg-type]
+        risk_state_path=risk_state_path_for(label),
+        equity_history_path=None,  # runner derives equity_history_{label}.parquet
     )
     _print_paper_report(report)
     return 1 if report.aborted else 0
 
 
-def cmd_paper_status(args: argparse.Namespace) -> int:
-    broker = _build_trading_client()
+def cmd_paper_run(args: argparse.Namespace) -> int:
+    return _run_one_paper(args.strategy, args.submit)
+
+
+def cmd_paper_run_all(args: argparse.Namespace) -> int:
+    return run_all_strategies(
+        list(APPROVED_STRATEGIES),
+        lambda strategy: _run_one_paper(strategy, args.submit),
+    )
+
+
+def _print_account_status(label: str, today: date) -> None:
+    print(f"\n========== account: {label} ==========")
+    try:
+        broker, _ = _trading_client_for(label)
+    except ConfigError as exc:
+        print(f"  (skipped: {exc})")
+        return
     account = broker.get_account()
     positions = broker.get_positions()
-    today = datetime.now(UTC).date()
     orders = broker.get_orders(status="all", after=today)
-    state = load_risk_state()
+    state = load_risk_state(risk_state_path_for(label))
 
-    print("=== PAPER ACCOUNT ===")
     print(f"  equity  : {account.equity:,.2f} {account.currency}")
     print(f"  cash    : {account.cash:,.2f} {account.currency}")
     print(f"  blocked : account={account.account_blocked} trading={account.trading_blocked}")
-
-    print("\n=== POSITIONS ===")
+    print("  positions:")
     if not positions:
-        print("  (none)")
+        print("    (none)")
     for p in positions:
-        print(f"  {p.symbol:<6} qty={p.qty:<12g} mv=${p.market_value:,.2f} "
+        print(f"    {p.symbol:<6} qty={p.qty:<12g} mv=${p.market_value:,.2f} "
               f"avg=${p.avg_entry_price:,.2f}")
-
-    print(f"\n=== TODAY'S ORDERS ({today.isoformat()}) ===")
+    print(f"  today's orders ({today.isoformat()}):")
     if not orders:
-        print("  (none)")
+        print("    (none)")
     for o in orders:
-        print(f"  {o.side:<4} {o.symbol:<6} status={o.status:<12} coid={o.client_order_id}")
-
-    print("\n=== RISK STATE ===")
-    print(f"  halted={state.halted} reason={state.reason!r} "
+        print(f"    {o.side:<4} {o.symbol:<6} status={o.status:<12} coid={o.client_order_id}")
+    print(f"  risk state: halted={state.halted} reason={state.reason!r} "
           f"requires_manual_reset={state.requires_manual_reset}")
 
-    print("\n=== LAST RUN ===")
-    reports_dir = PROJECT_ROOT / "reports" / "paper"
-    runs = sorted(reports_dir.glob("run_*.json")) if reports_dir.exists() else []
-    if not runs:
-        print("  (no prior runs)")
-    else:
-        payload = json.loads(runs[-1].read_text(encoding="utf-8"))
-        verdict = "ABORTED" if payload.get("aborted") else (
-            "no-trades" if payload.get("no_trades") else "traded/planned")
-        print(f"  {runs[-1].name}: {payload.get('strategy')} "
-              f"{'DRY-RUN' if payload.get('dry_run') else 'SUBMIT'} -> {verdict}")
-        if payload.get("aborted"):
-            print(f"    abort: {payload.get('abort_stage')} - {payload.get('abort_reason')}")
+
+def cmd_paper_status(args: argparse.Namespace) -> int:
+    today = datetime.now(UTC).date()
+    labels = list(APPROVED_STRATEGIES) if args.strategy == "all" else [args.strategy]
+    for label in labels:
+        _print_account_status(label, today)
     return 0
 
 
@@ -887,7 +915,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="submit REAL paper orders (default is dry-run: plan only)",
     )
     p_paper_run.set_defaults(func=cmd_paper_run)
-    p_paper_status = paper_sub.add_parser("status", help="account, positions, orders, risk state")
+    p_paper_run_all = paper_sub.add_parser(
+        "run-all", help="run every approved strategy in its own account, in order"
+    )
+    p_paper_run_all.add_argument(
+        "--submit", action="store_true",
+        help="submit REAL paper orders (default is dry-run: plan only)",
+    )
+    p_paper_run_all.set_defaults(func=cmd_paper_run_all)
+    p_paper_status = paper_sub.add_parser("status", help="per-account status (all by default)")
+    p_paper_status.add_argument(
+        "--strategy", default="all", choices=["all", "voltarget", "trend"],
+        help="which account(s) to show (default all)",
+    )
     p_paper_status.set_defaults(func=cmd_paper_status)
 
     p_risk = sub.add_parser("risk", help="risk-engine limits and kill-switch state")
@@ -895,6 +935,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_risk_show = risk_sub.add_parser("show", help="print RiskLimits and RiskState")
     p_risk_show.set_defaults(func=cmd_risk_show)
     p_risk_reset = risk_sub.add_parser("reset", help="clear a halted state (needs --confirm YES)")
+    p_risk_reset.add_argument(
+        "--strategy", required=True, choices=list(APPROVED_STRATEGIES),
+        help="which account's kill-switch to clear",
+    )
     p_risk_reset.add_argument("--confirm", default=None, help="must be exactly YES")
     p_risk_reset.set_defaults(func=cmd_risk_reset)
 
@@ -902,6 +946,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_env_file()  # make .env visible to os.environ readers (e.g. SMTP alerts)
+    migrate_legacy_state()  # one-time rename of Batch-9 single-account state files
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

@@ -9,6 +9,8 @@ endpoint. Any attempt to configure a live endpoint raises :class:`ConfigError`.
 
 from __future__ import annotations
 
+import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -56,6 +58,10 @@ class Settings(BaseSettings):
     TIINGO_API_KEY: str | None = None
     ALPACA_API_KEY: str | None = None
     ALPACA_SECRET_KEY: str | None = None
+    # Dedicated paper account for the trend strategy (fully isolated from
+    # voltarget's ALPACA_API_KEY/SECRET). Optional until trend is traded.
+    ALPACA_TREND_API_KEY: str | None = None
+    ALPACA_TREND_SECRET_KEY: str | None = None
     ALPACA_BASE_URL: str = ALPACA_PAPER_BASE_URL
 
     @field_validator("ALPACA_BASE_URL")
@@ -152,14 +158,92 @@ def get_settings() -> Settings:
     return Settings()
 
 
+@dataclass(frozen=True)
+class AccountCreds:
+    """Resolved credentials for one strategy's dedicated paper account."""
+
+    api_key: str
+    secret_key: str
+    label: str
+    base_url: str
+
+
+# Strategy -> (key env field, secret env field, account label). The account label
+# is also the state-isolation namespace (equity_history_{label}, risk_state_{label}).
+_STRATEGY_ACCOUNTS: dict[str, tuple[str, str, str]] = {
+    "voltarget": ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "voltarget"),
+    "trend": ("ALPACA_TREND_API_KEY", "ALPACA_TREND_SECRET_KEY", "trend"),
+}
+
+# Approved strategies, in the order run-all iterates them.
+APPROVED_STRATEGIES: tuple[str, ...] = ("voltarget", "trend")
+
+
+def account_for(strategy_name: str, settings: Settings | None = None) -> AccountCreds:
+    """Resolve the dedicated paper account for ``strategy_name``.
+
+    Every strategy trades in its OWN Alpaca paper account (one paper-gated URL,
+    N key pairs). Raises :class:`ConfigError` naming the missing env vars if the
+    account is not configured. NEVER falls back to another strategy's account.
+    """
+    mapping = _STRATEGY_ACCOUNTS.get(strategy_name)
+    if mapping is None:
+        raise ConfigError(f"no paper account is mapped for strategy {strategy_name!r}")
+    key_var, secret_var, label = mapping
+    settings = settings if settings is not None else get_settings()
+    api_key = getattr(settings, key_var)
+    secret_key = getattr(settings, secret_var)
+    missing = [name for name, val in ((key_var, api_key), (secret_var, secret_key)) if not val]
+    if missing:
+        raise ConfigError(
+            f"paper account '{label}' (strategy {strategy_name!r}) is not configured; "
+            f"set the missing env var(s): {', '.join(missing)}"
+        )
+    return AccountCreds(
+        api_key=api_key, secret_key=secret_key, label=label,
+        base_url=settings.ALPACA_BASE_URL,
+    )
+
+
+_DOTENV_PATH: Path = PROJECT_ROOT / ".env"
+
+
+def load_env_file(path: Path = _DOTENV_PATH) -> list[str]:
+    """Inject ``.env`` keys into ``os.environ`` (without overriding real env vars).
+
+    pydantic-settings reads ``.env`` for the :class:`Settings` fields, but code
+    that reads ``os.environ`` directly (e.g. the alerting SMTP config) would
+    otherwise never see ``.env`` values. Call this once at CLI startup. Existing
+    environment variables always win. Returns the names loaded (never values).
+    """
+    if not path.exists():
+        return []
+    loaded: list[str] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+            loaded.append(key)
+    return loaded
+
+
 __all__ = [
     "PROJECT_ROOT",
+    "AccountCreds",
+    "APPROVED_STRATEGIES",
     "ConfigError",
     "ETF",
     "ProjectSettings",
     "Settings",
     "Universe",
+    "account_for",
     "get_settings",
+    "load_env_file",
     "load_settings",
     "load_universe",
 ]

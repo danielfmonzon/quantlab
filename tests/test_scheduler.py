@@ -29,7 +29,7 @@ def test_build_install_commands_are_exact() -> None:
         [
             "schtasks", "/Create", "/TN", "quantlab-paper-run", "/SC", "WEEKLY",
             "/D", "MON,TUE,WED,THU,FRI", "/ST", "10:00",
-            "/TR", f'"{EXE}" paper run --strategy voltarget --submit', "/F",
+            "/TR", f'"{EXE}" paper run-all --submit', "/F",
         ],
         [
             "schtasks", "/Create", "/TN", "quantlab-digest", "/SC", "WEEKLY",
