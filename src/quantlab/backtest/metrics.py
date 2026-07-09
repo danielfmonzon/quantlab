@@ -26,6 +26,16 @@ from pydantic import BaseModel
 _ANN = 252
 
 
+class DrawdownWindow(BaseModel):
+    """One peak-to-trough(-to-recovery) drawdown episode."""
+
+    peak_date: date
+    trough_date: date
+    recovery_date: date | None  # None if the drawdown had not recovered by the end
+    depth: float  # trough / peak - 1 (<= 0)
+    length_sessions: int  # sessions from peak to recovery (or to the end if ongoing)
+
+
 class Metrics(BaseModel):
     """Backtest performance summary."""
 
@@ -161,4 +171,64 @@ def compute_metrics(
     )
 
 
-__all__ = ["Metrics", "compute_metrics"]
+def drawdown_windows(equity: pd.Series, top_n: int = 3) -> list[DrawdownWindow]:
+    """Return the ``top_n`` deepest drawdown episodes, deepest first.
+
+    An episode runs from an all-time-high peak, down to its trough, and back to a
+    recovery (a new high at the prior peak level). An episode still underwater at
+    the end of the series has ``recovery_date=None`` and its length runs to the
+    last session. ``length_sessions`` counts sessions from peak to recovery/end.
+    """
+    if len(equity) < 2:
+        return []
+
+    values = equity.to_numpy(dtype=float)
+    idx = list(equity.index)
+
+    episodes: list[DrawdownWindow] = []
+    peak_i = 0
+    peak_v = values[0]
+    in_dd = False
+    trough_i = 0
+    trough_v = values[0]
+
+    def _date(i: int) -> date:
+        return idx[i].date()
+
+    for i in range(1, len(values)):
+        if values[i] >= peak_v:  # new high -> close any open episode (recovered)
+            if in_dd:
+                episodes.append(
+                    DrawdownWindow(
+                        peak_date=_date(peak_i),
+                        trough_date=_date(trough_i),
+                        recovery_date=_date(i),
+                        depth=trough_v / peak_v - 1.0,
+                        length_sessions=i - peak_i,
+                    )
+                )
+                in_dd = False
+            peak_i, peak_v = i, values[i]
+        else:  # below the running peak -> underwater
+            if not in_dd:
+                in_dd = True
+                trough_i, trough_v = i, values[i]
+            elif values[i] < trough_v:
+                trough_i, trough_v = i, values[i]
+
+    if in_dd:  # still underwater at the end
+        episodes.append(
+            DrawdownWindow(
+                peak_date=_date(peak_i),
+                trough_date=_date(trough_i),
+                recovery_date=None,
+                depth=trough_v / peak_v - 1.0,
+                length_sessions=(len(values) - 1) - peak_i,
+            )
+        )
+
+    episodes.sort(key=lambda w: w.depth)  # most negative (deepest) first
+    return episodes[:top_n]
+
+
+__all__ = ["DrawdownWindow", "Metrics", "compute_metrics", "drawdown_windows"]

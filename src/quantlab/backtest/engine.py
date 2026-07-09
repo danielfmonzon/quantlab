@@ -42,6 +42,12 @@ import pandas as pd
 
 from quantlab.backtest.strategy import Strategy
 from quantlab.data import DataError
+from quantlab.risk.engine import (
+    HALT_DAILY_LOSS,
+    HALT_WEEKLY_LOSS,
+    KILL_DRAWDOWN,
+    RiskEngine,
+)
 
 _SUM_TOL = 1e-9
 
@@ -56,6 +62,15 @@ class BacktestResult:
     turnover: pd.Series
     costs_paid: pd.Series
     config: dict[str, Any] = field(default_factory=dict)
+    risk_events: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _vec_to_weights(vec: np.ndarray, symbols: list[str]) -> dict[str, float]:
+    return {symbols[i]: float(vec[i]) for i in range(len(symbols)) if abs(vec[i]) > _SUM_TOL}
+
+
+def _dict_to_vec(weights: dict[str, float], symbols: list[str]) -> np.ndarray:
+    return np.array([float(weights.get(s, 0.0)) for s in symbols], dtype=float)
 
 
 def _validate_and_vectorize(
@@ -77,8 +92,18 @@ def run_backtest(
     strategy: Strategy,
     cost_bps: float = 5.0,
     initial_capital: float = 100_000.0,
+    risk_engine: RiskEngine | None = None,
 ) -> BacktestResult:
-    """Run ``strategy`` over ``panel`` (adj_close). See module docstring."""
+    """Run ``strategy`` over ``panel`` (adj_close). See module docstring.
+
+    With ``risk_engine`` provided, strategy weights pass through
+    ``check_weights`` and, after each session's equity update,
+    ``evaluate_portfolio`` runs; a HALT/KILL forces 100% cash at the NEXT
+    session (one-session lag), until the condition clears (HALT) or for the
+    remainder of the run (KILL). Every intervention is recorded in
+    ``risk_events``. With ``risk_engine=None`` the result is byte-identical to a
+    run without any risk overlay.
+    """
     if panel is None or panel.empty or panel.shape[1] == 0:
         raise DataError("empty panel: nothing to backtest")
 
@@ -86,6 +111,7 @@ def run_backtest(
     dates = list(panel.index)
     n = len(dates)
     rate = cost_bps / 1e4
+    idx = pd.Index(dates, name="date")
 
     price_vals = panel.to_numpy(dtype=float)
     ret_vals = panel.pct_change(fill_method=None).to_numpy(dtype=float)
@@ -117,6 +143,14 @@ def run_backtest(
     equity[0] = initial_capital
     e_prev = initial_capital
 
+    # Risk-overlay state (unused when risk_engine is None).
+    risk_events: list[dict[str, Any]] = []
+    risk_kill = False
+    risk_halted = False
+    risk_action = ""
+    risk_reason = ""
+    cash_vec = np.zeros(len(symbols), dtype=float)
+
     for k in range(1, n):
         r_t = ret_vals[k]
         held = w_prev != 0.0
@@ -131,13 +165,36 @@ def run_backtest(
         drifted_val = np.where(held, w_prev * (1.0 + r_t), 0.0)
         w_drift = drifted_val / growth  # drifted asset weights (cash is the remainder)
 
-        if k in effective:
+        if risk_engine is not None and (risk_kill or risk_halted):
+            # One-session-lagged forced liquidation to cash.
+            w_eff = cash_vec
+            turnover = float(np.abs(w_eff - w_drift).sum())
+            if float(np.abs(w_drift).sum()) > _SUM_TOL:  # an actual liquidation
+                risk_events.append({
+                    "date": dates[k].date().isoformat(),
+                    "action": risk_action,
+                    "reason": risk_reason,
+                    "weights_before": _vec_to_weights(w_drift, symbols),
+                    "weights_after": {},
+                })
+        elif k in effective:
             w_eff = effective[k]
             price_row = price_vals[k]
             bad_price = (w_eff > 0.0) & ~np.isfinite(price_row)
             if np.any(bad_price):
                 names = [symbols[j] for j in np.where(bad_price)[0]]
                 raise DataError(f"nonzero weight on NaN price for {names} on {dates[k].date()}")
+            if risk_engine is not None:
+                wd = risk_engine.check_weights(_vec_to_weights(w_eff, symbols))
+                if wd.adjustments:
+                    risk_events.append({
+                        "date": dates[k].date().isoformat(),
+                        "action": "WEIGHTS_ADJUSTED",
+                        "reason": "; ".join(wd.adjustments),
+                        "weights_before": _vec_to_weights(w_eff, symbols),
+                        "weights_after": wd.adjusted_weights,
+                    })
+                    w_eff = _dict_to_vec(wd.adjusted_weights, symbols)
             turnover = float(np.abs(w_eff - w_drift).sum())
         else:
             w_eff = w_drift
@@ -156,7 +213,19 @@ def run_backtest(
         w_prev = w_eff / (1.0 - cost) if cost > 0.0 else w_eff
         e_prev = e_t
 
-    idx = pd.Index(dates, name="date")
+        # Evaluate risk AFTER the equity update; flags apply to the NEXT session.
+        if risk_engine is not None:
+            eq_series = pd.Series(equity[: k + 1], index=idx[: k + 1])
+            decision = risk_engine.evaluate_portfolio(eq_series, dates[k])
+            if decision.action == KILL_DRAWDOWN:
+                risk_kill = True
+                risk_action, risk_reason = decision.action, decision.reason
+            elif decision.action in (HALT_DAILY_LOSS, HALT_WEEKLY_LOSS):
+                risk_halted = True
+                risk_action, risk_reason = decision.action, decision.reason
+            else:
+                risk_halted = False
+
     result = BacktestResult(
         equity=pd.Series(equity, index=idx, name="equity"),
         daily_returns=pd.Series(daily_ret[1:], index=idx[1:], name="return"),
@@ -170,7 +239,9 @@ def run_backtest(
             "symbols": symbols,
             "start": dates[0].date().isoformat() if n else None,
             "end": dates[-1].date().isoformat() if n else None,
+            "risk_overlay": risk_engine is not None,
         },
+        risk_events=risk_events,
     )
     return result
 

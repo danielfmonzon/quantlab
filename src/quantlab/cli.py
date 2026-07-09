@@ -41,6 +41,9 @@ from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
 from quantlab.logging_setup import get_logger
+from quantlab.risk.engine import RiskEngine
+from quantlab.risk.limits import load_risk_limits
+from quantlab.risk.state import load_risk_state, reset_risk_state
 
 log = get_logger("quantlab.cli")
 
@@ -286,8 +289,9 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     first_usable = usable.index.min()
     panel = panel.loc[first_usable:]
 
+    risk_engine = RiskEngine(load_risk_limits()) if getattr(args, "risk", False) else None
     # The benchmark column (if any) rides along with weight 0; the engine skips it.
-    result = run_backtest(panel, strategy, cost_bps=args.cost_bps)
+    result = run_backtest(panel, strategy, cost_bps=args.cost_bps, risk_engine=risk_engine)
     first_signal = _first_effective_signal(panel, strategy)
 
     benchmark_returns = None
@@ -310,8 +314,19 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     signal_str = first_signal.date().isoformat() if first_signal is not None else "never"
     print(f"first effective signal date: {signal_str}")
     _print_metrics(strategy.name, metrics, benchmark)
+    if risk_engine is not None:
+        _print_risk_events(strategy.name, result.risk_events)
     _write_backtest_report(args.strategy, result.config, metrics)
     return 0
+
+
+def _print_risk_events(name: str, events: list[dict]) -> None:
+    print(f"--- RISK EVENTS: {name} ({len(events)}) ---")
+    if not events:
+        print("  (none)")
+        return
+    for e in events:
+        print(f"  {e['date']}  {e['action']:<18} {e['reason']}")
 
 
 def _print_metrics(name: str, metrics: Metrics, benchmark: str | None) -> None:
@@ -377,9 +392,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
     panel = panel.loc[common_start:]
     common_end = panel.index.max()
 
+    risk_engine = RiskEngine(load_risk_limits()) if getattr(args, "risk", False) else None
     rows: list[tuple[str, Metrics]] = []
+    events_by_strategy: list[tuple[str, list[dict]]] = []
     for strat in strategies:
-        result = run_backtest(panel, strat, cost_bps=args.cost_bps)
+        result = run_backtest(panel, strat, cost_bps=args.cost_bps, risk_engine=risk_engine)
         metrics = compute_metrics(
             result.daily_returns,
             result.equity,
@@ -388,6 +405,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
             costs=result.costs_paid,
         )
         rows.append((strat.name, metrics))
+        events_by_strategy.append((strat.name, result.risk_events))
         log.info("compare_metrics", strategy=strat.name, **metrics.model_dump(mode="json"))
 
     def _sharpe_key(row: tuple[str, Metrics]) -> float:
@@ -399,6 +417,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
     print(f"common window (identical for all): {window[0]} -> {window[1]}  "
           f"({panel.shape[0]} sessions), cost_bps={args.cost_bps}")
     _print_compare_table(rows)
+    if risk_engine is not None:
+        for name, events in events_by_strategy:
+            _print_risk_events(name, events)
     _write_compare_report(window, args.cost_bps, rows)
     return 0
 
@@ -448,6 +469,38 @@ def _write_compare_report(
     print(f"report written: {path}")
 
 
+def cmd_risk_show(args: argparse.Namespace) -> int:
+    limits = load_risk_limits()
+    state = load_risk_state()
+    print("=== RiskLimits (config/risk.yaml) ===")
+    for field_name, value in limits.model_dump().items():
+        print(f"  {field_name:<24} {value}")
+    print("=== RiskState (data/risk_state.json) ===")
+    for field_name, value in state.model_dump(mode="json").items():
+        print(f"  {field_name:<24} {value}")
+    return 0
+
+
+def cmd_risk_reset(args: argparse.Namespace) -> int:
+    if args.confirm != "YES":
+        print("Refusing to reset: pass --confirm YES to clear a halted state.", file=sys.stderr)
+        return 2
+    cleared = reset_risk_state()
+    log.info(
+        "risk_reset",
+        was_halted=cleared.halted,
+        reason=cleared.reason,
+        required_manual_reset=cleared.requires_manual_reset,
+    )
+    if cleared.halted:
+        print(f"Cleared halted state: reason={cleared.reason!r} "
+              f"triggered_at={cleared.triggered_at} "
+              f"requires_manual_reset={cleared.requires_manual_reset}")
+    else:
+        print("No halted state was set; state is now clean.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -482,12 +535,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--start", default=None, help="ISO start date, e.g. 2000-01-01")
     p_bt.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
     p_bt.add_argument("--benchmark", default=None, help="benchmark symbol (e.g. SPY)")
+    p_bt.add_argument("--risk", action="store_true", help="apply the risk overlay")
     p_bt.set_defaults(func=cmd_backtest)
 
     p_cmp = sub.add_parser("compare", help="compare all baseline+tactical strategies")
     p_cmp.add_argument("--start", default="2003-01-01", help="ISO start date")
     p_cmp.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
+    p_cmp.add_argument("--risk", action="store_true", help="apply the risk overlay")
     p_cmp.set_defaults(func=cmd_compare)
+
+    p_risk = sub.add_parser("risk", help="risk-engine limits and kill-switch state")
+    risk_sub = p_risk.add_subparsers(dest="risk_command", required=True)
+    p_risk_show = risk_sub.add_parser("show", help="print RiskLimits and RiskState")
+    p_risk_show.set_defaults(func=cmd_risk_show)
+    p_risk_reset = risk_sub.add_parser("reset", help="clear a halted state (needs --confirm YES)")
+    p_risk_reset.add_argument("--confirm", default=None, help="must be exactly YES")
+    p_risk_reset.set_defaults(func=cmd_risk_reset)
 
     return parser
 
