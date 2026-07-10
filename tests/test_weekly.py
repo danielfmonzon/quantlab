@@ -230,8 +230,11 @@ def test_readiness_pct_complete_math(tmp_path) -> None:
 
 def test_render_markdown_and_write(tmp_path) -> None:
     review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.01})
+    from quantlab import __version__
+
     md = render_markdown(review)
     assert "# quantlab weekly review" in md
+    assert f"quantlab {__version__}" in md  # traceable to a release + commit
     assert "## Account: voltarget" in md
     assert "## Account: trend" in md
     assert "Live-readiness ledger" in md

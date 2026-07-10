@@ -33,6 +33,7 @@ from quantlab.paper.runner import (
     make_paper_strategy,
 )
 from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
+from quantlab.version import version_string
 
 DIGESTS_DIR: Path = PROJECT_ROOT / "reports" / "digests"
 
@@ -294,7 +295,7 @@ def render_markdown(digest: Digest) -> str:
     lines: list[str] = [
         f"# quantlab paper digest - {digest.generated_at.date().isoformat()}",
         "",
-        f"_generated {digest.generated_at.isoformat()}_",
+        f"_generated {digest.generated_at.isoformat()}  |  quantlab {version_string()}_",
         "",
     ]
     for acct in digest.accounts:

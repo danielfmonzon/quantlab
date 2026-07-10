@@ -76,6 +76,7 @@ from quantlab.validation import (
     stationary_block_bootstrap,
     walk_forward,
 )
+from quantlab.version import VERSION, git_short_hash
 
 log = get_logger("quantlab.cli")
 
@@ -695,6 +696,13 @@ def cmd_digest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_version(args: argparse.Namespace) -> int:
+    short = git_short_hash()
+    provenance = f"git {short}" if short else "git hash unavailable"
+    print(f"quantlab {VERSION} ({provenance})")
+    return 0
+
+
 def cmd_weekly(args: argparse.Namespace) -> int:
     store = ParquetStore()
     calendar = TradingCalendar()
@@ -867,6 +875,9 @@ def cmd_paper_status(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantlab", description="quantlab data CLI")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_version = sub.add_parser("version", help="print the quantlab version + git short hash")
+    p_version.set_defaults(func=cmd_version)
 
     p_ingest = sub.add_parser("ingest", help="fetch EOD data from Tiingo into the store")
     p_ingest.add_argument("--start", required=True, help="ISO start date, e.g. 2000-01-01")

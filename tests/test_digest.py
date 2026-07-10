@@ -92,6 +92,17 @@ def test_two_accounts_render_two_sections_and_combined(tmp_path) -> None:
     assert "151,500.00" in md  # combined equity
 
 
+def test_digest_header_carries_version_for_traceability(tmp_path) -> None:
+    from quantlab import __version__
+
+    brokers = {"voltarget": _broker(101_000.0, 38_000.0, "SPY", 63_000.0), "trend": None}
+    digest = _build(tmp_path, brokers)
+    md = render_markdown(digest)
+    # Every generated report is traceable to a release + commit.
+    assert f"quantlab {__version__}" in md
+    assert __version__ == "1.0.0"
+
+
 def test_absent_account_is_skipped_with_note(tmp_path) -> None:
     brokers = {"voltarget": _broker(101_000.0, 38_000.0, "SPY", 63_000.0), "trend": None}
     digest = _build(tmp_path, brokers)

@@ -45,6 +45,7 @@ from quantlab.reporting.alerts import ALERTS_JSONL, Alert, DeliveryResult, dispa
 from quantlab.reporting.shadow import shadow_returns
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
+from quantlab.version import version_string
 
 WEEKLY_DIR: Path = PROJECT_ROOT / "reports" / "weekly"
 
@@ -449,7 +450,7 @@ def render_markdown(review: WeeklyReview) -> str:
     lines: list[str] = [
         f"# quantlab weekly review - week ending {review.week_ending.isoformat()}",
         "",
-        f"_generated {review.generated_at.isoformat()}_",
+        f"_generated {review.generated_at.isoformat()}  |  quantlab {version_string()}_",
         f"_DIVERGING threshold: {review.divergence_threshold_bps:.0f} bps "
         "(report-only; never affects the trading path)_",
         "",
