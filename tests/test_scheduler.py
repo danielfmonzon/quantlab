@@ -36,6 +36,11 @@ def test_build_install_commands_are_exact() -> None:
             "/D", "MON,TUE,WED,THU,FRI", "/ST", "16:45",
             "/TR", f'"{EXE}" digest', "/F",
         ],
+        [
+            "schtasks", "/Create", "/TN", "quantlab-weekly", "/SC", "WEEKLY",
+            "/D", "FRI", "/ST", "17:00",
+            "/TR", f'"{EXE}" weekly', "/F",
+        ],
     ]
 
 
@@ -52,12 +57,15 @@ def test_install_wrong_confirm_refuses() -> None:
     assert runner.commands == []
 
 
-def test_install_with_confirm_runs_both_creates() -> None:
+def test_install_with_confirm_runs_all_creates() -> None:
     runner = FakeRunner()
     rc = tasks.install("YES", exe=EXE, runner=runner, printer=lambda _m: None)
     assert rc == 0
     assert runner.commands == tasks.build_install_commands(EXE)
-    assert [c[3] for c in runner.commands] == ["quantlab-paper-run", "quantlab-digest"]
+    assert [c[3] for c in runner.commands] == [
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+    ]
+    assert len(runner.commands) == 3  # exactly three tasks installed
 
 
 def test_uninstall_is_idempotent_even_when_absent() -> None:
@@ -67,10 +75,15 @@ def test_uninstall_is_idempotent_even_when_absent() -> None:
     rc = tasks.uninstall(runner=runner, printer=lambda _m: None)
     assert rc == 0
     assert runner.commands == tasks.build_uninstall_commands()
+    assert [c[3] for c in runner.commands] == [
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+    ]
 
 
-def test_show_queries_both_tasks() -> None:
+def test_show_queries_all_tasks() -> None:
     runner = FakeRunner()
     tasks.show(runner=runner, printer=lambda _m: None)
-    assert [c[3] for c in runner.commands] == ["quantlab-paper-run", "quantlab-digest"]
+    assert [c[3] for c in runner.commands] == [
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+    ]
     assert all(c[1] == "/Query" for c in runner.commands)

@@ -1,16 +1,20 @@
-"""Windows Task Scheduler wiring for the daily paper run and digest.
+"""Windows Task Scheduler wiring for the daily paper run, digest, and weekly review.
 
-Two weekday tasks are installed:
+Three tasks are installed:
 
-* ``quantlab-paper-run`` at 10:00 - runs ``quantlab paper run-all --submit``
-  (each approved strategy in its own isolated paper account, in order).
-* ``quantlab-digest`` at 16:45 - runs ``quantlab digest``.
+* ``quantlab-paper-run`` at 10:00 (Mon-Fri) - runs ``quantlab paper run-all
+  --submit`` (each approved strategy in its own isolated paper account, in order).
+* ``quantlab-digest`` at 16:45 (Mon-Fri) - runs ``quantlab digest``.
+* ``quantlab-weekly`` at 17:00 (Fri only) - runs ``quantlab weekly`` (the Phase-9
+  paper-vs-shadow review; report-only).
 
 Why 10:00 (local, intended as ET): starting 30 minutes after the 09:30 open
 sidesteps the opening-auction noise and the first-print gaps; a monthly-signal
 strategy is insensitive to intraday timing, so any post-open minute is fine; and
 a DAY order placed at 10:00 still has the entire session to fill. 16:45 for the
 digest runs it shortly after the 16:00 close so end-of-day marks are settled.
+17:00 Friday for the weekly review runs it after that day's digest so the week's
+final equity snapshot is already recorded.
 
 schtasks uses the host's LOCAL clock; the times above assume the machine runs on
 Eastern time. Adjust ``_RUN_TIME`` / ``_DIGEST_TIME`` if the host is elsewhere.
@@ -35,10 +39,13 @@ log = get_logger("quantlab.scheduling")
 
 TASK_PAPER_RUN = "quantlab-paper-run"
 TASK_DIGEST = "quantlab-digest"
+TASK_WEEKLY = "quantlab-weekly"
 
 _WEEKDAYS = "MON,TUE,WED,THU,FRI"
+_FRIDAY = "FRI"
 _RUN_TIME = "10:00"
 _DIGEST_TIME = "16:45"
+_WEEKLY_TIME = "17:00"
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
 
@@ -62,7 +69,7 @@ def _tr(exe: str, cli_args: str) -> str:
 
 
 def build_install_commands(exe: str) -> list[list[str]]:
-    """The two ``schtasks /Create`` argv lists (pure; nothing is executed)."""
+    """The three ``schtasks /Create`` argv lists (pure; nothing is executed)."""
     return [
         [
             "schtasks", "/Create", "/TN", TASK_PAPER_RUN, "/SC", "WEEKLY",
@@ -74,6 +81,11 @@ def build_install_commands(exe: str) -> list[list[str]]:
             "/D", _WEEKDAYS, "/ST", _DIGEST_TIME,
             "/TR", _tr(exe, "digest"), "/F",
         ],
+        [
+            "schtasks", "/Create", "/TN", TASK_WEEKLY, "/SC", "WEEKLY",
+            "/D", _FRIDAY, "/ST", _WEEKLY_TIME,
+            "/TR", _tr(exe, "weekly"), "/F",
+        ],
     ]
 
 
@@ -81,6 +93,7 @@ def build_uninstall_commands() -> list[list[str]]:
     return [
         ["schtasks", "/Delete", "/TN", TASK_PAPER_RUN, "/F"],
         ["schtasks", "/Delete", "/TN", TASK_DIGEST, "/F"],
+        ["schtasks", "/Delete", "/TN", TASK_WEEKLY, "/F"],
     ]
 
 
@@ -88,6 +101,7 @@ def build_show_commands() -> list[list[str]]:
     return [
         ["schtasks", "/Query", "/TN", TASK_PAPER_RUN, "/V", "/FO", "LIST"],
         ["schtasks", "/Query", "/TN", TASK_DIGEST, "/V", "/FO", "LIST"],
+        ["schtasks", "/Query", "/TN", TASK_WEEKLY, "/V", "/FO", "LIST"],
     ]
 
 
@@ -162,4 +176,5 @@ __all__ = [
     "show",
     "TASK_PAPER_RUN",
     "TASK_DIGEST",
+    "TASK_WEEKLY",
 ]

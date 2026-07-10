@@ -9,3 +9,5 @@ max_daily_loss: 0.03          # 3% single-session portfolio loss -> HALT.
 max_weekly_loss: 0.08         # 8% rolling 5-session loss -> HALT.
 max_drawdown_kill: 0.25       # 25% peak-to-trough -> KILL SWITCH (manual reset).
 staleness_max_sessions: 1     # data older than this many completed sessions -> FREEZE.
+weekly_divergence_alert_bps: 50  # weekly paper-vs-shadow gap beyond this (bps) ->
+                                 # the weekly review flags DIVERGING (report-only).

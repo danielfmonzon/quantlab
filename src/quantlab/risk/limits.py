@@ -30,6 +30,9 @@ class RiskLimits(BaseModel):
     max_weekly_loss: float = 0.08
     max_drawdown_kill: float = 0.25
     staleness_max_sessions: int = 1
+    # Weekly paper-vs-shadow divergence (in bps) beyond which the weekly review
+    # flags an account DIVERGING. Report-only: never affects the trading path.
+    weekly_divergence_alert_bps: float = 50.0
 
     @model_validator(mode="after")
     def _validate(self) -> RiskLimits:
@@ -39,6 +42,8 @@ class RiskLimits(BaseModel):
                 raise ValueError(f"{name}={value} must be in (0, 1]")
         if self.staleness_max_sessions < 0:
             raise ValueError("staleness_max_sessions must be >= 0")
+        if self.weekly_divergence_alert_bps <= 0.0:
+            raise ValueError("weekly_divergence_alert_bps must be > 0")
         if not (self.max_daily_loss < self.max_weekly_loss < self.max_drawdown_kill):
             raise ValueError(
                 "require max_daily_loss < max_weekly_loss < max_drawdown_kill; got "

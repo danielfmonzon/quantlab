@@ -57,6 +57,13 @@ from quantlab.paper.runner import (
 )
 from quantlab.reporting.alerts import send_test_alert
 from quantlab.reporting.digest import build_digest, render_markdown, write_digest
+from quantlab.reporting.weekly import (
+    build_weekly_review,
+    write_weekly_review,
+)
+from quantlab.reporting.weekly import (
+    render_markdown as render_weekly_markdown,
+)
 from quantlab.risk.engine import RiskEngine
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import load_risk_state, reset_risk_state, risk_state_path_for
@@ -688,6 +695,31 @@ def cmd_digest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_weekly(args: argparse.Namespace) -> int:
+    store = ParquetStore()
+    calendar = TradingCalendar()
+    now = datetime.now(UTC)
+
+    week_ending: date | None = None
+    if args.week_ending:
+        week_ending = date.fromisoformat(args.week_ending)
+
+    # One broker per approved account; absent keys -> None (rendered as skipped).
+    brokers: dict[str, AlpacaTradingClient | None] = {}
+    for label in APPROVED_STRATEGIES:
+        try:
+            brokers[label], _ = _trading_client_for(label)
+        except ConfigError:
+            brokers[label] = None
+
+    review = build_weekly_review(brokers, store, calendar, now, week_ending)
+    md_path, json_path = write_weekly_review(review)
+    print(render_weekly_markdown(review))
+    print(f"\nweekly review written: {md_path}")
+    print(f"weekly review written: {json_path}")
+    return 0
+
+
 def cmd_schedule(args: argparse.Namespace) -> int:
     if args.schedule_command == "install":
         return schedule_tasks.install(args.confirm)
@@ -892,10 +924,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_digest.set_defaults(func=cmd_digest)
 
+    p_weekly = sub.add_parser(
+        "weekly", help="build + write the weekly paper-vs-shadow review (report-only)"
+    )
+    p_weekly.add_argument(
+        "--week-ending", default=None, dest="week_ending",
+        help="week-ending date YYYY-MM-DD (defaults to today)",
+    )
+    p_weekly.set_defaults(func=cmd_weekly)
+
     p_sched = sub.add_parser("schedule", help="install/uninstall scheduled paper tasks")
     sched_sub = p_sched.add_subparsers(dest="schedule_command", required=True)
     p_sched_install = sched_sub.add_parser(
-        "install", help="create the daily paper-run + digest tasks (needs --confirm YES)"
+        "install",
+        help="create the paper-run + digest + weekly tasks (needs --confirm YES)",
     )
     p_sched_install.add_argument("--confirm", default=None, help="must be exactly YES")
     p_sched_install.set_defaults(func=cmd_schedule)
