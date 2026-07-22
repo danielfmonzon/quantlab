@@ -52,15 +52,17 @@ def _resample_indices(n: int, p: float, rng: np.random.Generator) -> np.ndarray:
     return np.concatenate(pieces)[:n]
 
 
-def _sample_metrics(returns: np.ndarray) -> tuple[float, float, float]:
+def _sample_metrics(
+    returns: np.ndarray, periods_per_year: int = _ANN
+) -> tuple[float, float, float]:
     """(cagr, sharpe, max_drawdown) for one resampled return path."""
     n = len(returns)
     equity = np.concatenate(([1.0], np.cumprod(1.0 + returns)))
     total_growth = float(equity[-1])
-    cagr = total_growth ** (_ANN / n) - 1.0 if total_growth > 0.0 else -1.0
+    cagr = total_growth ** (periods_per_year / n) - 1.0 if total_growth > 0.0 else -1.0
 
     std = float(returns.std(ddof=1))
-    sharpe = float(returns.mean() / std * np.sqrt(_ANN)) if std > 0.0 else 0.0
+    sharpe = float(returns.mean() / std * np.sqrt(periods_per_year)) if std > 0.0 else 0.0
 
     peak = np.maximum.accumulate(equity)
     max_dd = float((equity / peak - 1.0).min())
@@ -73,11 +75,14 @@ def stationary_block_bootstrap(
     seed: int,
     n_samples: int = 1000,
     avg_block_len: int = 20,
+    periods_per_year: int = _ANN,
 ) -> BootstrapReport:
     """Resample ``returns`` ``n_samples`` times and summarize the metric spread.
 
     Deterministic for a given ``seed``. ``avg_block_len`` sets the geometric mean
-    block length (restart probability ``1/avg_block_len``).
+    block length (restart probability ``1/avg_block_len``). ``periods_per_year``
+    is the annualization factor (default 252; crypto callers pass 365) — it never
+    changes the resampling, only how each sample's cagr/sharpe is annualized.
     """
     clean = returns.dropna().to_numpy(dtype=float)
     n = len(clean)
@@ -94,7 +99,7 @@ def stationary_block_bootstrap(
     max_dds = np.empty(n_samples, dtype=float)
     for i in range(n_samples):
         idx = _resample_indices(n, p, rng)
-        cagrs[i], sharpes[i], max_dds[i] = _sample_metrics(clean[idx])
+        cagrs[i], sharpes[i], max_dds[i] = _sample_metrics(clean[idx], periods_per_year)
 
     return BootstrapReport(
         n_samples=n_samples,

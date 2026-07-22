@@ -376,6 +376,10 @@ def _make_strategy(name: str, symbol: str = "SPY") -> Strategy:
         return DualMomentum()
     if name == "voltarget":
         return VolTarget()
+    if name == "crypto_trend_btc":
+        return CryptoTrendBTC()
+    if name == "crypto_voltarget_btc":
+        return CryptoVolTargetBTC()
     raise ConfigError(f"unknown strategy {name!r}")  # pragma: no cover
 
 
@@ -586,6 +590,260 @@ def _write_compare_report(
     print(f"report written: {path}")
 
 
+# -- Crypto research backtest ----------------------------------------------
+# BTC-USD strategies vs a buy-and-hold BTC-USD benchmark, over the identical
+# post-warmup evaluation window. Research-only: NOT in APPROVED_STRATEGIES or any
+# paper roster. cost_bps defaults to 25 and the existing risk overlay is enabled.
+_CRYPTO_BT_SYMBOL = "BTC-USD"
+_CRYPTO_PERIODS_PER_YEAR = 365
+
+# Two major crypto bear windows for a per-strategy drawdown breakdown.
+_BEAR_WINDOWS: dict[str, tuple[str, str]] = {
+    "2018": ("2018-01-01", "2018-12-31"),
+    "2021-2022": ("2021-11-01", "2022-12-31"),
+}
+
+
+def _calendar_year_returns(daily_returns: pd.Series) -> dict[str, float]:
+    """Total return per calendar year: compound the daily returns within each year."""
+    if daily_returns.empty:
+        return {}
+    years = pd.DatetimeIndex(daily_returns.index).year
+    out: dict[str, float] = {}
+    for year, grp in daily_returns.groupby(years):
+        out[str(int(year))] = float((1.0 + grp).prod() - 1.0)
+    return out
+
+
+def _partial_years(eval_start: pd.Timestamp, eval_end: pd.Timestamp) -> list[str]:
+    """Calendar years only partially covered by [eval_start, eval_end]."""
+    partial: set[str] = set()
+    if (eval_start.month, eval_start.day) != (1, 1):
+        partial.add(str(eval_start.year))
+    if (eval_end.month, eval_end.day) != (12, 31):
+        partial.add(str(eval_end.year))
+    return sorted(partial)
+
+
+def _window_max_drawdown(equity: pd.Series, lo: str, hi: str) -> float | None:
+    """Max peak-to-trough drawdown of ``equity`` within [lo, hi] (None if <2 points)."""
+    sub = equity.loc[lo:hi]
+    if len(sub) < 2:
+        return None
+    return float((sub / sub.cummax() - 1.0).min())
+
+
+def _windowed_metrics(
+    result: BacktestResult, eval_start: pd.Timestamp, periods_per_year: int
+) -> Metrics:
+    """Metrics over [eval_start, end] of a completed backtest result."""
+    return compute_metrics(
+        result.daily_returns.loc[eval_start:],
+        result.equity.loc[eval_start:],
+        weights=result.weights_history.loc[eval_start:],
+        turnover=result.turnover.loc[eval_start:],
+        costs=result.costs_paid.loc[eval_start:],
+        periods_per_year=periods_per_year,
+    )
+
+
+def cmd_crypto_backtest(args: argparse.Namespace) -> int:
+    store = ParquetStore()
+    symbol = _CRYPTO_BT_SYMBOL
+    strategies: list[Strategy] = [CryptoTrendBTC(), CryptoVolTargetBTC()]
+
+    panel = build_price_panel(store, [symbol], start=args.start)
+    usable = panel[[symbol]].dropna()
+    if usable.empty:
+        raise ConfigError(f"no stored sessions with {symbol} prices; run crypto-ingest first")
+    panel = panel.loc[usable.index.min():]
+
+    # The equity risk overlay is enabled by default; --no-risk runs the pure,
+    # ungated strategies (risk_engine=None) for an unconfounded strategy read.
+    risk_overlay = not getattr(args, "no_risk", False)
+    risk_engine = RiskEngine(load_risk_limits()) if risk_overlay else None
+
+    runs: list[tuple[Strategy, BacktestResult]] = []
+    first_signals: dict[str, pd.Timestamp | None] = {}
+    for strat in strategies:
+        result = run_backtest(panel, strat, cost_bps=args.cost_bps, risk_engine=risk_engine)
+        runs.append((strat, result))
+        first_signals[strat.name] = _first_effective_signal(panel, strat)
+
+    # Identical evaluation window for all three: start where BOTH strategies are
+    # warmed and their first signal has taken effect (the later of the two).
+    signal_dates = [d for d in first_signals.values() if d is not None]
+    if not signal_dates:
+        raise ConfigError("no crypto strategy warmed up over the stored BTC-USD history")
+    eval_start = max(signal_dates)
+    eval_end = panel.index.max()
+
+    # Buy-and-hold BTC-USD benchmark: a pass-through of the asset itself, run
+    # frictionless and un-gated (NOT a registered strategy / roster member).
+    benchmark = BuyAndHold(symbol=symbol)
+    bench_result = run_backtest(panel, benchmark, cost_bps=0.0, risk_engine=None)
+
+    rows: list[tuple[str, Metrics]] = []
+    turnover_by_name: dict[str, float] = {}
+    for strat, result in runs:
+        rows.append((strat.name, _windowed_metrics(result, eval_start, strat.periods_per_year)))
+        turnover_by_name[strat.name] = float(result.turnover.loc[eval_start:].sum())
+    bench_metrics = _windowed_metrics(bench_result, eval_start, _CRYPTO_PERIODS_PER_YEAR)
+    rows.append(("buyhold_btc", bench_metrics))
+    turnover_by_name["buyhold_btc"] = float(bench_result.turnover.loc[eval_start:].sum())
+
+    window = (eval_start.date().isoformat(), eval_end.date().isoformat())
+    n_eval = len(panel.loc[eval_start:])
+
+    # Per-column windowed series (strategies then benchmark), in table order.
+    ordered_names = [name for name, _ in rows]
+    returns_by_name: dict[str, pd.Series] = {
+        strat.name: result.daily_returns.loc[eval_start:] for strat, result in runs
+    }
+    returns_by_name["buyhold_btc"] = bench_result.daily_returns.loc[eval_start:]
+    equity_by_name: dict[str, pd.Series] = {
+        strat.name: result.equity.loc[eval_start:] for strat, result in runs
+    }
+    equity_by_name["buyhold_btc"] = bench_result.equity.loc[eval_start:]
+
+    year_returns = {n: _calendar_year_returns(returns_by_name[n]) for n in ordered_names}
+    partial_years = _partial_years(eval_start, eval_end)
+    bear_dd: dict[str, dict[str, float | None]] = {
+        n: {label: _window_max_drawdown(equity_by_name[n], lo, hi)
+            for label, (lo, hi) in _BEAR_WINDOWS.items()}
+        for n in ordered_names
+    }
+
+    print(f"crypto backtest: {symbol}  full stored history from "
+          f"{panel.index.min().date().isoformat()}")
+    print(f"evaluation window (identical for all): {window[0]} -> {window[1]}  "
+          f"({n_eval} sessions), cost_bps={args.cost_bps}, "
+          f"risk_overlay={'on' if risk_overlay else 'off'}, ppy=365")
+    for name, sig in first_signals.items():
+        print(f"  first effective signal [{name}]: "
+              f"{sig.date().isoformat() if sig is not None else 'never'}")
+    _print_crypto_compare_table(rows, turnover_by_name, risk_overlay)
+    _print_calendar_year_returns(ordered_names, year_returns, partial_years)
+    _print_bear_drawdowns(ordered_names, bear_dd)
+    for strat, result in runs:
+        _print_risk_events(strat.name, result.risk_events)
+    _write_crypto_backtest_report(
+        window, args.cost_bps, rows, turnover_by_name, first_signals,
+        risk_overlay=risk_overlay, year_returns=year_returns,
+        partial_years=partial_years, bear_dd=bear_dd,
+    )
+    return 0
+
+
+def _print_crypto_compare_table(
+    rows: list[tuple[str, Metrics]],
+    turnover_by_name: dict[str, float],
+    risk_overlay: bool = True,
+) -> None:
+    def f(x: float | None, pct: bool = False) -> str:
+        if x is None:
+            return "n/a"
+        return f"{x:.1%}" if pct else f"{x:.2f}"
+
+    header = (
+        f"{'STRATEGY':<22}{'CAGR':>9}{'VOL':>9}{'SHARPE':>8}{'SORTINO':>9}"
+        f"{'MAXDD':>9}{'CALMAR':>8}{'WIN_M':>8}{'TURN':>9}{'COSTS$':>13}"
+    )
+    print(header)
+    print("-" * len(header))
+    for name, m in rows:
+        print(
+            f"{name:<22}"
+            f"{f(m.cagr, pct=True):>9}"
+            f"{f(m.annualized_vol, pct=True):>9}"
+            f"{f(m.sharpe):>8}"
+            f"{f(m.sortino):>9}"
+            f"{f(m.max_drawdown, pct=True):>9}"
+            f"{f(m.calmar):>8}"
+            f"{f(m.win_rate_monthly, pct=True):>8}"
+            f"{turnover_by_name.get(name, 0.0):>9.2f}"
+            f"{m.total_costs:>13,.2f}"
+        )
+    print("-" * len(header))
+    gate = "risk-gated" if risk_overlay else "UNGATED (risk_engine=None)"
+    print(f"(CryptoTrendBTC / CryptoVolTargetBTC are {gate}; buyhold_btc is a "
+          "frictionless benchmark)")
+
+
+def _print_calendar_year_returns(
+    ordered_names: list[str],
+    year_returns: dict[str, dict[str, float]],
+    partial_years: list[str],
+) -> None:
+    all_years = sorted({y for yr in year_returns.values() for y in yr})
+    print("--- calendar-year total returns (partial years marked *) ---")
+    header = f"{'YEAR':<10}" + "".join(f"{n:>22}" for n in ordered_names)
+    print(header)
+    print("-" * len(header))
+    for y in all_years:
+        label = f"{y} *" if y in partial_years else y
+        cells = ""
+        for n in ordered_names:
+            v = year_returns[n].get(y)
+            cells += f"{('%.1f%%' % (v * 100)) if v is not None else 'n/a':>22}"
+        print(f"{label:<10}{cells}")
+    print("-" * len(header))
+
+
+def _print_bear_drawdowns(
+    ordered_names: list[str], bear_dd: dict[str, dict[str, float | None]]
+) -> None:
+    print("--- max drawdown within bear windows ---")
+    for label, (lo, hi) in _BEAR_WINDOWS.items():
+        print(f"  {label} ({lo} -> {hi}):")
+        for n in ordered_names:
+            v = bear_dd[n][label]
+            print(f"    {n:<22} {f'{v:.1%}' if v is not None else 'n/a'}")
+
+
+def _write_crypto_backtest_report(
+    window: tuple[str, str],
+    cost_bps: float,
+    rows: list[tuple[str, Metrics]],
+    turnover_by_name: dict[str, float],
+    first_signals: dict[str, pd.Timestamp | None],
+    *,
+    risk_overlay: bool,
+    year_returns: dict[str, dict[str, float]],
+    partial_years: list[str],
+    bear_dd: dict[str, dict[str, float | None]],
+) -> None:
+    reports_dir = PROJECT_ROOT / "reports" / "backtests"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    path = reports_dir / f"crypto_compare_{stamp}.json"
+    ordered_names = [name for name, _ in rows]
+    payload = {
+        "symbol": _CRYPTO_BT_SYMBOL,
+        "evaluation_window": {"start": window[0], "end": window[1]},
+        "cost_bps": cost_bps,
+        "periods_per_year": _CRYPTO_PERIODS_PER_YEAR,
+        "risk_overlay": risk_overlay,
+        "benchmark": "buyhold_btc (frictionless, un-gated pass-through)",
+        "first_effective_signals": {
+            name: (d.date().isoformat() if d is not None else None)
+            for name, d in first_signals.items()
+        },
+        "calendar_year_returns": year_returns,
+        "partial_years": partial_years,
+        "bear_window_max_drawdowns": {
+            label: {n: bear_dd[n][label] for n in ordered_names}
+            for label in _BEAR_WINDOWS
+        },
+        "strategies": {
+            name: {**m.model_dump(mode="json"), "total_turnover": turnover_by_name.get(name, 0.0)}
+            for name, m in rows
+        },
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"report written: {path}")
+
+
 def cmd_risk_show(args: argparse.Namespace) -> int:
     limits = load_risk_limits()
     print("=== RiskLimits (config/risk.yaml) ===")
@@ -625,7 +883,12 @@ def cmd_risk_reset(args: argparse.Namespace) -> int:
     return 0
 
 
-_VALIDATE_STRATEGIES = ["trend", "dualmom", "voltarget"]
+# Equity strategies plus the two crypto research strategies (research-only; NOT in
+# APPROVED_STRATEGIES or any paper roster). Crypto runs are ungated by construction
+# (the validation battery never applies a risk engine).
+_VALIDATE_STRATEGIES = [
+    "trend", "dualmom", "voltarget", "crypto_trend_btc", "crypto_voltarget_btc",
+]
 
 
 def _fmt_params(params: dict[str, float]) -> str:
@@ -733,8 +996,12 @@ def cmd_validate_strategy(args: argparse.Namespace) -> int:
 
     wf = walk_forward(panel, lambda: _make_strategy(args.strategy), cost_bps=args.cost_bps)
     pt = perturb(args.strategy, panel, cost_bps=args.cost_bps)
+    # Ungated by construction: run_backtest here takes no risk_engine, matching the
+    # walk-forward and perturbation passes. Annualize on the strategy's own grid.
     result = run_backtest(panel, strategy, cost_bps=args.cost_bps)
-    bs = stationary_block_bootstrap(result.daily_returns, seed=args.seed)
+    bs = stationary_block_bootstrap(
+        result.daily_returns, seed=args.seed, periods_per_year=strategy.periods_per_year
+    )
 
     log.info("walk_forward", strategy=args.strategy, **wf.model_dump(mode="json"))
     log.info("perturbation", **pt.model_dump(mode="json"))  # dump already carries strategy
@@ -1018,6 +1285,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_cmp.add_argument("--cost-bps", dest="cost_bps", default=5.0, type=float)
     p_cmp.add_argument("--risk", action="store_true", help="apply the risk overlay")
     p_cmp.set_defaults(func=cmd_compare)
+
+    p_crypto_bt = sub.add_parser(
+        "crypto-backtest",
+        help="backtest the crypto research strategies over stored BTC-USD history (research-only)",
+    )
+    p_crypto_bt.add_argument(
+        "--start", default=None, help="ISO start date (default: earliest stored BTC-USD session)"
+    )
+    p_crypto_bt.add_argument(
+        "--cost-bps", dest="cost_bps", default=25.0, type=float,
+        help="one-way turnover cost in bps (default 25)",
+    )
+    p_crypto_bt.add_argument(
+        "--no-risk", action="store_true", dest="no_risk",
+        help="run the strategies UNGATED (risk_engine=None); default applies the risk overlay",
+    )
+    p_crypto_bt.set_defaults(func=cmd_crypto_backtest)
 
     p_val = sub.add_parser(
         "validate-strategy",

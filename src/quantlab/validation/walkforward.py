@@ -20,9 +20,13 @@ from quantlab.backtest.metrics import compute_metrics
 from quantlab.backtest.strategy import Strategy
 
 # 400 calendar days comfortably covers 12 trailing month-ends (the deepest
-# warmup any tactical strategy needs) plus slack for holidays.
+# warmup any tactical strategy needs) plus slack for holidays. Both constants are
+# expressed in CALENDAR days, so they are grid-agnostic: "one year" is the same
+# wall-clock span for the 252-day equity grid and the 365-day crypto grid, and
+# 400 days spans >=13 month-ends either way (>= the 10 a crypto trend model
+# needs). They therefore need no crypto-specific change.
 WARMUP_BUFFER_DAYS = 400
-_MIN_SEGMENT_DAYS = 365  # drop a trailing stub shorter than one year
+_MIN_SEGMENT_DAYS = 365  # drop a trailing stub shorter than one year (calendar days)
 
 StrategyFactory = Callable[[], Strategy]
 
@@ -76,8 +80,12 @@ def walk_forward(
     ``strategy_factory`` is called once per segment to obtain a fresh, un-warmed
     strategy. Each segment's run starts ``WARMUP_BUFFER_DAYS`` before the segment
     (clipped to available data), but only segment sessions contribute to metrics.
+
+    Segment metrics are annualized on the strategy's own ``periods_per_year``
+    (252 for equities, 365 for 24/7 crypto), read from the factory's product.
     """
     index = pd.DatetimeIndex(panel.index)
+    periods_per_year = strategy_factory().periods_per_year
     bounds = _segment_bounds(index, window_years)
 
     segments: list[SegmentResult] = []
@@ -95,7 +103,7 @@ def walk_forward(
         seg_equity = result.equity.loc[seg_start:seg_end]
         if len(seg_returns) < 2 or len(seg_equity) < 2:
             continue
-        m = compute_metrics(seg_returns, seg_equity)
+        m = compute_metrics(seg_returns, seg_equity, periods_per_year=periods_per_year)
         total_return = float(seg_equity.iloc[-1] / seg_equity.iloc[0] - 1.0)
         segments.append(
             SegmentResult(

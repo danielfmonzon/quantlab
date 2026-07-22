@@ -7,6 +7,8 @@ import BuyAndHold, TrendSMA10, ...``.
 
 from __future__ import annotations
 
+from quantlab.backtest.strategies.crypto_trend import CryptoTrendBTC
+from quantlab.backtest.strategies.crypto_voltarget import CryptoVolTargetBTC
 from quantlab.backtest.strategies.momentum import DualMomentum
 from quantlab.backtest.strategies.trend import TrendSMA10
 from quantlab.backtest.strategies.voltarget import VolTarget
@@ -19,4 +21,6 @@ __all__ = [
     "TrendSMA10",
     "DualMomentum",
     "VolTarget",
+    "CryptoTrendBTC",
+    "CryptoVolTargetBTC",
 ]

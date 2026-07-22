@@ -81,13 +81,13 @@ def _max_drawdown_duration(equity: pd.Series) -> int:
     return int(longest)
 
 
-def _cagr(equity: pd.Series, n_returns: int) -> float:
+def _cagr(equity: pd.Series, n_returns: int, periods_per_year: int = _ANN) -> float:
     if len(equity) < 2 or n_returns <= 0:
         return 0.0
     total_growth = float(equity.iloc[-1] / equity.iloc[0])
     if total_growth <= 0.0:
         return -1.0
-    return total_growth ** (_ANN / n_returns) - 1.0
+    return total_growth ** (periods_per_year / n_returns) - 1.0
 
 
 def _monthly_returns(daily_returns: pd.Series) -> pd.Series:
@@ -106,23 +106,30 @@ def compute_metrics(
     weights: pd.DataFrame | None = None,
     turnover: pd.Series | None = None,
     costs: pd.Series | None = None,
+    periods_per_year: int = _ANN,
 ) -> Metrics:
-    """Compute performance metrics from a return series and its equity curve."""
+    """Compute performance metrics from a return series and its equity curve.
+
+    ``periods_per_year`` is the annualization factor (default 252 trading days
+    for daily equities; 24/7 crypto strategies pass 365). It scales vol, Sharpe,
+    Sortino, CAGR, and the turnover-per-year figure. All existing call sites omit
+    it and are therefore unchanged.
+    """
     n = len(daily_returns)
-    years = n / _ANN if n else 0.0
+    years = n / periods_per_year if n else 0.0
 
     if n >= 2:
-        vol = float(daily_returns.std(ddof=1)) * np.sqrt(_ANN)
+        vol = float(daily_returns.std(ddof=1)) * np.sqrt(periods_per_year)
         mean = float(daily_returns.mean())
         std = float(daily_returns.std(ddof=1))
-        sharpe = (mean / std * np.sqrt(_ANN)) if std > 0 else None
+        sharpe = (mean / std * np.sqrt(periods_per_year)) if std > 0 else None
         neg = np.minimum(daily_returns.to_numpy(), 0.0)
         dd_dev = float(np.sqrt(np.mean(neg**2)))
-        sortino = (mean / dd_dev * np.sqrt(_ANN)) if dd_dev > 0 else None
+        sortino = (mean / dd_dev * np.sqrt(periods_per_year)) if dd_dev > 0 else None
     else:
         vol, sharpe, sortino = 0.0, None, None
 
-    cagr = _cagr(equity, n)
+    cagr = _cagr(equity, n, periods_per_year)
     max_dd = _max_drawdown(equity)
     dd_duration = _max_drawdown_duration(equity)
     calmar = (cagr / abs(max_dd)) if max_dd < 0 else None
@@ -145,7 +152,7 @@ def compute_metrics(
     bench_max_dd: float | None = None
     if benchmark_returns is not None and len(benchmark_returns) >= 2:
         bench_equity = (1.0 + benchmark_returns.fillna(0.0)).cumprod()
-        bench_cagr = _cagr(bench_equity, len(benchmark_returns))
+        bench_cagr = _cagr(bench_equity, len(benchmark_returns), periods_per_year)
         bench_max_dd = _max_drawdown(bench_equity)
 
     return Metrics(

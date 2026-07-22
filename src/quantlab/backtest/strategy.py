@@ -53,6 +53,15 @@ class Strategy(ABC):
         """Every symbol the strategy may reference (required + optional)."""
         return self.required_symbols
 
+    @property
+    def periods_per_year(self) -> int:
+        """Annualization factor for metrics computed on this strategy's returns.
+
+        252 (trading days) for daily equities — the default, so every existing
+        strategy is unchanged. 24/7 crypto strategies override this to 365.
+        """
+        return 252
+
     def is_warmed_up(self, window: pd.DataFrame, current_date: pd.Timestamp) -> bool:
         """Whether enough history exists to emit a real (non-warmup) signal."""
         return True

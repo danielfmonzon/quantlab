@@ -13,7 +13,13 @@ from pydantic import BaseModel
 
 from quantlab.backtest.engine import run_backtest
 from quantlab.backtest.metrics import compute_metrics
-from quantlab.backtest.strategies import DualMomentum, TrendSMA10, VolTarget
+from quantlab.backtest.strategies import (
+    CryptoTrendBTC,
+    CryptoVolTargetBTC,
+    DualMomentum,
+    TrendSMA10,
+    VolTarget,
+)
 from quantlab.backtest.strategy import Strategy
 from quantlab.data import DataError
 
@@ -22,6 +28,14 @@ _TREND_N_MONTHS = (8, 10, 12)  # Faber baseline: 10
 _DUALMOM_LOOKBACK = (9, 12, 15)  # Antonacci baseline: 12
 _VOLTARGET_TARGETS = (0.08, 0.10, 0.12)  # baseline: 0.10
 _VOLTARGET_LOOKBACKS = (15, 20, 25)  # baseline: 20
+
+# Crypto research strategies. The iron rule forbids TUNING, not robustness testing:
+# these grids only probe a sensible neighborhood around the pre-registered values
+# to FLAG fragility. The pre-registered baselines (SMA 10; 20% target vol, 20-day
+# window) stand regardless of what any neighbor shows.
+_CRYPTO_TREND_N_MONTHS = (8, 9, 10, 11, 12)  # pre-registered baseline: 10
+_CRYPTO_VOLTARGET_TARGETS = (0.15, 0.20, 0.25)  # pre-registered baseline: 0.20
+_CRYPTO_VOLTARGET_LOOKBACKS = (15, 20, 25)  # pre-registered baseline: 20
 
 # A baseline neighbor whose Sharpe beats every neighbor by more than this margin
 # is the signature of a parameter that would have been overfit had we tuned it.
@@ -69,6 +83,21 @@ def _grid_for(strategy_name: str) -> list[tuple[dict[str, float], bool, Strategy
                 is_base = tv == 0.10 and ld == 20
                 points.append((params, is_base, VolTarget(target_vol=tv, lookback_days=ld)))
         return points
+    if strategy_name == "crypto_trend_btc":
+        return [
+            ({"n_months": float(n)}, n == 10, CryptoTrendBTC(n_months=n))
+            for n in _CRYPTO_TREND_N_MONTHS
+        ]
+    if strategy_name == "crypto_voltarget_btc":
+        cpoints: list[tuple[dict[str, float], bool, Strategy]] = []
+        for tv in _CRYPTO_VOLTARGET_TARGETS:
+            for ld in _CRYPTO_VOLTARGET_LOOKBACKS:
+                params = {"target_vol": tv, "lookback_days": float(ld)}
+                is_base = tv == 0.20 and ld == 20
+                cpoints.append(
+                    (params, is_base, CryptoVolTargetBTC(target_vol=tv, lookback_days=ld))
+                )
+        return cpoints
     raise DataError(f"perturb: no fixed grid for strategy {strategy_name!r}")
 
 
@@ -78,7 +107,10 @@ def perturb(strategy_name: str, panel: pd.DataFrame, cost_bps: float = 5.0) -> P
     baseline: GridPoint | None = None
     for params, is_baseline, strategy in _grid_for(strategy_name):
         result = run_backtest(panel, strategy, cost_bps=cost_bps)
-        m = compute_metrics(result.daily_returns, result.equity)
+        m = compute_metrics(
+            result.daily_returns, result.equity,
+            periods_per_year=strategy.periods_per_year,
+        )
         point = GridPoint(
             params=params,
             is_baseline=is_baseline,
