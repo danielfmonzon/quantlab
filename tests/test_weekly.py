@@ -23,11 +23,19 @@ from quantlab.reporting.weekly import (
     render_markdown,
     write_weekly_review,
 )
+from quantlab.reporting.weekly import (
+    _last_snapshot_per_day as last_snapshot_per_day,
+)
 from quantlab.risk.state import RiskState, risk_state_path_for, save_risk_state
 
 NOW = datetime(2026, 7, 10, 21, 0, 0, tzinfo=UTC)
 WEEK_ENDING = date(2026, 7, 10)
 WEEK_DATES = ["2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10"]
+# A crypto week is seven UTC days (24/7 market), not five sessions.
+CRYPTO_WEEK_DATES = [
+    "2026-07-04", "2026-07-05", "2026-07-06", "2026-07-07",
+    "2026-07-08", "2026-07-09", "2026-07-10",
+]
 
 
 def _seed_equity(path: Path, dates: list[str], values: list[float]) -> None:
@@ -55,10 +63,12 @@ def _stub_shadow(values_by_label: dict[str, float]):
     """A shadow fn whose compounded return over any window is a fixed per-label value.
 
     Implemented as a single dated return on the window's end date, so both the
-    weekly and cumulative compounding pick up exactly that value.
+    weekly and cumulative compounding pick up exactly that value. Labels absent
+    from the mapping shadow flat (0.0).
     """
     def _fn(label: str, store: object, start: date, end: date) -> pd.Series:
-        return pd.Series([values_by_label[label]], index=pd.DatetimeIndex([pd.Timestamp(end)]))
+        return pd.Series([values_by_label.get(label, 0.0)],
+                         index=pd.DatetimeIndex([pd.Timestamp(end)]))
     return _fn
 
 
@@ -88,6 +98,33 @@ def _build(tmp_path, *, shadow_values, alert_fn=None, brokers=None):
     return review, data_dir, reports_dir, alerts_path
 
 
+def _build_four(tmp_path, *, shadow_values=None, week_ending=WEEK_ENDING, now=NOW,
+                alert_fn=None):
+    """All four approved accounts (2 equity + 2 crypto) with brokers configured.
+
+    Equity accounts get a 5-session week; crypto accounts get a 7-UTC-day week,
+    each +1.00% paper over its own window.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", WEEK_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    _seed_equity(data_dir / "equity_history_trend.parquet", WEEK_DATES,
+                 [50_000, 50_250, 50_500, 50_750, 51_000])
+    _seed_equity(data_dir / "equity_history_crypto_trend.parquet", CRYPTO_WEEK_DATES,
+                 [100_000, 100_100, 100_300, 100_400, 100_600, 100_800, 101_000])
+    _seed_equity(data_dir / "equity_history_crypto_voltarget.parquet", CRYPTO_WEEK_DATES,
+                 [200_000, 200_200, 200_600, 200_800, 201_200, 201_600, 202_000])
+    brokers = {label: object() for label in
+               ("voltarget", "trend", "crypto_trend", "crypto_voltarget")}
+    review = build_weekly_review(
+        brokers, MagicMock(), TradingCalendar(), now, week_ending,
+        shadow_fn=_stub_shadow(shadow_values or {}),
+        alert_fn=alert_fn if alert_fn is not None else (lambda _a: []),
+        data_dir=data_dir, paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    return review, data_dir, reports_dir, alerts_path
+
+
 def test_divergence_bps_from_seeded_equity_and_shadow(tmp_path) -> None:
     # voltarget paper +1.00%, shadow +0.95% -> divergence +5 bps.
     review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.0095})
@@ -99,8 +136,11 @@ def test_divergence_bps_from_seeded_equity_and_shadow(tmp_path) -> None:
 
 def test_tracking_within_threshold(tmp_path) -> None:
     review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.0195})
-    # Both within 50 bps of paper -> TRACKING.
-    assert all(a.verdict == "TRACKING" for a in review.accounts)
+    # Both configured accounts are within 50 bps of paper -> TRACKING. (The crypto
+    # accounts have no broker in this fixture and render as unavailable.)
+    available = [a for a in review.accounts if a.available]
+    assert len(available) == 2
+    assert all(a.verdict == "TRACKING" for a in available)
 
 
 def test_diverging_beyond_threshold(tmp_path) -> None:
@@ -131,7 +171,7 @@ def test_cumulative_divergence_and_dividend_note(tmp_path) -> None:
     assert vt.cumulative is not None
     # inception==week-start here, so cumulative divergence == week divergence.
     assert vt.cumulative.cumulative_divergence_bps == pytest.approx(5.0)
-    assert "dividend" in vt.cumulative.expected_dividend_drag_note.lower()
+    assert "dividend" in vt.cumulative.structural_drift_note.lower()
 
 
 def test_ops_stats_count_runs_and_aborts_by_stage(tmp_path) -> None:
@@ -220,12 +260,14 @@ def test_readiness_flags_halted_account(tmp_path) -> None:
 
 def test_readiness_pct_complete_math(tmp_path) -> None:
     review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.0195})
-    r = review.readiness
-    # Track start = 2026-07-06, week ending 2026-07-10 -> 4 calendar days elapsed.
-    assert r.paper_start_date == date(2026, 7, 6)
-    assert r.calendar_days_elapsed == 4
-    assert r.target_days == TARGET_DAYS
-    assert r.pct_complete == pytest.approx(100.0 * 4 / TARGET_DAYS)
+    equity = next(c for c in review.readiness.clocks if c.asset_class == "us_equity")
+    # Equity track start = 2026-07-06, week ending 2026-07-10 -> 4 calendar days.
+    assert equity.paper_start_date == date(2026, 7, 6)
+    assert equity.calendar_days_elapsed == 4
+    assert equity.target_days == TARGET_DAYS
+    assert equity.pct_complete == pytest.approx(100.0 * 4 / TARGET_DAYS)
+    # The equity clock is derived from data, never floored by policy.
+    assert equity.start_note is None
 
 
 def test_render_markdown_and_write(tmp_path) -> None:
@@ -246,3 +288,144 @@ def test_render_markdown_and_write(tmp_path) -> None:
     # Same-week rerun overwrites (single file per week).
     write_weekly_review(review, weekly_dir=out_dir)
     assert len(list(out_dir.glob("week_*.md"))) == 1
+
+
+# --------------------------------------------------------------------------
+# All-asset-class coverage (crypto accounts included)
+# --------------------------------------------------------------------------
+
+
+def test_four_accounts_render_four_sections_with_asset_class_labels(tmp_path) -> None:
+    review, *_ = _build_four(tmp_path)
+    assert [a.label for a in review.accounts] == [
+        "voltarget", "trend", "crypto_trend", "crypto_voltarget",
+    ]
+    assert all(a.available for a in review.accounts)
+
+    md = render_markdown(review)
+    assert "## Account: voltarget (us_equity)" in md
+    assert "## Account: trend (us_equity)" in md
+    assert "## Account: crypto_trend (crypto)" in md
+    assert "## Account: crypto_voltarget (crypto)" in md
+    assert md.count("## Account:") == 4
+
+
+def test_crypto_sections_carry_crypto_note_not_dividend_note(tmp_path) -> None:
+    review, *_ = _build_four(tmp_path)
+    ct = next(a for a in review.accounts if a.label == "crypto_trend")
+    assert ct.asset_class == "crypto"
+    assert ct.cumulative is not None
+    note = ct.cumulative.structural_drift_note.lower()
+    assert "24/7" in note and "once-daily" in note
+    assert "does not credit cash dividends" not in note
+
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    assert vt.cumulative is not None
+    assert "does not credit cash dividends" in vt.cumulative.structural_drift_note
+
+    md = render_markdown(review)
+    assert "- _crypto note:" in md
+    assert "- _dividend note:" in md
+
+
+def test_crypto_week_window_spans_seven_utc_days(tmp_path) -> None:
+    review, *_ = _build_four(tmp_path)
+    ct = next(a for a in review.accounts if a.label == "crypto_trend")
+    assert ct.window is not None
+    assert ct.window.n_snapshots == 7  # a crypto week is 7 days, not 5 sessions
+    assert ct.window.insufficient is False
+    assert ct.window.start == date(2026, 7, 4)
+    assert ct.window.end == date(2026, 7, 10)
+    # Equity keeps its 5-session week untouched.
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    assert vt.window is not None and vt.window.n_snapshots == 5
+
+
+def test_readiness_has_one_clock_per_asset_class_with_floored_crypto_start(tmp_path) -> None:
+    # Week ending after the crypto restart date so the crypto clock has run.
+    review, *_ = _build_four(
+        tmp_path, week_ending=date(2026, 7, 24),
+        now=datetime(2026, 7, 24, 21, 0, 0, tzinfo=UTC),
+    )
+    clocks = {c.asset_class: c for c in review.readiness.clocks}
+    assert list(clocks) == ["us_equity", "crypto"]
+
+    equity = clocks["us_equity"]
+    assert equity.paper_start_date == date(2026, 7, 6)  # derived from first snapshot
+    assert equity.calendar_days_elapsed == 18
+    assert equity.start_note is None
+
+    # Crypto history starts 2026-07-04 but the ruling floors the clock at 07-22.
+    crypto = clocks["crypto"]
+    assert crypto.paper_start_date == date(2026, 7, 22)
+    assert crypto.calendar_days_elapsed == 2
+    assert crypto.pct_complete == pytest.approx(100.0 * 2 / TARGET_DAYS)
+    assert crypto.start_note is not None
+    assert "2026-07-22" in crypto.start_note and "2026-07-04" in crypto.start_note
+
+    md = render_markdown(review)
+    assert "- **us_equity**: paper track start 2026-07-06" in md
+    assert "- **crypto**: paper track start 2026-07-22" in md
+    assert "clock restarted 2026-07-22 by ruling" in md
+
+
+def test_crypto_clock_never_goes_negative_before_the_restart_date(tmp_path) -> None:
+    # week_ending (2026-07-10) precedes the 2026-07-22 floor: 0 days, not negative.
+    review, *_ = _build_four(tmp_path)
+    crypto = next(c for c in review.readiness.clocks if c.asset_class == "crypto")
+    assert crypto.paper_start_date == date(2026, 7, 22)
+    assert crypto.calendar_days_elapsed == 0
+    assert crypto.pct_complete == pytest.approx(0.0)
+
+
+def test_last_snapshot_per_day_keeps_only_the_final_mark(tmp_path) -> None:
+    # Two marks on 2026-07-20 (the pre-fix double-run); one on each other day.
+    history = pd.DataFrame({
+        "timestamp": pd.to_datetime([
+            "2026-07-20 05:17:36", "2026-07-20 14:01:00", "2026-07-21 05:18:13",
+        ]),
+        "equity": [99_833.94, 99_894.84, 101_175.92],
+    })
+    collapsed = last_snapshot_per_day(history)
+    assert len(collapsed) == 2
+    assert list(collapsed["equity"]) == [99_894.84, 101_175.92]  # the LAST of 07-20
+    assert list(collapsed["timestamp"].dt.date) == [date(2026, 7, 20), date(2026, 7, 21)]
+
+
+def test_crypto_double_run_day_does_not_shrink_the_week_window(tmp_path) -> None:
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", WEEK_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    _seed_equity(data_dir / "equity_history_trend.parquet", WEEK_DATES,
+                 [50_000, 50_250, 50_500, 50_750, 51_000])
+    _seed_equity(data_dir / "equity_history_crypto_trend.parquet", CRYPTO_WEEK_DATES,
+                 [100_000, 100_100, 100_300, 100_400, 100_600, 100_800, 101_000])
+    # crypto_voltarget carries a SECOND mark on each of the last three days: the
+    # 05:00 UTC crypto-task run plus the leaked 14:00 UTC equity-task run.
+    _seed_equity(
+        data_dir / "equity_history_crypto_voltarget.parquet",
+        ["2026-07-04 05:00:00", "2026-07-05 05:00:00", "2026-07-06 05:00:00",
+         "2026-07-07 05:00:00",
+         "2026-07-08 05:00:00", "2026-07-08 14:00:00",
+         "2026-07-09 05:00:00", "2026-07-09 14:00:00",
+         "2026-07-10 05:00:00", "2026-07-10 14:00:00"],
+        [200_000, 200_200, 200_600, 200_800,
+         201_200, 201_300,
+         201_600, 201_700,
+         202_000, 202_100],
+    )
+    brokers = {label: object() for label in
+               ("voltarget", "trend", "crypto_trend", "crypto_voltarget")}
+    review = build_weekly_review(
+        brokers, MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow({}), alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    cv = next(a for a in review.accounts if a.label == "crypto_voltarget")
+    assert cv.window is not None
+    # 10 raw snapshots collapse to 7 days; the window is still a full week.
+    assert cv.window.n_snapshots == 7
+    assert cv.window.start == date(2026, 7, 4)
+    assert cv.window.end == date(2026, 7, 10)
+    # Week return runs first-day mark -> LAST mark of the final day.
+    assert cv.paper_week_return == pytest.approx(202_100 / 200_000 - 1.0)

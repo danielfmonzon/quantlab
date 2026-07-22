@@ -6,6 +6,135 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-22 — Weekly review covers every asset class
+
+**Decision.** `build_weekly_review` iterates **`APPROVED_STRATEGIES`** rather than
+`EQUITY_APPROVED_STRATEGIES`, so the weekly paper-vs-shadow review renders a
+section for all four approved accounts (`voltarget`, `trend`, `crypto_trend`,
+`crypto_voltarget`). Three things vary by asset class:
+
+* **Window length.** An equity week is 5 sessions; a crypto week is **7** UTC
+  days, because the crypto accounts trade and snapshot every calendar day.
+* **Structural-drift note.** Equity sections keep the dividend-drag note. Crypto
+  sections carry a crypto-specific caveat instead: crypto pays no dividends, so
+  there is no drag — the structural gap is *timing*, since BTC trades 24/7 while
+  both the paper equity snapshot and the shadow's bars are once-daily, so
+  weekend and overnight moves land entirely between two marks.
+* **Snapshot collapse.** Crypto history is collapsed to the **last snapshot per
+  UTC day** before any return is computed (`_last_snapshot_per_day`).
+
+The DIVERGING threshold stays a single portfolio-wide policy number (50 bps)
+applied to every account's **weekly aggregate**, crypto included.
+
+**Rationale.** Excluding crypto from the only report that compares paper equity
+against expectation left half the paper roster untracked — the crypto accounts
+were being traded daily with no divergence gate at all. The three per-class
+adjustments are what make the comparison honest rather than merely present: a
+5-snapshot window on a 7-day market would label a 5-day span a "week"; the
+dividend note is simply false for BTC; and the once-daily collapse is required
+because the pre-fix double-runs (see the entry below) left two marks on some
+days, which would have compressed a 7-snapshot window into roughly three days
+and compared that against a threshold calibrated for a full week.
+
+The equity path is deliberately untouched — same 5-snapshot window, same
+dividend note, same numbers — so this change cannot perturb the equity track
+record that the readiness gate depends on.
+
+---
+
+## 2026-07-22 — Crypto track-record clock restarts (Quant Lead ruling)
+
+**Decision.** The **crypto** live-readiness clock **restarts at 2026-07-22**.
+The readiness ledger therefore carries one independent 90-day clock per asset
+class: **`us_equity` from 2026-07-09**, **`crypto` from 2026-07-22**. Crypto
+paper history from 2026-07-12 to 2026-07-21 is **retained as diagnostic data
+only** — it is still on disk, still rendered in the weekly return series, but it
+does **not** count toward the 90-day gate. **Equity records are unaffected** by
+this ruling; the equity clock keeps its original 2026-07-09 start.
+
+**Rationale.** The pre-fix crypto history is contaminated by the double-runs
+described in the entry below. Those leaked 10:00 ET runs were **not** dry runs —
+they submitted real paper orders (e.g. `crypto_voltarget` submitted an order on
+both its 00:30 UTC and its 14:00 UTC run on 2026-07-21) — so the affected days
+carry rebalances at a second daily timestamp that the once-daily shadow does not
+model. A track record whose turnover and mark timing do not match the policy
+being evaluated cannot support a live-readiness decision, and the honest remedy
+for a contaminated window is to restart the clock rather than to quietly average
+the contamination away. Retaining rather than deleting the old history keeps the
+contamination auditable.
+
+Implementation: `_TRACK_START_FLOOR` in `reporting/weekly.py` floors the crypto
+clock at 2026-07-22. The floored clock renders a `start_note` recording that the
+clock was restarted by ruling and that the earlier history does not count, so the
+restart is visible in every weekly report rather than buried in code.
+
+---
+
+## 2026-07-22 — Equity scheduled task leaked into the crypto accounts
+
+**Decision.** The `quantlab-paper-run` scheduled task runs
+`paper run-all **--asset-class us_equity** --submit`. The flag is load-bearing
+and must never be dropped.
+
+**Diagnosis.** `paper run-all` defaults to `--asset-class all`, which iterates
+every entry in `APPROVED_STRATEGIES`. When the crypto sleeve added
+`crypto_trend` and `crypto_voltarget` to that tuple, the pre-existing 10:00 ET
+equity task silently widened to cover them as well — while the separate
+`quantlab-crypto-paper-run` task at 20:30 local was already running them. The
+crypto accounts were therefore run **twice a day** on weekdays. The evidence is
+in the artifacts: `data/equity_history_crypto_*.parquet` carries two snapshots on
+each affected weekday (one at ~00:30/05:00 UTC from the crypto task, one at
+14:00 UTC = 10:00 ET from the equity task), and `reports/paper/` holds a matching
+pair of non-dry-run reports per day, several with orders submitted on both.
+
+**Rationale.** The default of `all` is right for an interactive
+`paper run-all` — an operator asking to run everything means everything. The
+defect was that a *scheduled* task inherited a default that changed meaning when
+the roster grew. Pinning the asset class in the task definition makes each task's
+scope explicit and immune to future roster additions; the crypto sleeve's own
+task is likewise pinned to `--asset-class crypto`. The load-bearing nature of the
+flag is documented in `scheduling/tasks.py` so it survives the next edit.
+
+---
+
+## 2026-07-11 — Crypto sleeve: strategies, accounts, and schedule
+
+**Decision.** Add a crypto sleeve alongside the equity roster, kept structurally
+separate at every layer rather than merged into the equity path:
+
+* **Strategies.** `CryptoTrendBTC` (Faber 10-month SMA on BTC-USD, **no safe
+  asset** — below the SMA is 100% cash) and `CryptoVolTargetBTC` (20% target vol,
+  20-day realized window, weight capped at 1.0). Both annualize on a **365-day**
+  grid. Parameters are literature/convention-fixed under the iron rule.
+* **Accounts.** Two further dedicated, fully isolated Alpaca paper accounts,
+  `crypto_trend` and `crypto_voltarget`, each with its own key pair and its own
+  `equity_history_{label}.parquet` / `risk_state_{label}.json` namespace. Both
+  were appended to `APPROVED_STRATEGIES` after passing the walk-forward +
+  perturbation + bootstrap battery on 2026-07-11.
+* **Calendar and data.** A `CryptoCalendar` emitting every UTC day (not NYSE
+  sessions), Coinbase as the crypto price source, and a separate
+  `config/crypto_universe.yaml` so crypto symbols can never leak into the equity
+  ingest/validate/paper symbol set.
+* **Risk.** A separate `config/crypto_risk.yaml` calibrated to crypto volatility
+  (15% daily HALT, 25% weekly HALT, 50% drawdown KILL) — the equity
+  `config/risk.yaml` is left untouched and the runner selects the file by the
+  account's asset class.
+* **Schedule.** A separate `quantlab-crypto-paper-run` task, `/SC DAILY` (all 7
+  days) at 20:30 local, distinct from the three equity task definitions.
+
+**Rationale.** Crypto differs from the equity sleeve in the three things that
+drive nearly all of this codebase's logic — the calendar (24/7 vs NYSE), the
+volatility regime (hence the risk limits), and the data source. Sharing one code
+path and branching internally on asset class would have put crypto-shaped edge
+cases inside the equity trading path, which is the one path with a real track
+record. Separate config files, a separate calendar, separate accounts, and a
+separate scheduled task mean a crypto change cannot regress equities. The cost of
+that separation is that shared reports must be taught about asset classes one at
+a time — the asset-class leak and the weekly-coverage gap above are both
+instances of exactly that cost.
+
+---
+
 ## 2026-07-10 — Version stamping on every report
 
 **Decision.** Introduce a single `__version__` ("1.0.0") and embed

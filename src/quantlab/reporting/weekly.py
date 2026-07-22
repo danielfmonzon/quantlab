@@ -1,25 +1,31 @@
 """Phase-9 weekly review: paper-vs-shadow tracking, ops stats, readiness ledger.
 
-Report-only. ``build_weekly_review`` produces, per paper account:
+Report-only. ``build_weekly_review`` covers EVERY approved account across every
+asset class (``APPROVED_STRATEGIES``), producing per account:
 
-* the week's paper return (last 5 equity snapshots) vs the shadow return the
-  paper account SHOULD have earned over the same span, and their divergence;
+* the week's paper return (the last week of equity snapshots -- 5 for equities,
+  7 for the 24/7 crypto accounts) vs the shadow return that account SHOULD have
+  earned over the same span, and their divergence;
 * cumulative paper-vs-shadow return since track start, with an explicit
-  dividend-drag annotation (see ``reporting.shadow`` caveat (c));
+  structural-drift annotation: dividend drag for equities (see
+  ``reporting.shadow`` caveat (c)), the 24/7-vs-daily-bar caveat for crypto;
 * operational stats for the week (runs attempted/completed/aborted by stage,
   alerts by level, the account's current RiskState);
 * a per-account verdict: TRACKING when |week divergence| <= the configured
   threshold (``weekly_divergence_alert_bps``, default 50), DIVERGING otherwise.
   A DIVERGING account fires exactly one WARNING alert.
 
-Plus a portfolio-wide live-readiness ledger (elapsed vs a 90-day target, with
-blockers). ``render_markdown`` formats it; ``write_weekly_review`` writes
-``week_{YYYYMMDD}.md`` + ``.json`` under ``reports/weekly/``.
+Plus a live-readiness ledger carrying ONE CLOCK PER ASSET CLASS (elapsed vs a
+90-day target, with blockers) -- equity and crypto began paper tracking on
+different dates and their 90-day gates run independently. ``render_markdown``
+formats it; ``write_weekly_review`` writes ``week_{YYYYMMDD}.md`` + ``.json``
+under ``reports/weekly/``.
 
 The shadow is close-to-close while paper equity marks are ~10:00 ET and Alpaca
 paper does not credit dividends, so some drift is STRUCTURAL, not tracking error
-(see ``reporting.shadow``). The threshold and the dividend-drag note exist so the
-review annotates that expected drift rather than alarming on it.
+(see ``reporting.shadow``). The threshold and the per-asset-class structural
+notes exist so the review annotates that expected drift rather than alarming on
+it.
 """
 
 from __future__ import annotations
@@ -32,7 +38,7 @@ from pathlib import Path
 import pandas as pd
 from pydantic import BaseModel
 
-from quantlab.config import APPROVED_STRATEGIES
+from quantlab.config import APPROVED_STRATEGIES, account_asset_class
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.calendar import TradingCalendar
 from quantlab.data.store import ParquetStore
@@ -53,10 +59,21 @@ WEEKLY_DIR: Path = PROJECT_ROOT / "reports" / "weekly"
 # consideration of going live. A constant by design (a policy gate, not a knob).
 TARGET_DAYS = 90
 
-# A trading week is five sessions; the paper runner snapshots equity once per run.
-_WEEK_SNAPSHOTS = 5
+# Snapshots that make up one week, per asset class. An equity trading week is
+# five sessions; crypto trades every UTC day, so its week is seven. The paper
+# runner snapshots equity once per run.
+_WEEK_SNAPSHOTS_BY_CLASS: dict[str, int] = {"us_equity": 5, "crypto": 7}
+_DEFAULT_WEEK_SNAPSHOTS = 5
 # Minimum completed runs in a week below which readiness flags the account.
 _MIN_COMPLETED_RUNS = 4
+
+# Per-asset-class track-start floor. The crypto readiness clock RESTARTS on
+# 2026-07-22 by Quant Lead ruling: until the `--asset-class us_equity` fix landed,
+# the 10:00 ET equity task also iterated the crypto accounts, so crypto paper
+# history before that date contains double-run rebalances the once-daily shadow
+# does not model. Equity has no floor - its clock derives from its own first
+# snapshot (2026-07-09) and the ruling leaves equity records untouched.
+_TRACK_START_FLOOR: dict[str, date] = {"crypto": date(2026, 7, 22)}
 
 # Injected so tests can substitute deterministic stubs.
 ShadowFn = Callable[[str, ParquetStore, date, date], pd.Series]
@@ -69,6 +86,28 @@ _DIVIDEND_DRAG_NOTE = (
     "cumulative divergence of that order is expected dividend drag, not tracking "
     "error."
 )
+
+_CRYPTO_STRUCTURAL_NOTE = (
+    "No dividend drag applies here - crypto pays no dividends, so the "
+    "adj_close shadow and the paper account see the same total return. The "
+    "structural gap is timing instead: BTC trades 24/7, while paper equity "
+    "snapshots and the shadow's daily bars are both once-daily, so weekend and "
+    "overnight moves land entirely between two marks and produce LARGER "
+    "structural day-to-day gaps than an equity account shows. The divergence "
+    "threshold still applies to the weekly aggregate, where those intra-window "
+    "timing gaps largely wash out."
+)
+
+_STRUCTURAL_NOTE_BY_CLASS: dict[str, str] = {
+    "us_equity": _DIVIDEND_DRAG_NOTE,
+    "crypto": _CRYPTO_STRUCTURAL_NOTE,
+}
+
+# Markdown label for each asset class's structural note.
+_NOTE_LABEL_BY_CLASS: dict[str, str] = {
+    "us_equity": "dividend note",
+    "crypto": "crypto note",
+}
 
 
 class WeekWindow(BaseModel):
@@ -83,7 +122,9 @@ class CumulativeStats(BaseModel):
     paper_total_return: float | None
     shadow_total_return: float | None
     cumulative_divergence_bps: float | None
-    expected_dividend_drag_note: str = _DIVIDEND_DRAG_NOTE
+    # The asset class's expected-structural-drift annotation: dividend drag for
+    # equities, the 24/7-vs-once-daily timing caveat for crypto.
+    structural_drift_note: str = _DIVIDEND_DRAG_NOTE
 
 
 class OpsStats(BaseModel):
@@ -98,6 +139,7 @@ class OpsStats(BaseModel):
 class AccountWeekly(BaseModel):
     label: str
     available: bool
+    asset_class: str = "us_equity"
     note: str | None = None
     window: WeekWindow | None = None
     paper_week_return: float | None = None
@@ -108,11 +150,23 @@ class AccountWeekly(BaseModel):
     verdict: str = "INSUFFICIENT"  # TRACKING / DIVERGING / INSUFFICIENT
 
 
-class ReadinessLedger(BaseModel):
+class AssetClassClock(BaseModel):
+    """One asset class's independent 90-day paper-tracking clock."""
+
+    asset_class: str
     paper_start_date: date | None
     calendar_days_elapsed: int
     target_days: int = TARGET_DAYS
     pct_complete: float
+    # Set when the start date was floored by policy rather than derived from the
+    # first equity snapshot (see _TRACK_START_FLOOR).
+    start_note: str | None = None
+
+
+class ReadinessLedger(BaseModel):
+    # One clock per asset class, in APPROVED_STRATEGIES order. Equity and crypto
+    # started paper tracking on different dates and gate independently.
+    clocks: list[AssetClassClock] = []
     blockers: list[str] = []
 
 
@@ -130,6 +184,21 @@ def _equity_history(path: Path) -> pd.DataFrame:
                              "equity": pd.Series(dtype="float64")})
     df = pd.read_parquet(path)
     return df.sort_values("timestamp").reset_index(drop=True)
+
+
+def _last_snapshot_per_day(history: pd.DataFrame) -> pd.DataFrame:
+    """Collapse ``history`` to the LAST equity snapshot of each calendar day.
+
+    The shadow is a once-daily series, so a once-daily paper mark is the only
+    apples-to-apples comparison. Crypto history carries two marks on some pre-fix
+    days (the leaked equity task ran the crypto accounts a second time); without
+    this collapse a 7-snapshot window would span barely three days and a "week"
+    divergence would be compared against a threshold calibrated for a full week.
+    """
+    if history.empty:
+        return history
+    day = history["timestamp"].dt.date
+    return history[~day.duplicated(keep="last")].reset_index(drop=True)
 
 
 def _compound(series: pd.Series, start_exclusive: date, end_inclusive: date) -> float | None:
@@ -229,8 +298,9 @@ def _account_weekly(
     paper_reports_dir: Path,
     alerts_path: Path,
 ) -> AccountWeekly:
+    asset_class = account_asset_class(label)
     if not available:
-        return AccountWeekly(label=label, available=False,
+        return AccountWeekly(label=label, available=False, asset_class=asset_class,
                              note="account keys not configured")
 
     # Ops stats span the seven calendar days ending week_ending (covers Mon-Fri).
@@ -239,6 +309,10 @@ def _account_weekly(
 
     history = _equity_history(equity_history_path_for(label, data_dir))
     history = history[history["timestamp"].dt.date <= week_ending]
+    if asset_class == "crypto":
+        # 24/7 market, once-daily marks: one snapshot per UTC day (see docstring).
+        history = _last_snapshot_per_day(history)
+    week_snapshots = _WEEK_SNAPSHOTS_BY_CLASS.get(asset_class, _DEFAULT_WEEK_SNAPSHOTS)
 
     if len(history) < 2:
         note = ("insufficient snapshots for weekly window; showing since-inception"
@@ -246,13 +320,13 @@ def _account_weekly(
         first_date = (pd.Timestamp(history["timestamp"].iloc[0]).date()
                       if len(history) else None)
         return AccountWeekly(
-            label=label, available=True,
+            label=label, available=True, asset_class=asset_class,
             window=WeekWindow(start=first_date, end=first_date,
                               n_snapshots=int(len(history)), insufficient=True, note=note),
             cumulative=None, ops=ops, verdict="INSUFFICIENT",
         )
 
-    week_hist = history.tail(_WEEK_SNAPSHOTS)
+    week_hist = history.tail(week_snapshots)
     w_start = pd.Timestamp(week_hist["timestamp"].iloc[0]).date()
     w_end = pd.Timestamp(week_hist["timestamp"].iloc[-1]).date()
     paper_week = float(week_hist["equity"].iloc[-1]) / float(week_hist["equity"].iloc[0]) - 1.0
@@ -281,38 +355,70 @@ def _account_weekly(
 
     window = WeekWindow(
         start=w_start, end=w_end, n_snapshots=int(len(week_hist)),
-        insufficient=len(week_hist) < _WEEK_SNAPSHOTS,
-        note=("fewer than 5 snapshots; week return spans what is available"
-              if len(week_hist) < _WEEK_SNAPSHOTS else None),
+        insufficient=len(week_hist) < week_snapshots,
+        note=(f"fewer than {week_snapshots} snapshots; week return spans what is available"
+              if len(week_hist) < week_snapshots else None),
     )
     return AccountWeekly(
-        label=label, available=True, window=window,
+        label=label, available=True, asset_class=asset_class, window=window,
         paper_week_return=paper_week, shadow_week_return=shadow_week,
         divergence_bps=divergence_bps,
         cumulative=CumulativeStats(
             paper_total_return=paper_total, shadow_total_return=shadow_total,
             cumulative_divergence_bps=cum_div_bps,
+            structural_drift_note=_STRUCTURAL_NOTE_BY_CLASS.get(
+                asset_class, _DIVIDEND_DRAG_NOTE
+            ),
         ),
         ops=ops, verdict=verdict,
+    )
+
+
+def _asset_class_clock(
+    accounts: list[AccountWeekly], asset_class: str, data_dir: Path, week_ending: date,
+) -> AssetClassClock:
+    """This asset class's own 90-day clock, independent of every other class."""
+    # Track start = earliest first-snapshot date across this class's available
+    # accounts, then floored by policy where a ruling restarted the clock.
+    starts: list[date] = []
+    for acct in accounts:
+        if not acct.available or acct.asset_class != asset_class:
+            continue
+        history = _equity_history(equity_history_path_for(acct.label, data_dir))
+        if len(history):
+            starts.append(pd.Timestamp(history["timestamp"].iloc[0]).date())
+    derived = min(starts) if starts else None
+
+    floor = _TRACK_START_FLOOR.get(asset_class)
+    paper_start = derived
+    start_note: str | None = None
+    if floor is not None and derived is not None and derived < floor:
+        paper_start = floor
+        start_note = (
+            f"clock restarted {floor.isoformat()} by ruling; paper history back to "
+            f"{derived.isoformat()} is retained but does not count toward the gate"
+        )
+
+    # A floored clock can post-date week_ending (the restart has not arrived yet).
+    elapsed = max(0, (week_ending - paper_start).days) if paper_start else 0
+    pct = min(100.0, 100.0 * elapsed / TARGET_DAYS) if TARGET_DAYS else 0.0
+    return AssetClassClock(
+        asset_class=asset_class, paper_start_date=paper_start,
+        calendar_days_elapsed=elapsed, pct_complete=pct, start_note=start_note,
     )
 
 
 def _readiness_ledger(
     accounts: list[AccountWeekly], data_dir: Path, week_ending: date,
 ) -> ReadinessLedger:
-    # Track start = earliest first-snapshot date across all available accounts.
-    starts: list[date] = []
+    # One clock per asset class present in the review, in first-seen order.
+    ordered_classes: list[str] = []
     for acct in accounts:
-        if not acct.available:
-            continue
-        path = equity_history_path_for(acct.label, data_dir)
-        history = _equity_history(path)
-        if len(history):
-            starts.append(pd.Timestamp(history["timestamp"].iloc[0]).date())
-    paper_start = min(starts) if starts else None
-
-    elapsed = (week_ending - paper_start).days if paper_start else 0
-    pct = min(100.0, 100.0 * elapsed / TARGET_DAYS) if TARGET_DAYS else 0.0
+        if acct.asset_class not in ordered_classes:
+            ordered_classes.append(acct.asset_class)
+    clocks = [
+        _asset_class_clock(accounts, ac, data_dir, week_ending) for ac in ordered_classes
+    ]
 
     blockers: list[str] = []
     for acct in accounts:
@@ -331,10 +437,7 @@ def _readiness_ledger(
                 f"{acct.label}: only {acct.ops.runs_completed} completed run(s) "
                 f"this week (< {_MIN_COMPLETED_RUNS})"
             )
-    return ReadinessLedger(
-        paper_start_date=paper_start, calendar_days_elapsed=elapsed,
-        pct_complete=pct, blockers=blockers,
-    )
+    return ReadinessLedger(clocks=clocks, blockers=blockers)
 
 
 def build_weekly_review(
@@ -350,11 +453,15 @@ def build_weekly_review(
     paper_reports_dir: Path = PAPER_REPORTS_DIR,
     alerts_path: Path = ALERTS_JSONL,
 ) -> WeeklyReview:
-    """Assemble the weekly review across every approved account.
+    """Assemble the weekly review across every approved account, all asset classes.
 
     ``brokers`` maps each label to its client (or None when keys are absent — that
     account is reported as unavailable, mirroring the daily digest). Each DIVERGING
     account fires exactly one WARNING alert via ``alert_fn``.
+
+    The divergence threshold is a single portfolio-wide policy number applied to
+    every account's WEEKLY aggregate, crypto included; the asset-class differences
+    live in the window length and the structural-drift note, not the threshold.
     """
     week_end = week_ending if week_ending is not None else now.date()
     threshold = load_risk_limits().weekly_divergence_alert_bps
@@ -393,7 +500,7 @@ def _bps(x: float | None) -> str:
 
 
 def _render_account(acct: AccountWeekly) -> list[str]:
-    lines: list[str] = [f"## Account: {acct.label}"]
+    lines: list[str] = [f"## Account: {acct.label} ({acct.asset_class})"]
     if not acct.available:
         lines.append(f"- _skipped: {acct.note}_")
         lines.append("")
@@ -421,7 +528,8 @@ def _render_account(acct: AccountWeekly) -> list[str]:
         lines.append(f"- cumulative paper: {_pct(c.paper_total_return)}  |  "
                      f"shadow: {_pct(c.shadow_total_return)}  |  "
                      f"divergence: {_bps(c.cumulative_divergence_bps)}")
-        lines.append(f"- _dividend note: {c.expected_dividend_drag_note}_")
+        label = _NOTE_LABEL_BY_CLASS.get(acct.asset_class, "structural note")
+        lines.append(f"- _{label}: {c.structural_drift_note}_")
 
     o = acct.ops
     if o is not None:
@@ -460,10 +568,14 @@ def render_markdown(review: WeeklyReview) -> str:
 
     r = review.readiness
     lines.append("## Live-readiness ledger")
-    start = r.paper_start_date.isoformat() if r.paper_start_date else "-"
-    lines.append(f"- paper track start: {start}")
-    lines.append(f"- elapsed: {r.calendar_days_elapsed} / {r.target_days} calendar days "
-                 f"({r.pct_complete:.1f}% complete)")
+    lines.append("_one independent 90-day clock per asset class_")
+    for clock in r.clocks:
+        start = clock.paper_start_date.isoformat() if clock.paper_start_date else "-"
+        lines.append(f"- **{clock.asset_class}**: paper track start {start}")
+        lines.append(f"  - elapsed: {clock.calendar_days_elapsed} / {clock.target_days} "
+                     f"calendar days ({clock.pct_complete:.1f}% complete)")
+        if clock.start_note:
+            lines.append(f"  - _{clock.start_note}_")
     if r.blockers:
         lines.append("- blockers:")
         for b in r.blockers:
@@ -499,6 +611,7 @@ __all__ = [
     "CumulativeStats",
     "OpsStats",
     "ReadinessLedger",
+    "AssetClassClock",
     "WEEKLY_DIR",
     "TARGET_DAYS",
 ]
