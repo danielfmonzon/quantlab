@@ -24,6 +24,9 @@ from quantlab.reporting.weekly import (
     write_weekly_review,
 )
 from quantlab.reporting.weekly import (
+    _alerts_in_window as alerts_in_window,
+)
+from quantlab.reporting.weekly import (
     _last_snapshot_per_day as last_snapshot_per_day,
 )
 from quantlab.risk.state import RiskState, risk_state_path_for, save_risk_state
@@ -429,3 +432,85 @@ def test_crypto_double_run_day_does_not_shrink_the_week_window(tmp_path) -> None
     assert cv.window.end == date(2026, 7, 10)
     # Week return runs first-day mark -> LAST mark of the final day.
     assert cv.paper_week_return == pytest.approx(202_100 / 200_000 - 1.0)
+
+
+# --------------------------------------------------------------------------
+# Exact-label alert attribution (replaces substring matching)
+# --------------------------------------------------------------------------
+
+
+def _seed_alert_row(path: Path, ts: str, level: str, title: str,
+                    strategy: str | None = None) -> None:
+    """Append one alert record; omit ``strategy`` to simulate a legacy entry."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record: dict[str, object] = {"timestamp": ts, "level": level, "title": title,
+                                 "body": "b", "source": "s"}
+    if strategy is not None:
+        record["strategy"] = strategy
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+
+def _counts_for(path: Path, label: str) -> dict[str, int]:
+    return alerts_in_window(path, label, date(2026, 7, 16), date(2026, 7, 22))
+
+
+def test_trend_does_not_absorb_crypto_trend_alerts(tmp_path) -> None:
+    path = tmp_path / "alerts.jsonl"
+    _seed_alert_row(path, "2026-07-20T14:00:00+00:00", "WARNING",
+                    "paper trend aborted at 'health'", strategy="trend")
+    _seed_alert_row(path, "2026-07-20T05:00:00+00:00", "WARNING",
+                    "paper crypto_trend aborted at 'health'", strategy="crypto_trend")
+    assert _counts_for(path, "trend") == {"WARNING": 1}
+    assert _counts_for(path, "crypto_trend") == {"WARNING": 1}
+
+
+def test_voltarget_does_not_absorb_crypto_voltarget_alerts(tmp_path) -> None:
+    path = tmp_path / "alerts.jsonl"
+    _seed_alert_row(path, "2026-07-20T14:00:00+00:00", "INFO",
+                    "paper voltarget: 1 order(s) submitted", strategy="voltarget")
+    for i in range(3):
+        _seed_alert_row(path, f"2026-07-2{i}T05:00:00+00:00", "INFO",
+                        "paper crypto_voltarget: 1 order(s) submitted",
+                        strategy="crypto_voltarget")
+    assert _counts_for(path, "voltarget") == {"INFO": 1}
+    assert _counts_for(path, "crypto_voltarget") == {"INFO": 3}
+
+
+def test_legacy_entries_without_the_field_still_attribute_correctly(tmp_path) -> None:
+    # No 'strategy' key: falls back to a word-boundary title match. '_' is a word
+    # character, so 'trend' must NOT match 'crypto_trend'.
+    path = tmp_path / "alerts.jsonl"
+    _seed_alert_row(path, "2026-07-20T14:00:00+00:00", "CRITICAL",
+                    "paper trend aborted at 'account'")
+    _seed_alert_row(path, "2026-07-20T05:00:00+00:00", "WARNING",
+                    "paper crypto_trend aborted at 'health'")
+    _seed_alert_row(path, "2026-07-21T14:00:00+00:00", "INFO",
+                    "paper voltarget: 1 order(s) submitted")
+    _seed_alert_row(path, "2026-07-21T05:00:00+00:00", "INFO",
+                    "paper crypto_voltarget: 1 order(s) submitted")
+    assert _counts_for(path, "trend") == {"CRITICAL": 1}
+    assert _counts_for(path, "crypto_trend") == {"WARNING": 1}
+    assert _counts_for(path, "voltarget") == {"INFO": 1}
+    assert _counts_for(path, "crypto_voltarget") == {"INFO": 1}
+
+
+def test_structured_field_wins_over_a_misleading_title(tmp_path) -> None:
+    path = tmp_path / "alerts.jsonl"
+    _seed_alert_row(path, "2026-07-20T14:00:00+00:00", "WARNING",
+                    "weekly review: crypto_voltarget DIVERGING",
+                    strategy="crypto_voltarget")
+    assert _counts_for(path, "crypto_voltarget") == {"WARNING": 1}
+    assert _counts_for(path, "voltarget") == {}
+
+
+def test_mixed_legacy_and_structured_entries_coexist(tmp_path) -> None:
+    path = tmp_path / "alerts.jsonl"
+    _seed_alert_row(path, "2026-07-20T14:00:00+00:00", "INFO",
+                    "paper trend: 2 order(s) submitted")            # legacy
+    _seed_alert_row(path, "2026-07-21T14:00:00+00:00", "INFO",
+                    "paper trend: 2 order(s) submitted", strategy="trend")
+    _seed_alert_row(path, "2026-07-21T05:00:00+00:00", "INFO",
+                    "paper crypto_trend: 1 order(s) submitted", strategy="crypto_trend")
+    assert _counts_for(path, "trend") == {"INFO": 2}
+    assert _counts_for(path, "crypto_trend") == {"INFO": 1}

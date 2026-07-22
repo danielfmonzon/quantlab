@@ -18,8 +18,9 @@ import json
 import sys
 import tempfile
 from collections.abc import Callable
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -51,7 +52,7 @@ from quantlab.config import (
 )
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import AlpacaDataClient
-from quantlab.data.calendar import CryptoCalendar, TradingCalendar
+from quantlab.data.calendar import CryptoCalendar, MarketCalendar, TradingCalendar
 from quantlab.data.coinbase_client import CoinbaseClient
 from quantlab.data.health import HealthReport, preflight
 from quantlab.data.reconcile import ReconcileReport, reconcile
@@ -65,7 +66,7 @@ from quantlab.paper.runner import (
     run_all_strategies,
     run_paper,
 )
-from quantlab.reporting.alerts import send_test_alert
+from quantlab.reporting.alerts import Alert, dispatch, send_test_alert
 from quantlab.reporting.digest import build_digest, render_markdown, write_digest
 from quantlab.reporting.weekly import (
     build_weekly_review,
@@ -1238,8 +1239,65 @@ def _plan_only_run(strategy: str) -> PaperRunReport:
     )
 
 
-def _run_one_paper(strategy: str, submit: bool, plan_only: bool = False) -> int:
-    """Run one strategy in ITS OWN account with per-label state isolation."""
+# Latest ET wall-clock time at which a SUBMITTING equity run may still fire.
+# Paired with StartWhenAvailable catch-up on quantlab-paper-run: catch-up makes a
+# missed 10:00 run fire whenever the host comes back, and this cutoff stops that
+# recovery from converging a morning-intended signal minutes before the close.
+EQUITY_SUBMIT_CUTOFF_ET = time(15, 30)
+_ET_ZONE = ZoneInfo("America/New_York")
+_LATE_EQUITY_RUN_REASON = (
+    "equity run invoked after 15:30 ET cutoff; skipping to avoid converging a "
+    "morning signal near the close"
+)
+
+
+def equity_submit_cutoff_reason(
+    now_utc: datetime, calendar: MarketCalendar | None = None
+) -> str | None:
+    """Reason to skip a submitting equity run, or None to proceed.
+
+    Only applies on a trading session: off-session invocations are left to the
+    runner's own market-state gates. Exactly 15:30 ET is still allowed; 15:31 is
+    not. Crypto never reaches here — a 24/7 market has no near-close hazard.
+    """
+    cal = calendar if calendar is not None else TradingCalendar()
+    now_et = now_utc.astimezone(_ET_ZONE)
+    if not cal.is_session(now_et.date()):
+        return None
+    if now_et.time() <= EQUITY_SUBMIT_CUTOFF_ET:
+        return None
+    return _LATE_EQUITY_RUN_REASON
+
+
+def _run_one_paper(
+    strategy: str,
+    submit: bool,
+    plan_only: bool = False,
+    *,
+    now_utc: datetime | None = None,
+    alert_fn: Callable[[Alert], object] | None = None,
+) -> int:
+    """Run one strategy in ITS OWN account with per-label state isolation.
+
+    ``now_utc``/``alert_fn`` exist so the late-run guard is testable without a
+    real clock or a real alert dispatch; production passes neither.
+    """
+    # Late-run guard: refuse to SUBMIT an equity order after the ET cutoff. This
+    # must run before _trading_client_for so a guarded run makes NO broker call.
+    if submit and not plan_only and account_asset_class(strategy) == "us_equity":
+        now = now_utc if now_utc is not None else datetime.now(UTC)
+        reason = equity_submit_cutoff_reason(now)
+        if reason is not None:
+            emit = alert_fn if alert_fn is not None else dispatch
+            emit(Alert(
+                level="WARNING",
+                title=f"paper {strategy} skipped: late equity run",
+                body=reason, source="cli.paper_run", strategy=strategy,
+            ))
+            print(f"=== PAPER RUN: {strategy}  (SKIPPED) ===")
+            print(f"  [XX] late_run_guard    {reason}")
+            return 1
+
     if plan_only:
         report = _plan_only_run(strategy)
     else:

@@ -6,6 +6,90 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-22 — Scheduler catch-up, paired with a 15:30 ET submit cutoff
+
+**Decision.** Enable `StartWhenAvailable` (missed-start catch-up) on the
+scheduled tasks, and pair it with a **hard 15:30 ET cutoff** on any *submitting*
+equity paper run. A run invoked with `--submit` after 15:30 ET on a trading day
+aborts **before any broker call**, emitting a WARNING alert. Dry runs are
+unaffected; crypto is unaffected.
+
+**Rationale.** Two equity trading days were lost in two weeks because the host
+was off at 10:00 and `schtasks` simply skipped the run — a silent gap in the
+track record that the 90-day readiness gate depends on. Catch-up is the right
+fix because **converge-to-target** makes a late run safe by construction: the
+runner pursues the current target rather than replaying a missed rebalance, so a
+recovered run reaches the same allocation a punctual one would.
+
+The cutoff exists because that argument stops holding near the close. A signal
+intended for 10:00 fired at 15:55 converges into the closing auction, taking the
+day's full intraday move as slippage against a target chosen from the prior
+session's data — and the shadow, which models a single daily mark, would read the
+difference as tracking error. 15:30 leaves 30 minutes of liquid session for a
+DAY order to fill while keeping the run clear of the close. A skipped day is a
+visible gap in the ledger; a late near-close fill is invisible contamination, and
+between the two the visible failure is strictly preferable.
+
+Chosen over the alternative of "machine-on discipline" — an operational
+convention that the host stays awake at 10:00 — because that is an unenforceable
+promise about human behaviour guarding an automated track record, and it had
+already failed twice.
+
+---
+
+## 2026-07-22 — The test suite polluted the production alert log
+
+**Incident.** `pytest` wrote **49 fixture alerts** into the production
+`reports/alerts/alerts.jsonl` across 16 bursts between `2026-07-22T17:19:48Z`
+and `2026-07-22T22:13:56Z` — one burst per test invocation. The pollution
+surfaced in that evening's weekly review, where `trend` reported
+`CRITICAL=7, INFO=21, WARNING=14` for a week in which it had aborted no runs at
+all; the `$200,000.00 notional` figure repeated 21 times is a fixture constant.
+
+**Cause.** `FileChannel.__init__` took `path: Path = ALERTS_JSONL`. A default
+argument binds **at import time**, so monkeypatching the module constant could
+never redirect it, and any test reaching real `dispatch` wrote to the live log.
+
+**Decision.** Three changes, and one deliberate non-change:
+
+* `FileChannel` resolves its path at **send** time, so the constant is patchable.
+* An **autouse** `isolate_alert_log` fixture in `tests/conftest.py` redirects
+  every test's alert output to `tmp_path`. It also strips the five SMTP env vars
+  — a developer with a populated `.env` exported into their shell would
+  otherwise have had the suite send **real alert emails**.
+* A regression test asserts the production log's size and mtime are unchanged
+  across a real `dispatch`, reading the true path from `PROJECT_ROOT` rather than
+  the redirected constant so it fails if the redirect ever breaks.
+* **The polluted entries are NOT deleted.** A single structured annotation record
+  (`source: ops.annotation`) was appended instead, naming the count, the burst
+  timestamps, the cause, and the remediation.
+
+**Rationale.** An append-only operational log is evidence. Editing it to remove
+inconvenient entries destroys the audit trail and sets a precedent that the log
+may be rewritten when it embarrasses us — exactly the property that makes it
+worthless for a live-readiness decision later. Annotating costs one line and
+leaves both the contamination and its explanation permanently inspectable.
+
+---
+
+## 2026-07-22 — Alert attribution by structured field, not substring
+
+**Decision.** Every account-scoped alert carries a structured `strategy` field,
+and `_alerts_in_window` attributes on that field. Legacy records written before
+the field existed fall back to a **word-boundary** title match.
+
+**Rationale.** Attribution was `label.lower() in title.lower()`. `trend` is a
+substring of `crypto_trend` and `voltarget` of `crypto_voltarget`, so each equity
+account silently absorbed its crypto namesake's alerts — `trend`'s `WARNING=14`
+was 7 of its own plus 7 belonging to `crypto_trend`. The defect was invisible
+while the weekly review covered only the equity pair, and became wrong the moment
+both namesake pairs appeared in one report. A structured field is exact and
+cannot be defeated by a future label that happens to contain an existing one. The
+word-boundary fallback is correct for the legacy rows specifically because `_` is
+a regex word character, so `trend` does not match `crypto_trend`.
+
+---
+
 ## 2026-07-22 — Weekly review covers every asset class
 
 **Decision.** `build_weekly_review` iterates **`APPROVED_STRATEGIES`** rather than

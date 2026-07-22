@@ -31,6 +31,7 @@ it.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Mapping
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -233,6 +234,29 @@ def _runs_in_window(
     return runs
 
 
+def _title_mentions(title: str, label: str) -> bool:
+    """Whether ``title`` names ``label`` as a whole word.
+
+    Legacy fallback only. The lookarounds are what keep ``trend`` from matching
+    ``crypto_trend``: ``_`` is a word character, so there is no boundary between
+    ``crypto_`` and ``trend``. A plain substring test — what this replaced —
+    attributed every crypto alert to its equity namesake as well.
+    """
+    return re.search(rf"(?<!\w){re.escape(label)}(?!\w)", title, re.IGNORECASE) is not None
+
+
+def _attributes_to(record: dict[str, object], label: str) -> bool:
+    """Whether an alert record belongs to ``label``.
+
+    Exact match on the structured ``strategy`` field when present. Records
+    written before that field existed fall back to a word-boundary title match.
+    """
+    recorded = record.get("strategy")
+    if isinstance(recorded, str) and recorded:
+        return recorded == label
+    return _title_mentions(str(record.get("title", "")), label)
+
+
 def _alerts_in_window(
     alerts_path: Path, label: str, start: date, end: date
 ) -> dict[str, int]:
@@ -253,10 +277,7 @@ def _alerts_in_window(
         alert_date = datetime.fromisoformat(ts).date()
         if not (start <= alert_date <= end):
             continue
-        # alerts.jsonl is global; attribute to this account when the label appears
-        # in the alert title (paper-run alerts embed the strategy name there).
-        title = str(record.get("title", "")).lower()
-        if label.lower() not in title:
+        if not _attributes_to(record, label):
             continue
         level = str(record.get("level", "UNKNOWN"))
         counts[level] = counts.get(level, 0) + 1
@@ -481,7 +502,7 @@ def build_weekly_review(
                 body=(f"{label} paper-vs-shadow divergence "
                       f"{acct.divergence_bps:+.0f} bps this week exceeds the "
                       f"{threshold:.0f} bps threshold."),
-                source="reporting.weekly",
+                source="reporting.weekly", strategy=label,
             ))
 
     readiness = _readiness_ledger(accounts, data_dir, week_end)

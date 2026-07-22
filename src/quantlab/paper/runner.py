@@ -235,7 +235,7 @@ def run_paper(
         _finish(report, reports_dir, write_report)  # state written first ...
         _emit(Alert(  # ... then alert (never before the write)
             level=level, title=f"paper {strategy_name} aborted at '{stage}'",
-            body=reason, source="paper.runner",
+            body=reason, source="paper.runner", strategy=strategy_name,
         ))
         return report
 
@@ -382,7 +382,7 @@ def run_paper(
             title=(f"paper {strategy_name}: {len(report.submitted_orders)} order(s) "
                    f"submitted, ${total:,.2f} notional"),
             body=f"weights={report.target_weights}; turnover={plan.est_turnover:.4f}",
-            source="paper.runner",
+            source="paper.runner", strategy=strategy_name,
         ))
     return report
 

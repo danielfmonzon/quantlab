@@ -96,3 +96,66 @@ def test_one_channel_failing_does_not_block_the_others(tmp_path) -> None:
 def test_console_channel_send_does_not_raise(capsys) -> None:
     ConsoleChannel().send(_ALERT)
     assert "ALERT/CRITICAL" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# Alert-log isolation (2026-07-22 test-pollution incident)
+# --------------------------------------------------------------------------
+
+
+def test_dispatch_never_touches_the_production_alert_log(tmp_path) -> None:
+    """The autouse conftest fixture must keep the real alerts.jsonl untouched.
+
+    This is the regression guard for the incident where the suite appended ~50
+    fixture alerts to reports/alerts/alerts.jsonl, inflating the weekly review's
+    ops stats. It reads the TRUE production path from PROJECT_ROOT rather than
+    the (redirected) module constant, so it fails if the redirect ever breaks.
+    """
+    from quantlab.constants import PROJECT_ROOT
+
+    production = PROJECT_ROOT / "reports" / "alerts" / "alerts.jsonl"
+    before = (
+        (production.stat().st_size, production.stat().st_mtime_ns)
+        if production.exists() else None
+    )
+
+    dispatch(Alert(level="WARNING", title="isolation probe",
+                   body="must not reach production", source="tests"))
+
+    after = (
+        (production.stat().st_size, production.stat().st_mtime_ns)
+        if production.exists() else None
+    )
+    assert after == before, "a test wrote to the production alerts.jsonl"
+
+
+def test_redirected_channel_actually_received_the_alert(isolate_alert_log) -> None:
+    # The flip side: isolation must not silently swallow alerts.
+    dispatch(Alert(level="INFO", title="redirect probe", body="b", source="tests"))
+    assert isolate_alert_log.exists()
+    records = [json.loads(line) for line in
+               isolate_alert_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert [r["title"] for r in records] == ["redirect probe"]
+
+
+def test_file_channel_persists_the_strategy_field(tmp_path) -> None:
+    path = tmp_path / "alerts.jsonl"
+    FileChannel(path).send(
+        Alert(level="INFO", title="paper trend: ok", body="b",
+              source="paper.runner", strategy="trend")
+    )
+    record = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    assert record["strategy"] == "trend"
+
+
+def test_file_channel_defaults_to_the_live_constant_at_send_time(
+    tmp_path, monkeypatch
+) -> None:
+    # Resolution must be late-bound, or the conftest redirect cannot work.
+    from quantlab.reporting import alerts as alerts_module
+
+    target = tmp_path / "late" / "alerts.jsonl"
+    monkeypatch.setattr(alerts_module, "ALERTS_JSONL", target)
+    channel = FileChannel()  # constructed BEFORE... nothing; path resolves on send
+    channel.send(Alert(level="INFO", title="t", body="b", source="s"))
+    assert target.exists()

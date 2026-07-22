@@ -42,6 +42,10 @@ class Alert(BaseModel):
     title: str
     body: str
     source: str
+    # The account/strategy label this alert belongs to, when it is account-scoped.
+    # Persisted as a structured field so consumers attribute EXACTLY rather than
+    # by substring-matching the title (where 'trend' also matches 'crypto_trend').
+    strategy: str | None = None
 
 
 class DeliveryResult(BaseModel):
@@ -68,12 +72,23 @@ class ConsoleChannel:
 
 
 class FileChannel:
-    """Append the alert as a JSON line to ``alerts.jsonl``."""
+    """Append the alert as a JSON line to ``alerts.jsonl``.
+
+    ``path`` is resolved at SEND time (not bound at import) so the test suite can
+    redirect the whole alert log by monkeypatching :data:`ALERTS_JSONL`. Binding
+    the module default into the signature would have made that redirect silently
+    ineffective — which is how the 2026-07-22 test-pollution incident happened.
+    """
 
     name = "file"
 
-    def __init__(self, path: Path = ALERTS_JSONL):
-        self.path = path
+    def __init__(self, path: Path | None = None):
+        self._path = path
+
+    @property
+    def path(self) -> Path:
+        """The explicit path if one was injected, else the current production default."""
+        return self._path if self._path is not None else ALERTS_JSONL
 
     def send(self, alert: Alert) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,6 +98,10 @@ class FileChannel:
             "title": alert.title,
             "body": alert.body,
             "source": alert.source,
+            # Exact-attribution key: the account this alert belongs to (None for
+            # alerts that are not account-scoped). Consumers MUST prefer this over
+            # substring-matching the title.
+            "strategy": alert.strategy,
         }
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
