@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from quantlab.backtest.panel import build_price_panel
 from quantlab.broker.alpaca_trading import AlpacaTradingClient
-from quantlab.config import APPROVED_STRATEGIES
+from quantlab.config import EQUITY_APPROVED_STRATEGIES
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import ClockInfo
 from quantlab.data.calendar import TradingCalendar
@@ -219,7 +219,7 @@ def build_digest(
     accounts: list[AccountDigest] = []
     combined_equity = 0.0
     combined_cash = 0.0
-    for label in APPROVED_STRATEGIES:
+    for label in EQUITY_APPROVED_STRATEGIES:
         acct = _account_digest(
             label, brokers.get(label), store, calendar, now, clock, data_dir, paper_reports_dir
         )

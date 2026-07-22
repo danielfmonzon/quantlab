@@ -26,6 +26,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from quantlab.broker.assets import asset_class, to_alpaca_symbol, to_canonical_symbol
 from quantlab.constants import ALPACA_PAPER_BASE_URL
 from quantlab.data import DataError
 
@@ -171,7 +172,14 @@ class AlpacaTradingClient:
         payload = self._request("GET", f"{self._base_url}/v2/positions")
         if not isinstance(payload, list):
             raise DataError(f"Unexpected positions payload: {type(payload)}")
-        return [Position(**p) for p in payload]
+        # Normalize crypto position symbols back to canonical form (BTC/USD ->
+        # BTC-USD) so they match strategy target weights; equities are unchanged.
+        out: list[Position] = []
+        for p in payload:
+            pos = Position(**p)
+            canon = to_canonical_symbol(pos.symbol)
+            out.append(pos if canon == pos.symbol else pos.model_copy(update={"symbol": canon}))
+        return out
 
     # -- Orders --------------------------------------------------------------
 
@@ -182,12 +190,16 @@ class AlpacaTradingClient:
 
         On a duplicate ``client_order_id`` Alpaca errors; we look up and return
         the existing order with ``was_duplicate=True`` (idempotent by design).
+
+        Asset-class-aware: crypto orders use the slash symbol form and
+        ``time_in_force="gtc"`` (Alpaca rejects "day" for crypto); equities keep
+        the bare symbol and "day" exactly as before.
         """
         body = {
-            "symbol": symbol,
+            "symbol": to_alpaca_symbol(symbol),
             "side": side,
             "type": "market",
-            "time_in_force": "day",
+            "time_in_force": "gtc" if asset_class(symbol) == "crypto" else "day",
             "notional": f"{notional:.2f}",
             "client_order_id": client_order_id,
         }
@@ -241,7 +253,7 @@ def _order_from_payload(d: dict[str, Any]) -> OrderInfo:
     return OrderInfo(
         id=str(d["id"]),
         client_order_id=str(d.get("client_order_id", "")),
-        symbol=str(d.get("symbol", "")),
+        symbol=to_canonical_symbol(str(d.get("symbol", ""))),
         side=str(d.get("side", "")),
         notional=float(notional_raw) if notional_raw is not None else None,
         status=str(d.get("status", "")),

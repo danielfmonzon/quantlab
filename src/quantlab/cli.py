@@ -1022,9 +1022,10 @@ def cmd_digest(args: argparse.Namespace) -> int:
     calendar = TradingCalendar()
     now = datetime.now(UTC)
 
-    # One broker per approved account; absent keys -> None (rendered as skipped).
+    # One broker per equity account; absent keys -> None (rendered as skipped).
+    # The digest is an equity-shaped report; crypto accounts are out of scope.
     brokers: dict[str, AlpacaTradingClient | None] = {}
-    for label in APPROVED_STRATEGIES:
+    for label in EQUITY_APPROVED_STRATEGIES:
         try:
             brokers[label], _ = _trading_client_for(label)
         except ConfigError:
@@ -1063,7 +1064,9 @@ def cmd_weekly(args: argparse.Namespace) -> int:
     if args.week_ending:
         week_ending = date.fromisoformat(args.week_ending)
 
-    # One broker per approved account; absent keys -> None (rendered as skipped).
+    # One broker per approved account, every asset class; absent keys -> None
+    # (rendered as skipped). The weekly review covers crypto as well as equities:
+    # it selects the window length and structural-drift note per asset class.
     brokers: dict[str, AlpacaTradingClient | None] = {}
     for label in APPROVED_STRATEGIES:
         try:
@@ -1080,11 +1083,24 @@ def cmd_weekly(args: argparse.Namespace) -> int:
 
 
 def cmd_schedule(args: argparse.Namespace) -> int:
+    # Default (us_equity) targets the three untouched equity tasks; crypto targets
+    # only the separate quantlab-crypto-paper-run task.
+    crypto = getattr(args, "asset_class", "us_equity") == "crypto"
     if args.schedule_command == "install":
+        if crypto:
+            return schedule_tasks.install(
+                args.confirm, builder=schedule_tasks.build_crypto_install_commands
+            )
         return schedule_tasks.install(args.confirm)
     if args.schedule_command == "uninstall":
+        if crypto:
+            return schedule_tasks.uninstall(
+                builder=schedule_tasks.build_crypto_uninstall_commands
+            )
         return schedule_tasks.uninstall()
     if args.schedule_command == "show":
+        if crypto:
+            return schedule_tasks.show(builder=schedule_tasks.build_crypto_show_commands)
         return schedule_tasks.show()
     raise ConfigError(f"unknown schedule command {args.schedule_command!r}")  # pragma: no cover
 
@@ -1123,6 +1139,50 @@ def _paper_ingest_fn(symbols: list[str], store: ParquetStore) -> None:
         store.upsert(symbol, df)
 
 
+def _crypto_paper_ingest_fn(symbols: list[str], store: ParquetStore) -> None:
+    """Top up recent daily candles for ``symbols`` via the public Coinbase feed."""
+    client = CoinbaseClient()
+    today = datetime.now(UTC).date()
+    for symbol in symbols:
+        existing = store.load(symbol)
+        if len(existing):
+            start = existing["date"].max().date() - timedelta(days=5)
+        else:
+            start = today - timedelta(days=400)
+        df = client.fetch_candles(symbol, start)
+        inception = df["date"].min().date() if len(df) else None
+        store.save_metadata(symbol, inception, requested_start=start)
+        store.upsert(symbol, df)
+
+
+def _ingest_fn_for(strategy: str) -> Callable[[list[str], ParquetStore], None]:
+    """Select the data top-up function for an account (Coinbase for crypto)."""
+    if account_asset_class(strategy) == "crypto":
+        return _crypto_paper_ingest_fn
+    return _paper_ingest_fn
+
+
+class _StubBroker:
+    """Zero-position, fixed-equity paper broker stub for ``--plan-only`` (no keys).
+
+    Lets the gated pipeline run through order PLANNING with no Alpaca credentials:
+    it reports a fixed cash equity and no open positions, so the plan is computed
+    purely from stored data. Never used to submit (plan-only forces dry-run).
+    """
+
+    def __init__(self, equity: float = 100_000.0):
+        self._equity = equity
+
+    def get_account(self) -> AccountInfo:
+        return AccountInfo(
+            equity=self._equity, cash=self._equity, currency="USD",
+            account_blocked=False, trading_blocked=False,
+        )
+
+    def get_positions(self) -> list[Position]:
+        return []
+
+
 def _print_paper_report(report: PaperRunReport) -> None:
     mode = "DRY-RUN" if report.dry_run else "SUBMIT"
     print(f"=== PAPER RUN: {report.strategy}  ({mode})  @ {report.timestamp.isoformat()} ===")
@@ -1156,31 +1216,63 @@ def _print_paper_report(report: PaperRunReport) -> None:
         print("\n  (no orders submitted)")
 
 
-def _run_one_paper(strategy: str, submit: bool) -> int:
-    """Run one strategy in ITS OWN account with per-label state isolation."""
-    broker, label = _trading_client_for(strategy)
-    clock = _clock_for(strategy)
-    report = run_paper(
+def _plan_only_run(strategy: str) -> PaperRunReport:
+    """Plan-only DRY RUN: stub broker, stored data, NO credentials, NO submission.
+
+    Runs the full gated pipeline through order planning using a zero-position
+    stub account, writing its equity snapshot to a throwaway temp path so no real
+    per-account state is touched.
+    """
+    label = account_label(strategy)
+    tmpdir = Path(tempfile.mkdtemp(prefix="quantlab_planonly_"))
+    return run_paper(
         strategy,
-        dry_run=not submit,
+        dry_run=True,
         store=ParquetStore(),
-        broker=broker,
-        ingest_fn=_paper_ingest_fn,
-        clock=clock,  # type: ignore[arg-type]
+        broker=_StubBroker(),  # type: ignore[arg-type]
+        ingest_fn=None,  # stored data only: no network, no credentials
+        clock=None,
         risk_state_path=risk_state_path_for(label),
-        equity_history_path=None,  # runner derives equity_history_{label}.parquet
+        equity_history_path=tmpdir / f"equity_history_{label}.parquet",
+        write_report=False,
     )
+
+
+def _run_one_paper(strategy: str, submit: bool, plan_only: bool = False) -> int:
+    """Run one strategy in ITS OWN account with per-label state isolation."""
+    if plan_only:
+        report = _plan_only_run(strategy)
+    else:
+        broker, label = _trading_client_for(strategy)
+        clock = _clock_for(strategy)
+        report = run_paper(
+            strategy,
+            dry_run=not submit,
+            store=ParquetStore(),
+            broker=broker,
+            ingest_fn=_ingest_fn_for(strategy),
+            clock=clock,  # type: ignore[arg-type]
+            risk_state_path=risk_state_path_for(label),
+            equity_history_path=None,  # runner derives equity_history_{label}.parquet
+        )
     _print_paper_report(report)
     return 1 if report.aborted else 0
 
 
 def cmd_paper_run(args: argparse.Namespace) -> int:
-    return _run_one_paper(args.strategy, args.submit)
+    return _run_one_paper(args.strategy, args.submit, plan_only=args.plan_only)
+
+
+def _approved_by_asset_class(asset_class: str) -> list[str]:
+    """Approved strategies filtered by asset class ('all' keeps the full roster)."""
+    if asset_class == "all":
+        return list(APPROVED_STRATEGIES)
+    return [s for s in APPROVED_STRATEGIES if account_asset_class(s) == asset_class]
 
 
 def cmd_paper_run_all(args: argparse.Namespace) -> int:
     return run_all_strategies(
-        list(APPROVED_STRATEGIES),
+        _approved_by_asset_class(args.asset_class),
         lambda strategy: _run_one_paper(strategy, args.submit),
     )
 
@@ -1331,26 +1423,47 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_sched = sub.add_parser("schedule", help="install/uninstall scheduled paper tasks")
     sched_sub = p_sched.add_subparsers(dest="schedule_command", required=True)
+    _sched_asset_help = "which task set: us_equity (the 3 equity tasks, default) or crypto"
     p_sched_install = sched_sub.add_parser(
         "install",
         help="create the paper-run + digest + weekly tasks (needs --confirm YES)",
     )
     p_sched_install.add_argument("--confirm", default=None, help="must be exactly YES")
+    p_sched_install.add_argument(
+        "--asset-class", dest="asset_class", default="us_equity",
+        choices=["us_equity", "crypto"], help=_sched_asset_help,
+    )
     p_sched_install.set_defaults(func=cmd_schedule)
     p_sched_uninstall = sched_sub.add_parser(
         "uninstall", help="remove the scheduled tasks (idempotent)"
     )
+    p_sched_uninstall.add_argument(
+        "--asset-class", dest="asset_class", default="us_equity",
+        choices=["us_equity", "crypto"], help=_sched_asset_help,
+    )
     p_sched_uninstall.set_defaults(func=cmd_schedule)
     p_sched_show = sched_sub.add_parser("show", help="query the scheduled tasks")
+    p_sched_show.add_argument(
+        "--asset-class", dest="asset_class", default="us_equity",
+        choices=["us_equity", "crypto"], help=_sched_asset_help,
+    )
     p_sched_show.set_defaults(func=cmd_schedule)
 
     p_paper = sub.add_parser("paper", help="paper-trading (paper-only, risk-gated)")
     paper_sub = p_paper.add_subparsers(dest="paper_command", required=True)
     p_paper_run = paper_sub.add_parser("run", help="run the gated rebalance pipeline")
-    p_paper_run.add_argument("--strategy", required=True, choices=["voltarget", "trend"])
+    p_paper_run.add_argument(
+        "--strategy", required=True,
+        choices=["voltarget", "trend", "crypto_trend", "crypto_voltarget"],
+    )
     p_paper_run.add_argument(
         "--submit", action="store_true",
         help="submit REAL paper orders (default is dry-run: plan only)",
+    )
+    p_paper_run.add_argument(
+        "--plan-only", action="store_true", dest="plan_only",
+        help="plan orders from stored data with a zero-position stub broker "
+             "(no keys, never submits); prints the DRY RUN plan",
     )
     p_paper_run.set_defaults(func=cmd_paper_run)
     p_paper_run_all = paper_sub.add_parser(
@@ -1360,10 +1473,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--submit", action="store_true",
         help="submit REAL paper orders (default is dry-run: plan only)",
     )
+    p_paper_run_all.add_argument(
+        "--asset-class", dest="asset_class", default="all",
+        choices=["all", "us_equity", "crypto"],
+        help="which asset class of approved accounts to run (default all)",
+    )
     p_paper_run_all.set_defaults(func=cmd_paper_run_all)
     p_paper_status = paper_sub.add_parser("status", help="per-account status (all by default)")
     p_paper_status.add_argument(
-        "--strategy", default="all", choices=["all", "voltarget", "trend"],
+        "--strategy", default="all",
+        choices=["all", "voltarget", "trend", "crypto_trend", "crypto_voltarget"],
         help="which account(s) to show (default all)",
     )
     p_paper_status.set_defaults(func=cmd_paper_status)

@@ -14,7 +14,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from quantlab.data.alpaca_client import ClockInfo
-from quantlab.data.calendar import TradingCalendar
+from quantlab.data.calendar import MarketCalendar
 from quantlab.data.store import ParquetStore
 from quantlab.data.validate import staleness_sessions
 
@@ -47,14 +47,15 @@ class HealthReport(BaseModel):
 def preflight(
     symbols: list[str],
     store: ParquetStore,
-    calendar: TradingCalendar,
+    calendar: MarketCalendar,
     clock: ClockInfo | None,
     now: datetime,
 ) -> HealthReport:
     """Build a read-only :class:`HealthReport` for ``symbols``.
 
     ``data_fresh`` is True iff every symbol has data and is at most
-    ``MAX_FRESH_STALENESS`` completed sessions behind the last NYSE close.
+    ``MAX_FRESH_STALENESS`` completed sessions behind the last completed session
+    of ``calendar`` (XNYS for equities, the 24/7 UTC grid for crypto).
     """
     per_symbol: list[SymbolHealth] = []
     blocking_reasons: list[str] = []

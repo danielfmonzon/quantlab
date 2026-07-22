@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     # voltarget's ALPACA_API_KEY/SECRET). Optional until trend is traded.
     ALPACA_TREND_API_KEY: str | None = None
     ALPACA_TREND_SECRET_KEY: str | None = None
+    # Dedicated, isolated paper accounts for the two crypto strategies. Optional
+    # until crypto is traded; the same paper endpoint serves crypto and equities.
+    ALPACA_CRYPTO_TREND_API_KEY: str | None = None
+    ALPACA_CRYPTO_TREND_SECRET_KEY: str | None = None
+    ALPACA_CRYPTO_VOLTARGET_API_KEY: str | None = None
+    ALPACA_CRYPTO_VOLTARGET_SECRET_KEY: str | None = None
     ALPACA_BASE_URL: str = ALPACA_PAPER_BASE_URL
 
     @field_validator("ALPACA_BASE_URL")
@@ -186,10 +192,41 @@ class AccountCreds:
 _STRATEGY_ACCOUNTS: dict[str, tuple[str, str, str]] = {
     "voltarget": ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "voltarget"),
     "trend": ("ALPACA_TREND_API_KEY", "ALPACA_TREND_SECRET_KEY", "trend"),
+    "crypto_trend": (
+        "ALPACA_CRYPTO_TREND_API_KEY", "ALPACA_CRYPTO_TREND_SECRET_KEY", "crypto_trend",
+    ),
+    "crypto_voltarget": (
+        "ALPACA_CRYPTO_VOLTARGET_API_KEY", "ALPACA_CRYPTO_VOLTARGET_SECRET_KEY", "crypto_voltarget",
+    ),
 }
 
-# Approved strategies, in the order run-all iterates them.
-APPROVED_STRATEGIES: tuple[str, ...] = ("voltarget", "trend")
+# Accounts whose session/staleness logic, risk limits, and data feed are crypto
+# (24/7 UTC calendar, crypto_risk.yaml, Coinbase). Explicit — never inferred from
+# the strategy name by string matching.
+CRYPTO_ACCOUNTS: frozenset[str] = frozenset({"crypto_trend", "crypto_voltarget"})
+
+# Approved strategies, in the order run-all iterates them. The crypto strategies
+# passed the walk-forward + perturbation + bootstrap battery on 2026-07-11.
+APPROVED_STRATEGIES: tuple[str, ...] = ("voltarget", "trend", "crypto_trend", "crypto_voltarget")
+
+# The equity paper roster. The DAILY DIGEST is still an equity-shaped report
+# (NYSE session marks) and covers only these accounts. The weekly review no
+# longer uses this roster: as of 2026-07-22 it covers every APPROVED_STRATEGIES
+# entry and selects its window length and structural-drift note per asset class.
+EQUITY_APPROVED_STRATEGIES: tuple[str, ...] = ("voltarget", "trend")
+
+
+def account_asset_class(strategy_name: str) -> str:
+    """Asset class for an account: ``crypto`` for crypto accounts, else ``us_equity``."""
+    return "crypto" if strategy_name in CRYPTO_ACCOUNTS else "us_equity"
+
+
+def account_label(strategy_name: str) -> str:
+    """The state-isolation label for ``strategy_name`` (no credentials required)."""
+    mapping = _STRATEGY_ACCOUNTS.get(strategy_name)
+    if mapping is None:
+        raise ConfigError(f"no paper account is mapped for strategy {strategy_name!r}")
+    return mapping[2]
 
 
 def account_for(strategy_name: str, settings: Settings | None = None) -> AccountCreds:
@@ -249,14 +286,19 @@ __all__ = [
     "PROJECT_ROOT",
     "AccountCreds",
     "APPROVED_STRATEGIES",
+    "EQUITY_APPROVED_STRATEGIES",
+    "CRYPTO_ACCOUNTS",
     "ConfigError",
     "ETF",
     "ProjectSettings",
     "Settings",
     "Universe",
+    "account_asset_class",
     "account_for",
+    "account_label",
     "get_settings",
     "load_env_file",
     "load_settings",
     "load_universe",
+    "load_crypto_universe",
 ]

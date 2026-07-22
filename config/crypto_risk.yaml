@@ -1,0 +1,12 @@
+# Risk-engine limits for CRYPTO paper accounts (crypto_trend, crypto_voltarget).
+# Same RiskLimits model and (0, 1] / daily < weekly < kill invariants as the
+# equity config/risk.yaml, but calibrated to crypto's higher volatility. The
+# equity risk.yaml is left untouched; the paper runner selects this file only for
+# crypto accounts.
+
+max_position_weight: 1.00     # per-symbol cap; single-asset BTC positions are intended.
+max_gross_exposure: 1.00      # long-only, no leverage: sum(weights) <= 1.
+max_daily_loss: 0.15          # 15% single-session portfolio loss -> HALT.
+max_weekly_loss: 0.25         # 25% rolling 5-session loss -> HALT.
+max_drawdown_kill: 0.50       # 50% peak-to-trough -> KILL SWITCH (manual reset).
+staleness_max_sessions: 1     # data older than this many completed UTC days -> FREEZE.

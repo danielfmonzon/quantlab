@@ -40,17 +40,22 @@ from pydantic import BaseModel
 
 from quantlab.backtest.panel import build_price_panel
 from quantlab.backtest.signals import month_end_sessions
-from quantlab.backtest.strategies import TrendSMA10, VolTarget
+from quantlab.backtest.strategies import (
+    CryptoTrendBTC,
+    CryptoVolTargetBTC,
+    TrendSMA10,
+    VolTarget,
+)
 from quantlab.backtest.strategy import Strategy
 from quantlab.broker.alpaca_trading import (
     AccountInfo,
     AlpacaTradingClient,
     OrderInfo,
 )
-from quantlab.config import ConfigError
-from quantlab.constants import PROJECT_ROOT
+from quantlab.config import ConfigError, account_asset_class
+from quantlab.constants import CRYPTO_RISK_YAML, PROJECT_ROOT
 from quantlab.data.alpaca_client import ClockInfo
-from quantlab.data.calendar import TradingCalendar
+from quantlab.data.calendar import CryptoCalendar, MarketCalendar, TradingCalendar
 from quantlab.data.health import HealthReport, preflight
 from quantlab.data.store import ParquetStore
 from quantlab.data.validate import ValidationReport, validate
@@ -141,7 +146,14 @@ def make_paper_strategy(name: str) -> Strategy:
         return TrendSMA10()
     if name == "voltarget":
         return VolTarget()
-    raise ConfigError(f"paper run supports 'trend' or 'voltarget'; got {name!r}")
+    if name == "crypto_trend":
+        return CryptoTrendBTC()
+    if name == "crypto_voltarget":
+        return CryptoVolTargetBTC()
+    raise ConfigError(
+        "paper run supports 'trend', 'voltarget', 'crypto_trend', 'crypto_voltarget'; "
+        f"got {name!r}"
+    )
 
 
 def current_target_weights(
@@ -166,7 +178,7 @@ def run_paper(
     *,
     store: ParquetStore | None = None,
     broker: AlpacaTradingClient | None = None,
-    calendar: TradingCalendar | None = None,
+    calendar: MarketCalendar | None = None,
     now: datetime | None = None,
     do_ingest: bool = True,
     ingest_fn: Callable[[list[str], ParquetStore], None] | None = None,
@@ -192,6 +204,7 @@ def run_paper(
     """
     run_now = now if now is not None else datetime.now(UTC)
     strategy = make_paper_strategy(strategy_name)
+    is_crypto = account_asset_class(strategy_name) == "crypto"
     report = PaperRunReport(strategy=strategy_name, dry_run=dry_run, timestamp=run_now)
 
     # Per-account state isolation: default each path to this strategy's own label
@@ -250,7 +263,10 @@ def run_paper(
         _stage("ingest", True, "skipped (no ingest function)")
 
     # -- (c) validate --------------------------------------------------------
-    the_cal = calendar if calendar is not None else TradingCalendar()
+    # Crypto accounts measure sessions/staleness on the 24/7 UTC grid; equities
+    # keep XNYS. An explicitly injected calendar (tests) always wins.
+    default_cal: MarketCalendar = CryptoCalendar() if is_crypto else TradingCalendar()
+    the_cal = calendar if calendar is not None else default_cal
     if validation_override is not None:
         reports = validation_override
     else:
@@ -301,7 +317,8 @@ def run_paper(
             f"signal@{signal_date} -> {targets}" if signal_date else "cash (not warmed)")
 
     # -- (g) risk-engine weight containment ---------------------------------
-    engine = RiskEngine(load_risk_limits())
+    # Crypto accounts use crypto_risk.yaml (wider limits); equities keep risk.yaml.
+    engine = RiskEngine(load_risk_limits(CRYPTO_RISK_YAML) if is_crypto else load_risk_limits())
     decision = engine.check_weights(targets)
     adjusted = decision.adjusted_weights
     report.target_weights = adjusted
