@@ -11,6 +11,7 @@ PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Path = PROJECT_ROOT / "config"
 SETTINGS_YAML: Path = CONFIG_DIR / "settings.yaml"
 UNIVERSE_YAML: Path = CONFIG_DIR / "universe.yaml"
+CRYPTO_UNIVERSE_YAML: Path = CONFIG_DIR / "crypto_universe.yaml"
 
 # Alpaca endpoints. Only the paper endpoint is permitted in this codebase.
 ALPACA_PAPER_BASE_URL: str = "https://paper-api.alpaca.markets"

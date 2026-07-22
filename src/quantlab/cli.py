@@ -16,33 +16,43 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 
-from quantlab.backtest.engine import run_backtest
+from quantlab.backtest.engine import BacktestResult, run_backtest
 from quantlab.backtest.metrics import Metrics, compute_metrics
 from quantlab.backtest.panel import build_price_panel, returns_panel
 from quantlab.backtest.strategies import (
     BuyAndHold,
+    CryptoTrendBTC,
+    CryptoVolTargetBTC,
     DualMomentum,
     FixedWeights,
     Strategy,
     TrendSMA10,
     VolTarget,
 )
-from quantlab.broker.alpaca_trading import AlpacaTradingClient
+from quantlab.broker.alpaca_trading import AccountInfo, AlpacaTradingClient, Position
 from quantlab.config import (
     APPROVED_STRATEGIES,
+    EQUITY_APPROVED_STRATEGIES,
     ConfigError,
+    account_asset_class,
     account_for,
+    account_label,
     get_settings,
+    load_crypto_universe,
     load_env_file,
     load_universe,
 )
 from quantlab.constants import PROJECT_ROOT
 from quantlab.data.alpaca_client import AlpacaDataClient
-from quantlab.data.calendar import TradingCalendar
+from quantlab.data.calendar import CryptoCalendar, TradingCalendar
+from quantlab.data.coinbase_client import CoinbaseClient
 from quantlab.data.health import HealthReport, preflight
 from quantlab.data.reconcile import ReconcileReport, reconcile
 from quantlab.data.store import ParquetStore
@@ -127,6 +137,80 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         )
 
     return 0
+
+
+# Coinbase daily history begins in 2015-2016 depending on the product; 2016-01-01
+# is a safe full-backfill floor (fetch clamps naturally to available candles).
+CRYPTO_BACKFILL_START = "2016-01-01"
+
+# On an incremental top-up, re-fetch a few days of overlap so a boundary day is
+# never missed; the store's upsert is idempotent so the overlap is harmless.
+_CRYPTO_INCREMENTAL_OVERLAP_DAYS = 3
+
+
+def _selected_crypto_symbols(explicit: list[str] | None) -> list[str]:
+    universe = load_crypto_universe()
+    all_symbols = universe.symbols
+    if explicit is None:
+        return all_symbols
+    unknown = [s for s in explicit if s not in all_symbols]
+    if unknown:
+        raise ConfigError(f"Symbols not in crypto universe: {', '.join(unknown)}")
+    return explicit
+
+
+def cmd_crypto_ingest(args: argparse.Namespace) -> int:
+    symbols = _selected_crypto_symbols(_parse_symbols(args.symbols))
+    default_start = date.fromisoformat(args.start)
+
+    client = CoinbaseClient()
+    store = ParquetStore()
+    calendar = CryptoCalendar()
+    now = datetime.now(UTC)
+
+    reports: list[ValidationReport] = []
+    for symbol in symbols:
+        start = default_start
+        if args.incremental and store.exists(symbol):
+            existing = store.load(symbol)
+            if not existing.empty:
+                last = pd.to_datetime(existing["date"]).max().date()
+                start = max(default_start, last - timedelta(days=_CRYPTO_INCREMENTAL_OVERLAP_DAYS))
+
+        df = client.fetch_candles(symbol, start)
+        rows_fetched = len(df)
+        merged = store.upsert(symbol, df)
+
+        # Preserve the earliest requested_start across incremental runs so the
+        # coverage check is anchored to the original full-backfill request.
+        prior = store.load_metadata(symbol)
+        requested_start = default_start
+        if prior is not None and prior.requested_start is not None:
+            requested_start = min(prior.requested_start, default_start)
+        inception = merged["date"].min().date() if len(merged) else None
+        store.save_metadata(symbol, inception, requested_start=requested_start)
+
+        log.info(
+            "crypto_ingest_symbol",
+            symbol=symbol,
+            rows_fetched=rows_fetched,
+            rows_total=len(merged),
+            first_date=merged["date"].min().date().isoformat() if len(merged) else None,
+            last_date=merged["date"].max().date().isoformat() if len(merged) else None,
+        )
+
+        # Crypto validation uses the 24/7 CryptoCalendar so weekends are not
+        # flagged as missing sessions; genuinely absent UTC days still fail.
+        report = validate(
+            store.load(symbol), symbol,
+            inception_date=inception, requested_start=requested_start,
+            now=now, calendar=calendar,
+        )
+        reports.append(report)
+        log.info("validation_report", **report.model_dump(mode="json"))
+
+    _print_summary(reports)
+    return 0 if all(r.passed for r in reports) else 1
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -883,6 +967,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_ingest.add_argument("--start", required=True, help="ISO start date, e.g. 2000-01-01")
     p_ingest.add_argument("--symbols", default=None, help="comma-separated symbols (default: all)")
     p_ingest.set_defaults(func=cmd_ingest)
+
+    p_crypto = sub.add_parser(
+        "crypto-ingest", help="fetch daily crypto candles from Coinbase into the store"
+    )
+    p_crypto.add_argument(
+        "--start", default=CRYPTO_BACKFILL_START,
+        help=f"ISO start date for a full backfill (default {CRYPTO_BACKFILL_START})",
+    )
+    p_crypto.add_argument(
+        "--symbols", default=None,
+        help="comma-separated Coinbase product ids (default: all crypto, e.g. BTC-USD,ETH-USD)",
+    )
+    p_crypto.add_argument(
+        "--incremental", action="store_true",
+        help="top up from each symbol's last stored day instead of a full backfill",
+    )
+    p_crypto.set_defaults(func=cmd_crypto_ingest)
 
     p_validate = sub.add_parser("validate", help="validate stored EOD data")
     p_validate.add_argument("--symbols", default=None, help="comma-separated symbols (default all)")

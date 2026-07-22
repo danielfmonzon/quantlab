@@ -13,7 +13,7 @@ from pandas.api import types as ptypes
 from pydantic import BaseModel
 
 from quantlab.data import CANONICAL_COLUMNS, NUMERIC_COLUMNS, PRICE_COLUMNS
-from quantlab.data.calendar import TradingCalendar
+from quantlab.data.calendar import MarketCalendar, TradingCalendar
 
 # A daily adjusted-close return with magnitude above this is flagged (warning).
 _RETURN_WARN_THRESHOLD = 0.20
@@ -39,8 +39,8 @@ def _fmt_dates(dates: list[date], limit: int = 10) -> str:
     return ", ".join(shown)
 
 
-def staleness_sessions(calendar: TradingCalendar, last_date: date, now: datetime) -> int:
-    """Number of completed NYSE sessions between ``last_date`` and now.
+def staleness_sessions(calendar: MarketCalendar, last_date: date, now: datetime) -> int:
+    """Number of completed sessions between ``last_date`` and now, per ``calendar``.
 
     0 means ``last_date`` is the last completed session (fresh). Shared by
     :func:`validate` and the health preflight so both agree on "how stale".
@@ -57,9 +57,14 @@ def validate(
     inception_date: date | None,
     requested_start: date | None = None,
     now: datetime | None = None,
-    calendar: TradingCalendar | None = None,
+    calendar: MarketCalendar | None = None,
 ) -> ValidationReport:
-    """Validate ``df`` for ``symbol``. See module docstring for the check list."""
+    """Validate ``df`` for ``symbol``. See module docstring for the check list.
+
+    ``calendar`` selects which sessions are *expected* for the coverage check;
+    it defaults to XNYS so equities are unchanged. Pass a ``CryptoCalendar`` for
+    24/7 symbols so weekends are not flagged as missing sessions.
+    """
     cal = calendar if calendar is not None else TradingCalendar()
     now = now if now is not None else datetime.now(UTC)
 

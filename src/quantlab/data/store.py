@@ -21,6 +21,17 @@ from quantlab.data import CANONICAL_COLUMNS, DataError
 _DEFAULT_EOD_DIR = PROJECT_ROOT / "data" / "eod"
 
 
+def sanitize_symbol(symbol: str) -> str:
+    """Map a symbol to its canonical, filesystem-safe parquet stem.
+
+    Uppercases and strips ``/`` and ``-`` so slash/dash symbols (e.g. crypto
+    ``BTC/USD`` or ``BTC-USD``) collapse to a single stem ``BTCUSD``, usable in a
+    filename. Bare equity tickers (``SPY``) contain neither character and are
+    returned unchanged, so existing per-symbol files keep their exact names.
+    """
+    return symbol.upper().replace("/", "").replace("-", "")
+
+
 @dataclass(frozen=True)
 class SymbolMeta:
     """Persisted per-symbol metadata."""
@@ -37,10 +48,10 @@ class ParquetStore:
         self.eod_dir.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, symbol: str) -> Path:
-        return self.eod_dir / f"{symbol.upper()}.parquet"
+        return self.eod_dir / f"{sanitize_symbol(symbol)}.parquet"
 
     def _meta_path_for(self, symbol: str) -> Path:
-        return self.eod_dir / f"{symbol.upper()}.meta.json"
+        return self.eod_dir / f"{sanitize_symbol(symbol)}.meta.json"
 
     def exists(self, symbol: str) -> bool:
         return self.path_for(symbol).exists()
@@ -162,4 +173,4 @@ class ParquetStore:
         return con
 
 
-__all__ = ["ParquetStore", "SymbolMeta"]
+__all__ = ["ParquetStore", "SymbolMeta", "sanitize_symbol"]

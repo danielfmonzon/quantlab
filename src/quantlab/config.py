@@ -20,6 +20,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from quantlab.constants import (
     ALPACA_LIVE_HOST,
     ALPACA_PAPER_BASE_URL,
+    CRYPTO_UNIVERSE_YAML,
     PROJECT_ROOT,
     SETTINGS_YAML,
     UNIVERSE_YAML,
@@ -150,6 +151,18 @@ def load_universe(path: Path = UNIVERSE_YAML) -> Universe:
     raw = _read_yaml(path)
     if not isinstance(raw, list):
         raise ConfigError(f"universe.yaml must be a list, got {type(raw).__name__}")
+    return Universe(etfs=[ETF(**entry) for entry in raw])
+
+
+def load_crypto_universe(path: Path = CRYPTO_UNIVERSE_YAML) -> Universe:
+    """Load and validate ``config/crypto_universe.yaml`` (same schema as equities).
+
+    Kept separate from :func:`load_universe` so crypto symbols never enter the
+    equity ingest/validate/paper default symbol set.
+    """
+    raw = _read_yaml(path)
+    if not isinstance(raw, list):
+        raise ConfigError(f"crypto_universe.yaml must be a list, got {type(raw).__name__}")
     return Universe(etfs=[ETF(**entry) for entry in raw])
 
 

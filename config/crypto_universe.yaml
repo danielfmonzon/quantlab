@@ -1,0 +1,9 @@
+# Crypto research universe (Coinbase spot, USD-quoted). Kept separate from the
+# equity universe.yaml so the equity ingest/validate/paper pipeline is entirely
+# unaffected. Each entry: symbol (Coinbase product id), asset_class, description.
+- symbol: BTC-USD
+  asset_class: crypto
+  description: Bitcoin / US Dollar (Coinbase spot)
+- symbol: ETH-USD
+  asset_class: crypto
+  description: Ethereum / US Dollar (Coinbase spot)
