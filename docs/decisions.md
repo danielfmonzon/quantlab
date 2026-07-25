@@ -6,6 +6,80 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-25 — Tier correction: Proven is earned at day 90, not before
+
+**Correction (Quant Lead ruling).** The equity accounts were prematurely labelled
+**Proven** in the Glass Box tier map. All four accounts are now **Probable**.
+
+`voltarget` and `trend` were given Proven on the strength of their validation
+battery plus a 15-day paper track. That inverts the gate: the battery is the ENTRY
+condition for paper tracking, not a substitute for it. Proven is earned by passing a
+clean day-90 readiness review on live paper tracking — no DIVERGING weeks, no KILL,
+at least four completed runs per week sustained to the gate — and by that standard
+nothing here qualifies yet. Day 15 of 90 is not a track record.
+
+The tier payload now carries an `upgrade_condition` per asset class, naming the gate
+and projecting the date from each class's ACTUAL clock start (equity 2026-07-09 →
+~2026-10-07; crypto, restarted 2026-07-22 → ~2026-10-20). Deriving the projection
+from the live clock rather than hardcoding it means a future restart moves the date
+instead of leaving a stale promise on the screen. The `Proven` rationale string now
+names the day-90 gate explicitly, and a test asserts no account carries Proven, so
+the tier cannot be re-awarded on battery evidence alone.
+
+---
+
+## 2026-07-25 — Glass Box frontend: seven screens, and two conventions that constrain them
+
+**Decision.** `frontend/` is a Vite + React + TypeScript + Tailwind + Recharts SPA
+over the nine read-only endpoints. `quantlab glassbox serve` mounts `frontend/dist`
+at `/` when the build exists; with no build the API is untouched and `/` explains how
+to produce one. A missing view must never take the data down with it, so the static
+mount is registered last and cannot shadow `/api/*`.
+
+**No chart without a takeaway.** `<Chart>` requires `takeaway`, `mechanics`, and
+`rawHref` as non-optional props, so a chart with no stated conclusion is a **compile**
+error — `tsc -b` runs before Vite in `npm run build`, meaning such a chart cannot
+ship. The type system cannot see an empty string, so `assertChartContract` also
+throws at render time; both halves are needed and the suite pins each. The reason is
+that an unlabelled chart delegates the conclusion to the reader, who will reach one
+anyway — better that the system state its own and be checkable than imply one and be
+deniable.
+
+**DIVERGING is amber, never red.** Red is reserved for a live kill switch, the only
+state that actually stops trading. A diverging week is a question to investigate, and
+the one case on record turned out to be a measurement artifact rather than a trading
+fault. The divergence caption says this in words, because a colour convention alone
+can be misread by someone seeing the screen for the first time.
+
+**Three-layer disclosure on narration.** The prose is primary; every number in it is
+hoverable and reveals the JSON path it came from; the raw report sits behind a
+collapsed `<details>`. The client splits the narration on the exact `rendered`
+strings the API returned, so the number→source mapping is the API's, not a
+client-side re-derivation — a number the API did not declare as a fact renders as
+plain text and cannot acquire a source path it was never given. A test asserts that
+directly.
+
+**Week 2026-07-24 shows both figures.** The divergence screen renders the published
+−54.33 bps DIVERGING beside the corrected −6.06 bps TRACKING, with a connecting
+annotation pointing at the ruling. Quietly replacing a published number with a better
+one would erase the audit trail that makes the correction credible.
+
+**Provenance colouring is not decoration.** A series of marks spaced 10 to 33 hours
+apart looks exactly like clean daily data on a chart, and that resemblance is what
+produced the false DIVERGING verdict. Each equity point is coloured by how it was
+produced, and the legend carries the one-sentence reason it matters.
+
+**Empty is a designed state.** Every screen is tested twice — against fixture
+responses and against the empty responses a repo with no artifacts returns — because
+a blank panel is the failure mode this app exists to avoid. Unknown equity reads "no
+marks yet", never `$0.00`; an absent drawdown reads "Unknown", never "No".
+
+`GLASS` — what the system reads against what it deliberately refuses to read — gets
+the same design weight as `OVERVIEW`, since the refusal list is the load-bearing half
+of the trust claim.
+
+---
+
 ## 2026-07-25 — Glass Box: narration is template-bound, and ignorance is published
 
 **Decision.** `src/quantlab/glassbox` serves a read-only HTTP API over the

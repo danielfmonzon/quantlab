@@ -23,6 +23,11 @@ from quantlab.glassbox.constants import (
     PROVENANCE_CATCH_UP,
     PROVENANCE_LEAKED,
     PROVENANCE_ON_SCHEDULE,
+    TIER_PROBABLE,
+    TIER_PROVEN,
+    TIER_RATIONALE,
+    VALIDATION_TIERS,
+    upgrade_condition,
 )
 from quantlab.glassbox.decisions import parse_decisions, read_decisions
 from quantlab.glassbox.models import (
@@ -308,7 +313,7 @@ def test_overview_reports_equity_risk_tier_and_clock(populated_tree: Path) -> No
     assert vt["latest_snapshot_at"].startswith("2026-07-24T14:00:07")
     assert vt["latest_snapshot_provenance"] == PROVENANCE_ON_SCHEDULE
     assert vt["snapshot_count"] == 3
-    assert vt["validation_tier"] == "Proven"
+    assert vt["validation_tier"] == "Probable"
     assert vt["validation_tier_rationale"]
     assert vt["clock"]["asset_class"] == "us_equity"
     assert vt["clock"]["calendar_days_elapsed"] == 15
@@ -544,6 +549,130 @@ def test_run_id_cannot_traverse_out_of_the_reports_directory(populated_tree: Pat
         response = _client(populated_tree).get(f"/api/runs/{hostile}/narrate")
         assert response.status_code in {404, 400}
         assert response.status_code != 500
+
+
+# --------------------------------------------------------------------------- #
+# Validation tiers (Quant Lead ruling 2026-07-25)                             #
+# --------------------------------------------------------------------------- #
+
+def test_no_account_is_proven_before_its_day_90_gate() -> None:
+    """Proven is EARNED at day 90. Nothing may claim it in advance.
+
+    The equity accounts were briefly labelled Proven on the strength of their
+    validation battery plus a 15-day paper track, which inverted the gate: the
+    battery is the entry condition for paper tracking, not a substitute for it.
+    """
+    assert set(VALIDATION_TIERS.values()) == {TIER_PROBABLE}
+    assert TIER_PROVEN not in VALIDATION_TIERS.values()
+    assert set(VALIDATION_TIERS) == {
+        "voltarget", "trend", "crypto_trend", "crypto_voltarget",
+    }
+    # The Proven rationale must name the gate, so the tier cannot be re-awarded
+    # on battery evidence alone.
+    assert "day-90" in TIER_RATIONALE[TIER_PROVEN]
+    assert "has NOT yet been passed" in TIER_RATIONALE[TIER_PROBABLE]
+
+
+def test_upgrade_condition_projects_from_the_live_clock_start() -> None:
+    """The projected gate date tracks the clock, so a restart moves it."""
+    equity = upgrade_condition("us_equity", date(2026, 7, 9), 90)
+    assert "day-90" in equity and "us_equity" in equity
+    assert "2026-10-07" in equity          # 2026-07-09 + 90 days
+
+    crypto = upgrade_condition("crypto", date(2026, 7, 22), 90)
+    assert "2026-10-20" in crypto          # the 2026-07-22 restart + 90 days
+    # A later restart pushes the gate out rather than going stale.
+    assert "2026-11-19" in upgrade_condition("crypto", date(2026, 8, 21), 90)
+    # Every condition names what "clean" means, not just a date.
+    for text in (equity, crypto):
+        assert "DIVERGING" in text and "KILL" in text
+
+
+def test_upgrade_condition_falls_back_when_no_clock_exists() -> None:
+    equity = upgrade_condition("us_equity", None)
+    assert "2026-10-07" in equity
+    assert "2026-10-20" in upgrade_condition("crypto", None)
+    # An unknown class still explains the gate, just without a date.
+    unknown = upgrade_condition("commodities", None)
+    assert "day-90" in unknown and "projected" not in unknown
+
+
+def test_overview_ships_the_upgrade_condition_per_asset_class(
+    populated_tree: Path,
+) -> None:
+    body = _client(populated_tree).get("/api/overview").json()
+    accounts = {a["label"]: a for a in body["accounts"]}
+    assert all(a["validation_tier"] == "Probable" for a in accounts.values())
+    # Equity clock starts 2026-07-09 in the fixture review; crypto 2026-07-22.
+    assert "2026-10-07" in accounts["voltarget"]["validation_tier_upgrade_condition"]
+    assert "2026-10-20" in accounts["crypto_voltarget"]["validation_tier_upgrade_condition"]
+    assert all(a["validation_tier_upgrade_condition"] for a in accounts.values())
+
+
+def test_upgrade_condition_present_even_with_no_artifacts(tmp_path: Path) -> None:
+    empty = tmp_path / "nothing"
+    empty.mkdir()
+    body = _client(empty).get("/api/overview").json()
+    assert all(a["validation_tier_upgrade_condition"] for a in body["accounts"])
+
+
+# --------------------------------------------------------------------------- #
+# Static frontend mount                                                       #
+# --------------------------------------------------------------------------- #
+
+def test_root_explains_how_to_build_when_dist_is_absent(populated_tree: Path) -> None:
+    client = _client(populated_tree)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "frontend not built" in response.text
+    assert "npm run build" in response.text
+    # The API must be unaffected by a missing view.
+    assert client.get("/api/overview").status_code == 200
+
+
+def test_built_dist_is_served_at_root_without_shadowing_the_api(
+    populated_tree: Path,
+) -> None:
+    dist = populated_tree / "frontend" / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><title>Glass Box</title><div id=root></div>", encoding="utf-8"
+    )
+    (dist / "assets").mkdir()
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+
+    client = _client(populated_tree)
+    root = client.get("/")
+    assert root.status_code == 200
+    assert "Glass Box" in root.text
+    assert client.get("/assets/app.js").status_code == 200
+
+    # /api/* still resolves to the API, not the static mount.
+    api = client.get("/api/overview")
+    assert api.status_code == 200
+    assert api.headers["content-type"].startswith("application/json")
+
+
+def test_client_side_routes_fall_back_to_index_html(populated_tree: Path) -> None:
+    """A deep link must survive a page reload (html=True fallback)."""
+    dist = populated_tree / "frontend" / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<div id=root>SPA</div>", encoding="utf-8")
+
+    client = _client(populated_tree)
+    for route in ("/runs", "/divergence", "/risk", "/equity", "/ledger", "/glass"):
+        response = client.get(route)
+        assert response.status_code == 200, route
+        assert "SPA" in response.text
+
+
+def test_frontend_built_flag_requires_index_html(tmp_path: Path) -> None:
+    paths = GlassboxPaths.from_root(tmp_path)
+    assert paths.frontend_built is False
+    (tmp_path / "frontend" / "dist").mkdir(parents=True)
+    assert paths.frontend_built is False  # empty dist is not a build
+    (tmp_path / "frontend" / "dist" / "index.html").write_text("x", encoding="utf-8")
+    assert paths.frontend_built is True
 
 
 # --------------------------------------------------------------------------- #

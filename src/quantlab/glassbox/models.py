@@ -56,6 +56,8 @@ class AccountOverview(BaseModel):
     risk: RiskStateView = RiskStateView()
     validation_tier: str
     validation_tier_rationale: str
+    # What this account must do to earn the next tier, with a projected gate date.
+    validation_tier_upgrade_condition: str = ""
     clock: ClockView | None = None
 
 

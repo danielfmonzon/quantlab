@@ -20,6 +20,11 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
+from starlette.types import Scope
 
 from quantlab.config import APPROVED_STRATEGIES, account_asset_class
 from quantlab.glassbox import readers
@@ -28,10 +33,12 @@ from quantlab.glassbox.constants import (
     INPUTS_IGNORED,
     INPUTS_READ,
     PROVENANCE_RATIONALE,
+    READINESS_TARGET_DAYS,
     TIER_PROBABLE,
     TIER_RATIONALE,
     VALIDATION_TIERS,
     WEEK_CORRECTIONS,
+    upgrade_condition,
 )
 from quantlab.glassbox.decisions import read_decisions
 from quantlab.glassbox.models import (
@@ -170,6 +177,11 @@ def create_app(paths: GlassboxPaths | None = None) -> FastAPI:
                 risk=RiskStateView(**readers.read_risk_state(p, label)),
                 validation_tier=tier,
                 validation_tier_rationale=TIER_RATIONALE.get(tier, ""),
+                validation_tier_upgrade_condition=upgrade_condition(
+                    asset_class,
+                    clock.paper_start_date if clock is not None else None,
+                    clock.target_days if clock is not None else READINESS_TARGET_DAYS,
+                ),
                 clock=clock,
             ))
 
@@ -384,7 +396,59 @@ def create_app(paths: GlassboxPaths | None = None) -> FastAPI:
             ignores=[InputIgnored(**x) for x in INPUTS_IGNORED],
         )
 
+    _mount_frontend(app, p)
     return app
+
+
+class _SpaStaticFiles(StaticFiles):
+    """StaticFiles that serves ``index.html`` for unknown paths.
+
+    Client-side routing needs a deep link like ``/runs`` to survive a page reload.
+    Starlette's ``html=True`` only serves ``index.html`` for *directory* requests —
+    an unknown path still 404s — so the SPA fallback has to be explicit. A missing
+    real asset (``/assets/app.js`` after a stale build) therefore returns the shell
+    rather than a 404, which is the standard trade and the reason ``/api/*`` is
+    registered before this mount.
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+def _mount_frontend(app: FastAPI, p: GlassboxPaths) -> None:
+    """Serve ``frontend/dist`` at ``/`` when it has been built.
+
+    Mounted LAST so it can never shadow ``/api/*``. When the build is absent the
+    API stays fully functional and ``/`` explains how to produce it, rather than
+    404ing or — worse — failing to start: the API is the product, the frontend is a
+    view of it, and a missing view must not take the data down with it.
+    """
+    if p.frontend_built:
+        app.mount("/", _SpaStaticFiles(directory=str(p.frontend_dist), html=True),
+                  name="frontend")
+        return
+
+    @app.get("/", response_class=PlainTextResponse, include_in_schema=False)
+    def frontend_missing() -> str:
+        return (
+            "quantlab Glass Box — frontend not built.\n\n"
+            f"Expected a built SPA at: {p.frontend_dist}\n\n"
+            "To build it:\n"
+            "    cd frontend\n"
+            "    npm install\n"
+            "    npm run build\n\n"
+            "Then restart `quantlab glassbox serve`.\n\n"
+            "The API is unaffected and serving now. Try:\n"
+            "    /api/overview   /api/runs   /api/divergence   /api/risk\n"
+            "    /api/equity     /api/timeline   /api/decisions\n"
+            "    /api/ignored-inputs\n"
+            "    /docs           (interactive schema)\n"
+        )
 
 
 def _run_view(run_id: str, report: dict[str, Any]) -> RunView:

@@ -16,38 +16,85 @@ fiction.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 # --------------------------------------------------------------------------- #
 # Validation tiers                                                            #
 # --------------------------------------------------------------------------- #
-# Deliberately coarse. "Proven" means the full validation battery ran AND the
-# account has an uninterrupted paper track long enough to argue from; "Probable"
-# means the battery ran but the paper evidence is still thin or was restarted.
-# Neither tier is a claim about future returns.
+# Deliberately coarse. "Proven" is EARNED at the day-90 readiness gate and not
+# before; "Probable" is where an account sits while the battery is on record but
+# the live paper track has not yet run the gate. Neither tier is a claim about
+# future returns.
 TIER_PROVEN = "Proven"
 TIER_PROBABLE = "Probable"
 
+# QUANT LEAD RULING 2026-07-25: every account is Probable. The equity accounts were
+# previously labelled Proven on the strength of their validation battery and a
+# 15-day paper track, which inverted the gate — the battery is the ENTRY condition
+# for paper tracking, not a substitute for it. No account can be Proven before its
+# asset class passes a clean day-90 review.
 VALIDATION_TIERS: dict[str, str] = {
-    # Literature-fixed parameters, full walk-forward + bootstrap + perturbation
-    # battery, and continuous paper tracking since 2026-07-09.
-    "voltarget": TIER_PROVEN,
-    "trend": TIER_PROVEN,
-    # Same battery, but the crypto readiness clock RESTARTED 2026-07-22 (the
-    # scheduler-leak ruling), so the clean paper record is days old, not weeks.
+    "voltarget": TIER_PROBABLE,
+    "trend": TIER_PROBABLE,
     "crypto_trend": TIER_PROBABLE,
     "crypto_voltarget": TIER_PROBABLE,
 }
 
 TIER_RATIONALE: dict[str, str] = {
     TIER_PROVEN: (
-        "Pre-registered parameters from the source literature, the full validation "
-        "battery (walk-forward, bootstrap, perturbation) on record, and an "
-        "uninterrupted paper track. Not a forecast."
+        "Pre-registered parameters, the full validation battery on record, AND a "
+        "clean day-90 readiness review passed on live paper tracking. Still not a "
+        "forecast — only a statement about evidence already collected."
     ),
     TIER_PROBABLE: (
-        "Validation battery on record, but the paper evidence is thin or was "
-        "restarted, so the live track cannot yet corroborate it."
+        "Pre-registered parameters from the source literature and the full "
+        "validation battery (walk-forward, bootstrap, perturbation) on record — but "
+        "the day-90 readiness gate has NOT yet been passed, so the live track "
+        "cannot yet corroborate the backtest. Probable is the honest ceiling until "
+        "it does."
     ),
 }
+
+# The readiness gate an account must clear to reach Proven, per asset class. Each
+# class runs its own 90-day clock (equity from its first snapshot, crypto from the
+# 2026-07-22 restart), so each has its own projected date.
+READINESS_TARGET_DAYS = 90
+
+TIER_UPGRADE_CONDITION_TEMPLATE = (
+    "Proven upon a clean day-{days} readiness review for {asset_class} — no "
+    "DIVERGING weeks, no KILL, and at least four completed runs per week "
+    "sustained to the gate{projection}."
+)
+
+# Used only when no weekly review is on disk to read a real clock start from.
+# Derived from each class's known paper start: equity 2026-07-09 + 90d, crypto
+# 2026-07-22 + 90d (the restart).
+TIER_UPGRADE_FALLBACK_DATE: dict[str, date] = {
+    "us_equity": date(2026, 10, 7),
+    "crypto": date(2026, 10, 20),
+}
+
+
+def upgrade_condition(
+    asset_class: str,
+    paper_start_date: date | None = None,
+    target_days: int = READINESS_TARGET_DAYS,
+) -> str:
+    """What this asset class must do to earn Proven, with a projected date.
+
+    The date is computed from the clock's ACTUAL start where one is available, so it
+    tracks a restart instead of going stale; the fallback is used only when no
+    weekly review exists to read a start from.
+    """
+    start = paper_start_date or TIER_UPGRADE_FALLBACK_DATE.get(asset_class)
+    if start is None:
+        projection = ""
+    else:
+        gate = (start + timedelta(days=target_days)) if paper_start_date else start
+        projection = f", projected ~{gate.isoformat()}"
+    return TIER_UPGRADE_CONDITION_TEMPLATE.format(
+        days=target_days, asset_class=asset_class, projection=projection
+    )
 
 # --------------------------------------------------------------------------- #
 # Equity-mark provenance                                                      #
@@ -232,6 +279,10 @@ __all__ = [
     "TIER_PROVEN",
     "TIER_PROBABLE",
     "TIER_RATIONALE",
+    "READINESS_TARGET_DAYS",
+    "TIER_UPGRADE_CONDITION_TEMPLATE",
+    "TIER_UPGRADE_FALLBACK_DATE",
+    "upgrade_condition",
     "EQUITY_RUN_UTC_MINUTES",
     "CRYPTO_RUN_UTC_MINUTES",
     "ON_SCHEDULE_TOLERANCE_MINUTES",

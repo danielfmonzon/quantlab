@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark-first: declare the scheme so form controls and scrollbars follow. */
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background: #0a0b0d;
+}
+
+/* Motion only for state transitions. Anyone who has asked for less gets none. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Recharts injects focus outlines on surfaces that are not interactive. */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}

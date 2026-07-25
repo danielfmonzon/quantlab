@@ -83,5 +83,15 @@ class GlassboxPaths:
     def decisions_path(self) -> Path:
         return self.project_root / "docs" / "decisions.md"
 
+    # -- frontend ----------------------------------------------------------
+    @property
+    def frontend_dist(self) -> Path:
+        """Built single-page app, mounted at ``/`` when present (``npm run build``)."""
+        return self.project_root / "frontend" / "dist"
+
+    @property
+    def frontend_built(self) -> bool:
+        return (self.frontend_dist / "index.html").is_file()
+
 
 __all__ = ["GlassboxPaths"]
