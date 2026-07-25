@@ -6,6 +6,86 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-25 — Glass Box: narration is template-bound, and ignorance is published
+
+**Decision.** `src/quantlab/glassbox` serves a read-only HTTP API over the
+artifacts this system already writes — run reports, weekly reviews, digests,
+alerts, equity history, risk state, config, and this log. It trades nothing, holds
+no credentials, imports nothing from `broker/`, makes no network calls of its own,
+and opens no file for writing. It binds `127.0.0.1` only, with the host hardcoded
+rather than exposed as a flag; **exposure and authentication are a later, explicit
+decision**, and until it is recorded the only supported reach is a browser on this
+host or a tunnel a human sets up knowingly.
+
+**The no-fabrication rule, as an architectural constraint.** `/api/runs/{id}/narrate`
+explains a run in English. Every token it emits must be derivable from exactly
+three declared sources: the run report's own structured fields, the account's
+pre-registered rule parameters, and the run id being narrated. Nothing else — no
+market commentary, no news, no inferred motive, no model judgement about why a
+price moved.
+
+This is enforced, not asserted. Each rendered figure is returned as a
+`NarrationFact` carrying its source path (`report.plan.intents[0].current_w`,
+`rule_constant.voltarget.target_vol`,
+`derived.abs(...target_w - ...current_w)`), and the suite extracts every numeric
+token from the prose and checks membership in an allowed set rebuilt
+independently from the raw JSON plus those constants. Canary tests plant an
+`analyst_note`, a `news_headline`, a `model_confidence`, and an unreferenced
+number, and assert none of them ever surfaces; a vocabulary test rejects
+"rally", "sentiment", "Fed", "outlook", and their neighbours outright. The rule
+constants are read off the LIVE strategy objects rather than typed into a map, and
+a test pins them against `VolTarget`, `TrendSMA10`, `CryptoVolTargetBTC`, and
+`CryptoTrendBTC` — so the parameters a narration quotes cannot drift into fiction
+while still passing.
+
+The reason to constrain it this hard is that a plausible explanation is more
+dangerous than no explanation. A narrator free to say "trimmed SPY as momentum
+faded" would be inventing a causal story from a system whose only inputs are
+settled daily closes. Narration also states the branch the rule did **not** take
+("traded because drift was 7.99%, above the 1.00% minimum-trade band; had drift
+been at or below that band the runner would have left the position to drift
+untouched") — a rule you only ever see fire is a rule you cannot audit.
+
+**News and AI-confidence surfaces are deliberately replaced.** Two features that
+would be conventional here are refused, and the refusal is itself an endpoint:
+
+* `/api/ignored-inputs` names the five inputs the system reads — Tiingo EOD,
+  Alpaca IEX as an independent cross-check, Coinbase daily candles, Alpaca paper
+  account state, and the session calendars — and the seven it deliberately does
+  not: news, earnings, analyst ratings, sentiment, intraday/quote/order-book data,
+  macro releases, and any LLM opinion about the market. A reader can then judge
+  what the strategies *cannot* know instead of inferring capability from a feature
+  list. A confidence score would imply a probabilistic belief no strategy holds.
+* **Distance-to-flip honesty** replaces it. `/api/risk` reports each account's
+  current drawdown against the kill threshold that actually governs it, and the
+  headroom between them; `/api/equity` flags every mark `on_schedule`,
+  `catch_up`, or `leaked` using the 2026-07-24 diagnosis heuristics as documented
+  constants, because a chart of marks spaced 10–33h apart looks like clean daily
+  data and is not; and `/api/divergence` surfaces the published and corrected
+  figures for week 2026-07-24 side by side, quoted from the ruling below and
+  never recomputed.
+
+**Interpretation is labelled where it occurs.** Validation tiers
+(Proven/Probable) and mark provenance are editorial positions, not measurements;
+both live in one reviewable constants module, ship their rationale in the payload,
+and the provenance constants carry an explicit DST limitation rather than a silent
+guess.
+
+**Absence is a state, not an error.** Every endpoint answers 200 with an explicit
+empty model on a repo with no artifacts at all, and skips a corrupt report or a
+truncated parquet rather than returning 500 — tested against both a populated
+fixture tree and a bare directory. A read-only proof walks every file's size and
+mtime before and after exercising the whole endpoint surface and asserts nothing
+changed.
+
+**Freeze note.** The service reads; it does not participate in the trading path.
+The only pre-existing modules touched are `cli.py` (one lazily-imported
+`glassbox serve` subcommand — the import is lazy and tested to be, so a broken web
+dependency can never block a paper run) and `pyproject.toml` (fastapi, uvicorn,
+and httpx for the test client).
+
+---
+
 ## 2026-07-25 — Week 2026-07-24 divergence diagnosis, and two re-rulings
 
 **Finding.** Both DIVERGING verdicts in `week_20260724` were artifacts of the

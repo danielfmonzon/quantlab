@@ -59,6 +59,9 @@ from quantlab.data.reconcile import ReconcileReport, reconcile
 from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
+
+# Port constant only: glassbox/__init__ is lazy, so this does not import FastAPI.
+from quantlab.glassbox.serve import DEFAULT_PORT as GLASSBOX_DEFAULT_PORT
 from quantlab.logging_setup import get_logger
 from quantlab.paper.runner import (
     PaperRunReport,
@@ -1056,6 +1059,20 @@ def cmd_version(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_glassbox_serve(args: argparse.Namespace) -> int:
+    """Serve the read-only Glass Box API on localhost.
+
+    Imported lazily so the rest of the CLI never pays for FastAPI, and so a broken
+    web dependency cannot block a paper run. The bind host is not exposed as a
+    flag: see ``glassbox.serve`` for why localhost is a hard default.
+    """
+    from quantlab.glassbox.serve import HOST, serve
+
+    print(f"quantlab glassbox: serving read-only API on http://{HOST}:{args.port}")
+    print("  localhost only; exposure and authentication are a later decision.")
+    return serve(port=args.port)
+
+
 def cmd_weekly(args: argparse.Namespace) -> int:
     store = ParquetStore()
     calendar = TradingCalendar()
@@ -1556,6 +1573,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_risk_reset.add_argument("--confirm", default=None, help="must be exactly YES")
     p_risk_reset.set_defaults(func=cmd_risk_reset)
+
+    p_gb = sub.add_parser("glassbox", help="read-only transparency API (localhost only)")
+    gb_sub = p_gb.add_subparsers(dest="glassbox_command", required=True)
+    p_gb_serve = gb_sub.add_parser(
+        "serve", help="serve the Glass Box API on 127.0.0.1 (no auth; localhost only)"
+    )
+    p_gb_serve.add_argument(
+        "--port", type=int, default=GLASSBOX_DEFAULT_PORT,
+        help=f"TCP port on 127.0.0.1 (default {GLASSBOX_DEFAULT_PORT})",
+    )
+    p_gb_serve.set_defaults(func=cmd_glassbox_serve)
 
     return parser
 
