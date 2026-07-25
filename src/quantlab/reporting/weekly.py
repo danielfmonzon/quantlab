@@ -8,7 +8,8 @@ asset class (``APPROVED_STRATEGIES``), producing per account:
   earned over the same span, and their divergence;
 * cumulative paper-vs-shadow return since track start, with an explicit
   structural-drift annotation: dividend drag for equities (see
-  ``reporting.shadow`` caveat (c)), the 24/7-vs-daily-bar caveat for crypto;
+  ``reporting.shadow`` caveat (c)), variable mark-window length and mark-phase
+  offset for crypto;
 * operational stats for the week (runs attempted/completed/aborted by stage,
   alerts by level, the account's current RiskState);
 * a per-account verdict: TRACKING when |week divergence| <= the configured
@@ -26,6 +27,12 @@ paper does not credit dividends, so some drift is STRUCTURAL, not tracking error
 (see ``reporting.shadow``). The threshold and the per-asset-class structural
 notes exist so the review annotates that expected drift rather than alarming on
 it.
+
+The comparison is ALIGNED: paper snapshots dated after the last session the
+shadow can cover are excluded from both the weekly and cumulative divergence and
+listed in ``excluded_tail_days``. Without that, a snapshot taken before its own
+session's bar exists lands whole in the divergence against no shadow return at
+all -- the mechanism behind 32 of trend's reported -54 bps for week 2026-07-24.
 """
 
 from __future__ import annotations
@@ -89,14 +96,21 @@ _DIVIDEND_DRAG_NOTE = (
 )
 
 _CRYPTO_STRUCTURAL_NOTE = (
-    "No dividend drag applies here - crypto pays no dividends, so the "
-    "adj_close shadow and the paper account see the same total return. The "
-    "structural gap is timing instead: BTC trades 24/7, while paper equity "
-    "snapshots and the shadow's daily bars are both once-daily, so weekend and "
-    "overnight moves land entirely between two marks and produce LARGER "
-    "structural day-to-day gaps than an equity account shows. The divergence "
-    "threshold still applies to the weekly aggregate, where those intra-window "
-    "timing gaps largely wash out."
+    "No dividend drag applies here - crypto pays no dividends, so the adj_close "
+    "shadow and the paper account see the same total return. The structural gap is "
+    "MARK TIMING, and the 2026-07-24 diagnosis identified two mechanisms that "
+    "dominate it. (1) Variable mark-window LENGTH: the shadow's sessions are "
+    "uniform 24h UTC days, while consecutive paper marks are whatever the runs "
+    "happened to land on - catch-up runs after a missed start produced windows "
+    "from 10h to 33h in that week, so a paper 'daily' return can cover less than "
+    "half or more than a third again of the day the shadow prices. (2) Mark-PHASE "
+    "offset: a full 24h window struck at, say, 14:00 UTC still straddles two of "
+    "the shadow's UTC days, so a trending stretch is split differently between "
+    "them and both days show a gap. Weekend and overnight gaps are a secondary "
+    "case of the same effect - a real but smaller contributor, since BTC trades "
+    "24/7 and no move is skipped, only attributed to a different mark. These gaps "
+    "are largely self-cancelling in the WEEKLY aggregate the threshold is applied "
+    "to, but individual days can swing well over 100 bps in either direction."
 )
 
 _STRUCTURAL_NOTE_BY_CLASS: dict[str, str] = {
@@ -149,6 +163,9 @@ class AccountWeekly(BaseModel):
     cumulative: CumulativeStats | None = None
     ops: OpsStats | None = None
     verdict: str = "INSUFFICIENT"  # TRACKING / DIVERGING / INSUFFICIENT
+    # Paper snapshot days after the shadow's last coverable session. Excluded from
+    # BOTH the week and the cumulative divergence so the comparison is like-for-like.
+    excluded_tail_days: list[date] = []
 
 
 class AssetClassClock(BaseModel):
@@ -200,6 +217,18 @@ def _last_snapshot_per_day(history: pd.DataFrame) -> pd.DataFrame:
         return history
     day = history["timestamp"].dt.date
     return history[~day.duplicated(keep="last")].reset_index(drop=True)
+
+
+def _coverage_end(series: pd.Series) -> date | None:
+    """The last session a shadow series covers, or None when it covers nothing.
+
+    Read off the series itself rather than the store so an injected ``shadow_fn``
+    (tests, and any future alternative reconstruction) defines its own coverage and
+    the alignment stays honest for it too.
+    """
+    if series is None or series.empty:
+        return None
+    return max(series.index).date()
 
 
 def _compound(series: pd.Series, start_exclusive: date, end_inclusive: date) -> float | None:
@@ -347,16 +376,45 @@ def _account_weekly(
             cumulative=None, ops=ops, verdict="INSUFFICIENT",
         )
 
+    incept = pd.Timestamp(history["timestamp"].iloc[0]).date()
+    raw_w_end = pd.Timestamp(history["timestamp"].iloc[-1]).date()
+
+    # The shadow needs enough dated returns to cover inception->week_ending.
+    shadow_series = shadow_fn(label, store, incept, raw_w_end)
+
+    # -- like-for-like alignment (DEFECT 1) ---------------------------------
+    # The shadow can only speak to sessions whose bars are complete; paper marks
+    # every run. On 2026-07-24 trend held a 14:00Z snapshot for a session whose EOD
+    # bar did not exist yet, so a 4-return paper week was compared against a
+    # 3-return shadow week and the orphan day landed whole in the divergence
+    # (-32 of the reported -54 bps). Truncate paper to the shadow's coverage and
+    # report the excluded tail rather than comparing across a ragged edge.
+    coverage_end = _coverage_end(shadow_series)
+    excluded_tail_days: list[date] = []
+    if coverage_end is not None:
+        snapshot_days = history["timestamp"].dt.date
+        excluded_tail_days = sorted(set(snapshot_days[snapshot_days > coverage_end]))
+        history = history[snapshot_days <= coverage_end]
+
+    if len(history) < 2:
+        # Everything comparable was excluded; report the tail, claim no divergence.
+        return AccountWeekly(
+            label=label, available=True, asset_class=asset_class,
+            window=WeekWindow(
+                start=None, end=None, n_snapshots=int(len(history)), insufficient=True,
+                note="no paper snapshots within shadow coverage yet",
+            ),
+            cumulative=None, ops=ops, verdict="INSUFFICIENT",
+            excluded_tail_days=excluded_tail_days,
+        )
+
     week_hist = history.tail(week_snapshots)
     w_start = pd.Timestamp(week_hist["timestamp"].iloc[0]).date()
     w_end = pd.Timestamp(week_hist["timestamp"].iloc[-1]).date()
     paper_week = float(week_hist["equity"].iloc[-1]) / float(week_hist["equity"].iloc[0]) - 1.0
 
-    incept = pd.Timestamp(history["timestamp"].iloc[0]).date()
     paper_total = float(history["equity"].iloc[-1]) / float(history["equity"].iloc[0]) - 1.0
 
-    # The shadow needs enough dated returns to cover inception->week_ending.
-    shadow_series = shadow_fn(label, store, incept, w_end)
     shadow_week = _compound(shadow_series, w_start, w_end)
     shadow_total = _compound(shadow_series, incept, w_end)
 
@@ -391,7 +449,7 @@ def _account_weekly(
                 asset_class, _DIVIDEND_DRAG_NOTE
             ),
         ),
-        ops=ops, verdict=verdict,
+        ops=ops, verdict=verdict, excluded_tail_days=excluded_tail_days,
     )
 
 
@@ -520,6 +578,14 @@ def _bps(x: float | None) -> str:
     return "n/a" if x is None else f"{x:+.0f} bps"
 
 
+def _excluded_tail_lines(acct: AccountWeekly) -> list[str]:
+    """The excluded-tail annotation, or nothing when the windows already align."""
+    if not acct.excluded_tail_days:
+        return []
+    days = ", ".join(d.isoformat() for d in acct.excluded_tail_days)
+    return [f"- excluded from comparison (no shadow data yet): {days}"]
+
+
 def _render_account(acct: AccountWeekly) -> list[str]:
     lines: list[str] = [f"## Account: {acct.label} ({acct.asset_class})"]
     if not acct.available:
@@ -529,6 +595,7 @@ def _render_account(acct: AccountWeekly) -> list[str]:
 
     if acct.window is not None and acct.window.insufficient and acct.paper_week_return is None:
         lines.append(f"- _{acct.window.note}_")
+        lines.extend(_excluded_tail_lines(acct))
         if acct.ops is not None:
             lines.append(f"- runs this week: {acct.ops.runs_attempted} attempted, "
                          f"{acct.ops.runs_completed} completed, {acct.ops.runs_aborted} aborted")
@@ -543,6 +610,7 @@ def _render_account(acct: AccountWeekly) -> list[str]:
     lines.append(f"- paper week return: {_pct(acct.paper_week_return)}")
     lines.append(f"- shadow week return: {_pct(acct.shadow_week_return)}")
     lines.append(f"- week divergence: {_bps(acct.divergence_bps)}")
+    lines.extend(_excluded_tail_lines(acct))
 
     c = acct.cumulative
     if c is not None:

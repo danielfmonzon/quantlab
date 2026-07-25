@@ -27,19 +27,31 @@ the tracker must annotate, not alarm):
       will therefore LAG shadow by roughly the portfolio's dividend yield. This
       is expected drift; the weekly review annotates it as dividend drag rather
       than treating it as tracking error.
+
+COMPLETED SESSIONS ONLY. The shadow reads bars for sessions whose completion
+cutoff has passed on the account's own calendar, never the bar for a session in
+progress (see ``backtest.panel.completed_sessions_only``). ``shadow_coverage_end``
+exposes the last session the shadow can therefore speak to, so the weekly review
+can align the paper window to it instead of comparing a paper mark against a
+shadow return that does not exist yet.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import numpy as np
 import pandas as pd
 
-from quantlab.backtest.panel import build_price_panel
+from quantlab.backtest.panel import build_price_panel, completed_sessions_only
 from quantlab.backtest.strategy import Strategy
+from quantlab.data.calendar import MarketCalendar
 from quantlab.data.store import ParquetStore
-from quantlab.paper.runner import current_target_weights, make_paper_strategy
+from quantlab.paper.runner import (
+    calendar_for_account,
+    current_target_weights,
+    make_paper_strategy,
+)
 
 _DRIFT_BAND = 0.01  # matches the runner's min_trade_frac (1%)
 _DEFAULT_COST_BPS = 5.0
@@ -71,6 +83,50 @@ def _weights_vector(weights: dict[str, float], sym_index: dict[str, int], m: int
     return vec
 
 
+def _shadow_panel(
+    strategy_name: str,
+    store: ParquetStore,
+    calendar: MarketCalendar | None,
+    now: datetime | None,
+) -> tuple[Strategy, pd.DataFrame]:
+    """The completed-session panel the shadow reconstructs from (may be empty).
+
+    Shared by ``shadow_returns`` and ``shadow_coverage_end`` so the coverage the
+    weekly review aligns to is by construction the coverage the shadow has.
+    """
+    strategy = make_paper_strategy(strategy_name)
+    panel = build_price_panel(store, strategy.all_symbols)
+    panel = completed_sessions_only(
+        panel,
+        calendar if calendar is not None else calendar_for_account(strategy_name),
+        now if now is not None else datetime.now(UTC),
+    )
+    usable = panel[strategy.required_symbols].dropna()
+    if usable.empty:
+        return strategy, panel.iloc[:0]
+    return strategy, panel.loc[usable.index.min():]
+
+
+def shadow_coverage_end(
+    strategy_name: str,
+    store: ParquetStore,
+    *,
+    calendar: MarketCalendar | None = None,
+    now: datetime | None = None,
+) -> date | None:
+    """Last session ``shadow_returns`` can produce a return for, or None if none.
+
+    This is the alignment boundary for paper-vs-shadow comparison: a paper equity
+    snapshot dated after it has no shadow counterpart and must be excluded from
+    both the weekly and the cumulative divergence rather than silently compared
+    against a shorter shadow window.
+    """
+    _, panel = _shadow_panel(strategy_name, store, calendar, now)
+    if panel.empty:
+        return None
+    return panel.index[-1].date()
+
+
 def shadow_returns(
     strategy_name: str,
     store: ParquetStore,
@@ -78,18 +134,18 @@ def shadow_returns(
     end_date: date,
     *,
     cost_bps: float = _DEFAULT_COST_BPS,
+    calendar: MarketCalendar | None = None,
+    now: datetime | None = None,
 ) -> pd.Series:
     """Daily return series the paper account should have earned over [start, end].
 
-    Deterministic. Uses the full stored history to warm signals, but only returns
-    the sessions within ``[start_date, end_date]``.
+    Deterministic given completed bars. Uses the full stored history to warm
+    signals, but only returns the sessions within ``[start_date, end_date]``, and
+    never reads a bar for the session still in progress.
     """
-    strategy = make_paper_strategy(strategy_name)
-    panel = build_price_panel(store, strategy.all_symbols)
-    usable = panel[strategy.required_symbols].dropna()
-    if usable.empty:
+    strategy, panel = _shadow_panel(strategy_name, store, calendar, now)
+    if panel.empty:
         return pd.Series(dtype="float64", name=f"shadow_{strategy_name}")
-    panel = panel.loc[usable.index.min():]
 
     symbols = list(panel.columns)
     dates = list(panel.index)
@@ -138,4 +194,4 @@ def shadow_returns(
     return series[mask]
 
 
-__all__ = ["shadow_returns", "shadow_target_path"]
+__all__ = ["shadow_coverage_end", "shadow_returns", "shadow_target_path"]

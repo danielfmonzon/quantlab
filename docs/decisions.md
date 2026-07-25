@@ -6,6 +6,159 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-25 — Week 2026-07-24 divergence diagnosis, and two re-rulings
+
+**Finding.** Both DIVERGING verdicts in `week_20260724` were artifacts of the
+measurement, not tracking error in the accounts.
+
+`trend`, published **−54.33 bps**. Fully decomposed, with no residual:
+
+* **−32.2 bps** — the 2026-07-24 14:00Z paper snapshot was compared against
+  *nothing*. SPY's and IEF's stored history ended 2026-07-23 (that day's digest
+  records `last_date: "2026-07-23"`, `staleness_sessions: 0`), so the paper week
+  carried four snapshot-to-snapshot returns while the shadow week carried three.
+  The orphan day landed whole in the divergence.
+* **−22.2 bps** — mark-phase: paper marks at 10:00 ET, the shadow close-to-close.
+  `trend` held a constant 133.028241898 SPY with ~zero cash and no trades all
+  week, so paper equity ÷ qty *is* the SPY mark price; the implied 10:00 ET prices
+  (745.77, 745.46, 748.79, 740.17) predict each daily gap from SPY's own bars to
+  within **0.1–0.9 bps**. The −87.78 bps on 07-21 is the 10:00-to-close remainder
+  swinging +49.59 → −37.69 across two intraday-reversal days. Notably 07-23 was
+  the week's largest move (−123.5 bps close-to-close) yet produced only +8.95 bps
+  of gap: the gap tracks intraday *position change*, not move size.
+
+No snapshot in `trend`'s window was off-schedule (all five at 14:00:11–14:00:28
+UTC), and **no SPY dividend ex-date falls in the window** — the last was
+2026-06-18, on a quarterly cadence.
+
+`crypto_voltarget`, published **+91.24 bps**: **not reproducible**. Re-running the
+same code on the same store today yields **+211.46 bps**, and the cumulative
+figure flips sign, **−54.46 → +67.12 bps**. The sole changed input is BTC's
+2026-07-24 daily bar, which was **partial when the review ran** at 21:00Z — the
+last ingest before it was the 05:43:03Z run. Inverting the shadow for the close
+that reproduces the published numbers gives **65,230.06** against a final
+**64,083.32** (+179 bps), and reproduces `shadow_week` +28.25 vs the stored +28.24
+bps and `shadow_total` +141.75 vs +141.74 bps. Independently, chaining the paper
+account's own equity × weight across runs puts its 05:43Z BTC mark at
+**65,304.02** — within **11 bps** of the inverted figure. Two unrelated
+derivations agree the shadow read a mid-morning price as a daily close.
+
+Beneath that artifact the account's day-to-day gaps are mark-timing. Only **1 of
+7** window marks was on schedule (00:30 UTC); three were catch-up runs and three
+were the leaked 14:00 UTC equity task, giving mark windows of **10.49h to
+32.72h** against uniform 24h UTC days. Scaling each window's BTC move against its
+UTC-day move by the account's BTC weight matches the observed gap in sign and
+magnitude on all six days, leaving a **+38.6 bps** residual across the week
+(~82% explained) attributable to fill-vs-mark prices, fees and the shadow's cost
+model. The largest positive contributors were **07-23 (+142.59 bps**, Thursday, a
+10.49h window) and **07-21 (+139.14 bps**, Tuesday, a 14h phase offset) — neither
+a weekend day; the weekend case (07-19 Sunday, +74.68 bps) ranked third.
+
+**Re-ruling 1.** `trend` is **TRACKING** for week 2026-07-24. Recomputed through
+the aligned code path at the instant the published review ran, its week divergence
+is **−6.06 bps** over 2026-07-16 → 2026-07-23 — a **+48.27 bps** correction, and
+comfortably inside the 50 bps threshold. (The aligned window slides back to
+2026-07-16 to keep a full five snapshots; over the published window's own
+2026-07-20 → 2026-07-23 span the figure is the ~−22 bps of mark-phase drift
+itemised above. Both readings are inside the threshold; the −6.06 bps is the one
+the fixed code reports.) Cumulative divergence moves −5.09 → **+26.90 bps**.
+
+**Re-ruling 2.** `crypto_voltarget`'s **+91 bps headline is VOIDED** as a
+partial-bar artifact. No verdict is recorded for that week: the underlying
+divergence is structural mark-timing, but it cannot be quantified from a corrupted
+input, and the honest recomputation (+211 bps) measures marks 10–33h apart against
+24h sessions rather than any account behaviour. The **next clean Friday decides** —
+the first week whose crypto marks are all on-schedule and whose bars are all
+complete at review time.
+
+**The published reports stand unmodified.** `reports/weekly/week_20260724.md` and
+`.json` are the record of what was reported on 2026-07-24 and are not rewritten;
+this entry is the correction. Re-deriving the corrected figure is a read-only
+exercise, never an overwrite.
+
+---
+
+## 2026-07-25 — Aligned comparison windows and completed-session bar reads
+
+**Decision.** Two correctness fixes arising from the diagnosis above.
+
+**(1) Like-for-like weekly windows.** The weekly review now truncates the paper
+snapshot window to the last session the shadow can cover, read from the shadow
+series itself. Snapshots beyond it are excluded from **both** the weekly and the
+cumulative divergence and reported in a new `excluded_tail_days` field, rendered
+as `- excluded from comparison (no shadow data yet): 2026-07-24`. Deriving
+coverage from the returned series rather than the store means an injected
+`shadow_fn` defines its own coverage, so the alignment stays honest for any
+alternative reconstruction.
+
+**(2) Completed sessions only on every read path.** `completed_sessions_only`
+truncates a price panel to `calendar.last_completed_session(now)` on the account's
+own calendar, and is applied in `current_target_weights` (the runner threads its
+existing `run_now` through) and in `shadow_returns`. Ingestion may still *write* a
+partial current-day bar — the Coinbase upsert does, on every run — and that stays
+harmless, because the next run overwrites it and it settles when the session
+closes. Reading it is the defect.
+
+**Rationale.** Both defects share a shape: a number that changes when you compute
+it again. A signal or shadow return taken off an in-progress price is not
+reproducible, and a paper mark compared against a shadow session that does not
+exist yet measures the calendar rather than the strategy. Between them they
+produced two false DIVERGING verdicts in one week and a cumulative figure whose
+sign depended on the hour of the query. Fix (2) also brings the paper signal into
+line with the backtest and the shadow, which have always read settled bars — the
+three now agree on what a session is.
+
+**Freeze compliance.** Precedent: the 2026-07-22 scheduler-leak fix, where a
+correctness defect in *when* the pipeline ran was repaired under freeze without
+touching what it decided. No strategy parameter, risk limit, alert threshold, run
+cadence, `broker/` module, or order-submission path is modified here. Fix (1) is
+report-only. Fix (2) does touch the trading path, and deliberately so: it changes
+only *which bars are eligible to be read*, never the signal computed from them.
+On the equity path it is provably inert — an EOD bar only exists after its session
+closes — which the suite asserts by comparing a run's `target_weights` with the
+filter on against the unfiltered signal on the same fixture. On the crypto path it
+removes a bar that should never have been eligible. The panel is truncated before
+the usable-history guard so that guard's abort reason stays accurate, and
+`current_target_weights` re-applies it for direct callers.
+
+A week stays "the last N snapshots", now applied to the *aligned* history: the
+window slides back rather than shrinking, so a truncated tail does not silently
+turn a five-snapshot comparison into a four-snapshot one.
+
+**Tests.** 22 added (344 → 366). `tests/test_partial_bar.py` pins both read paths
+against a synthetic BTC panel carrying a partial current-UTC-day bar, including
+teeth checks that the bar *would* move both the signal and the shadow if read, and
+that the vol-target weight sits strictly between 0 and 1 so "unchanged" cannot
+pass vacuously. `tests/test_weekly.py` adds the alignment cases: the 2026-07-24
+`trend` window in isolation (aligned −22.1 bps and TRACKING, ragged −54.3 bps and
+beyond threshold), the window-slide behaviour on a production-shaped history, and
+the degenerate cases (no coverage at all, no snapshots inside coverage).
+
+---
+
+## 2026-07-25 — Correcting the crypto structural-drift note
+
+**Decision.** `_CRYPTO_STRUCTURAL_NOTE` is rewritten to name the mechanisms the
+diagnosis actually measured: **variable mark-window length** (catch-up runs
+produced windows from 10h to 33h in week 2026-07-24, against the shadow's uniform
+24h UTC days) and **mark-phase offset** (a full 24h window struck mid-day still
+straddles two UTC sessions, so a trending stretch is split between them and both
+show a gap). Weekend and overnight gaps are retained as an explicitly **secondary**
+case. The pinned note tests are updated to assert the new mechanisms and to
+reject the retired premise.
+
+**Rationale.** The old note claimed paper snapshots and shadow bars were "both
+once-daily" and attributed the gap to weekend and overnight moves. Both halves
+were wrong. Paper marks are once-daily only *after* the review collapses them;
+their spacing was 10.49h to 32.72h that week, which is the dominant effect. And
+the two largest contributing days — 07-23 at +142.59 bps and 07-21 at +139.14 bps
+— were a Thursday and a Tuesday. The weekend explanation ranked third at +74.68
+bps. A structural note exists so a reader can tell expected drift from tracking
+error; one that names the wrong mechanism invites exactly the misreading that
+occurred, and it is worse than no note because it sounds authoritative.
+
+---
+
 ## 2026-07-22 — Scheduler catch-up, paired with a 15:30 ET submit cutoff
 
 **Decision.** Enable `StartWhenAvailable` (missed-start catch-up) on the

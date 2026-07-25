@@ -38,7 +38,7 @@ from pathlib import Path
 import pandas as pd
 from pydantic import BaseModel
 
-from quantlab.backtest.panel import build_price_panel
+from quantlab.backtest.panel import build_price_panel, completed_sessions_only
 from quantlab.backtest.signals import month_end_sessions
 from quantlab.backtest.strategies import (
     CryptoTrendBTC,
@@ -156,14 +156,34 @@ def make_paper_strategy(name: str) -> Strategy:
     )
 
 
+def calendar_for_account(label: str) -> MarketCalendar:
+    """The calendar an account's sessions live on: 24/7 UTC for crypto, XNYS otherwise.
+
+    One source of truth, shared by the runner and ``reporting.shadow`` so the
+    signal and its shadow reconstruction agree on what "a session" means.
+    """
+    return CryptoCalendar() if account_asset_class(label) == "crypto" else TradingCalendar()
+
+
 def current_target_weights(
-    strategy: Strategy, panel: pd.DataFrame
+    strategy: Strategy,
+    panel: pd.DataFrame,
+    *,
+    calendar: MarketCalendar | None = None,
+    now: datetime | None = None,
 ) -> tuple[dict[str, float], date | None]:
     """Target weights from the most recent WARMED month-end <= the last session.
 
     Scans month-ends newest-first; returns the first warmed-up signal. If none is
     warmed (insufficient history), returns cash ({}).
+
+    When ``calendar`` and ``now`` are both supplied the panel is first truncated to
+    ``calendar.last_completed_session(now)``, so a bar for the session still in
+    progress can never move the signal (see
+    ``backtest.panel.completed_sessions_only``). Omitting them preserves the
+    previous unfiltered behavior for callers that have already truncated.
     """
+    panel = completed_sessions_only(panel, calendar, now)
     dates = list(panel.index)
     for reb in reversed(month_end_sessions(dates)):
         window = panel.loc[:reb]
@@ -265,7 +285,7 @@ def run_paper(
     # -- (c) validate --------------------------------------------------------
     # Crypto accounts measure sessions/staleness on the 24/7 UTC grid; equities
     # keep XNYS. An explicitly injected calendar (tests) always wins.
-    default_cal: MarketCalendar = CryptoCalendar() if is_crypto else TradingCalendar()
+    default_cal: MarketCalendar = calendar_for_account(strategy_name)
     the_cal = calendar if calendar is not None else default_cal
     if validation_override is not None:
         reports = validation_override
@@ -307,12 +327,19 @@ def run_paper(
     _stage("account", True, f"equity={account.equity:.2f} cash={account.cash:.2f}")
 
     # -- (f) current target weights -----------------------------------------
+    # Completed sessions ONLY: ingest above may have written a bar for the session
+    # still in progress, and a signal read off an in-progress price is not
+    # reproducible. Truncating before the usable-history guard keeps that guard's
+    # abort reason accurate; current_target_weights re-applies it for direct callers.
     panel = build_price_panel(the_store, symbols)
+    panel = completed_sessions_only(panel, the_cal, run_now)
     usable = panel[strategy.required_symbols].dropna()
     if usable.empty:
         return _abort("target_weights", "no sessions where required symbols have prices")
     panel = panel.loc[usable.index.min():]
-    targets, signal_date = current_target_weights(strategy, panel)
+    targets, signal_date = current_target_weights(
+        strategy, panel, calendar=the_cal, now=run_now
+    )
     _stage("target_weights", True,
             f"signal@{signal_date} -> {targets}" if signal_date else "cash (not warmed)")
 
@@ -524,6 +551,7 @@ def run_all_strategies(
 
 
 __all__ = [
+    "calendar_for_account",
     "run_paper",
     "run_all_strategies",
     "PaperRunReport",

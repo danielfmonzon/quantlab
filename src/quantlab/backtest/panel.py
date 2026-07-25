@@ -5,15 +5,19 @@ column per symbol. It is the outer-join (union) of every symbol's sessions, so a
 late-inception symbol carries leading NaNs before it began trading. Leading NaNs
 are allowed; an *internal* gap (a NaN after a symbol's first valid price) is a
 data defect and fails loudly.
+
+``completed_sessions_only`` is the read-side guard against in-progress bars: see
+its docstring for why every decision path must apply it.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 
 from quantlab.data import DataError
+from quantlab.data.calendar import MarketCalendar
 from quantlab.data.store import ParquetStore
 
 
@@ -66,6 +70,31 @@ def _check_no_internal_gaps(panel: pd.DataFrame) -> None:
             )
 
 
+def completed_sessions_only(
+    panel: pd.DataFrame,
+    calendar: MarketCalendar | None,
+    now: datetime | None,
+) -> pd.DataFrame:
+    """``panel`` truncated to sessions COMPLETED as of ``now`` on ``calendar``.
+
+    Ingestion may legitimately *write* a bar for the session in progress — the
+    Coinbase crypto path upserts one on every run — and that is harmless at rest,
+    because the next run overwrites it and the bar settles to its final values
+    once the session closes. *Reading* it for a decision is the defect: a signal
+    or a shadow return computed from an in-progress price is not reproducible.
+    The 2026-07-24 diagnosis showed a partial BTC bar (65,230 at 05:43 UTC,
+    64,083 final) moving ``crypto_voltarget``'s reported weekly divergence by
+    120 bps and flipping the sign of its cumulative figure.
+
+    Returns ``panel`` unchanged when ``calendar`` or ``now`` is None, so callers
+    with no calendar context keep exactly their previous behavior.
+    """
+    if calendar is None or now is None or panel.empty:
+        return panel
+    cutoff = pd.Timestamp(calendar.last_completed_session(now))
+    return panel.loc[panel.index <= cutoff]
+
+
 def returns_panel(panel: pd.DataFrame) -> pd.DataFrame:
     """Daily simple returns per symbol: r_t = adj_close_t / adj_close_{t-1} - 1.
 
@@ -74,4 +103,4 @@ def returns_panel(panel: pd.DataFrame) -> pd.DataFrame:
     return panel.pct_change(fill_method=None)
 
 
-__all__ = ["build_price_panel", "returns_panel"]
+__all__ = ["build_price_panel", "completed_sessions_only", "returns_panel"]

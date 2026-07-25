@@ -75,6 +75,24 @@ def _stub_shadow(values_by_label: dict[str, float]):
     return _fn
 
 
+def _stub_shadow_series(series_by_label: dict[str, pd.Series]):
+    """A shadow fn returning an explicit DATED series per label (empty if absent).
+
+    Unlike ``_stub_shadow`` this controls the shadow's *coverage* -- the last session
+    it carries a return for -- which is what the like-for-like alignment reads.
+    """
+    def _fn(label: str, store: object, start: date, end: date) -> pd.Series:
+        return series_by_label.get(
+            label, pd.Series(dtype="float64", index=pd.DatetimeIndex([]))
+        )
+    return _fn
+
+
+def _dated(returns: dict[str, float]) -> pd.Series:
+    return pd.Series(list(returns.values()),
+                     index=pd.DatetimeIndex([pd.Timestamp(d) for d in returns]))
+
+
 def _base_dirs(tmp_path: Path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -319,8 +337,32 @@ def test_crypto_sections_carry_crypto_note_not_dividend_note(tmp_path) -> None:
     assert ct.asset_class == "crypto"
     assert ct.cumulative is not None
     note = ct.cumulative.structural_drift_note.lower()
-    assert "24/7" in note and "once-daily" in note
+    # The note must name the mechanisms the 2026-07-24 diagnosis actually found:
+    # variable mark-window LENGTH (catch-up runs -> 10-33h windows vs uniform 24h
+    # UTC days) and mark-PHASE offset, with weekend gaps as the secondary case.
+    assert "length" in note and "phase" in note
+    assert "10h to 33h" in note
+    assert "24h utc days" in note
+    assert "weekend" in note and "secondary" in note
+    # Still not a dividend story.
     assert "does not credit cash dividends" not in note
+    assert "dividend" in note  # explicitly says dividend drag does NOT apply
+
+
+def test_crypto_note_does_not_claim_paper_marks_are_once_daily(tmp_path) -> None:
+    """The old note's premise -- 'both once-daily' -- was the wrong mechanism.
+
+    Paper marks are once-daily only after the review collapses them; their SPACING
+    is what diverges (10.49h to 32.72h in week 2026-07-24), and the retired note
+    attributed the whole gap to weekend/overnight moves instead.
+    """
+    review, *_ = _build_four(tmp_path)
+    ct = next(a for a in review.accounts if a.label == "crypto_trend")
+    assert ct.cumulative is not None
+    note = ct.cumulative.structural_drift_note.lower()
+    assert "once-daily" not in note
+    # Weekend gaps must be present but demoted, not the headline mechanism.
+    assert note.index("length") < note.index("weekend")
 
     vt = next(a for a in review.accounts if a.label == "voltarget")
     assert vt.cumulative is not None
@@ -432,6 +474,248 @@ def test_crypto_double_run_day_does_not_shrink_the_week_window(tmp_path) -> None
     assert cv.window.end == date(2026, 7, 10)
     # Week return runs first-day mark -> LAST mark of the final day.
     assert cv.paper_week_return == pytest.approx(202_100 / 200_000 - 1.0)
+
+
+# --------------------------------------------------------------------------
+# Like-for-like window alignment (paper truncated to shadow coverage)
+# --------------------------------------------------------------------------
+
+
+def test_paper_snapshot_past_shadow_coverage_is_excluded_from_both_figures(
+    tmp_path,
+) -> None:
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    # Paper marks all five sessions; the shadow only covers through 07-09.
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", WEEK_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    shadow = _dated({"2026-07-07": 0.001, "2026-07-08": 0.001, "2026-07-09": 0.001})
+    review = build_weekly_review(
+        {"voltarget": object()}, MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow_series({"voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+
+    assert vt.excluded_tail_days == [date(2026, 7, 10)]
+    # The window now ends where the shadow ends, and carries one fewer snapshot.
+    assert vt.window is not None
+    assert vt.window.start == date(2026, 7, 6)
+    assert vt.window.end == date(2026, 7, 9)
+    assert vt.window.n_snapshots == 4
+
+    # Week AND cumulative both run 07-06 -> 07-09, excluding the 07-10 mark.
+    aligned_paper = 100_750 / 100_000 - 1.0
+    aligned_shadow = 1.001 ** 3 - 1.0
+    assert vt.paper_week_return == pytest.approx(aligned_paper)
+    assert vt.shadow_week_return == pytest.approx(aligned_shadow)
+    assert vt.divergence_bps == pytest.approx((aligned_paper - aligned_shadow) * 1e4)
+    assert vt.cumulative is not None
+    assert vt.cumulative.paper_total_return == pytest.approx(aligned_paper)
+    assert vt.cumulative.cumulative_divergence_bps == pytest.approx(vt.divergence_bps)
+
+    # The ragged comparison this replaces would have used the 07-10 equity against
+    # the same three shadow returns and crossed the threshold.
+    ragged = (101_000 / 100_000 - 1.0 - aligned_shadow) * 1e4
+    assert abs(ragged) > review.divergence_threshold_bps
+    assert abs(vt.divergence_bps) <= review.divergence_threshold_bps
+    assert vt.verdict == "TRACKING"
+
+
+def test_excluded_tail_day_is_rendered_in_markdown(tmp_path) -> None:
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", WEEK_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    shadow = _dated({"2026-07-07": 0.001, "2026-07-08": 0.001, "2026-07-09": 0.001})
+    review = build_weekly_review(
+        {"voltarget": object()}, MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow_series({"voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    md = render_markdown(review)
+    assert "- excluded from comparison (no shadow data yet): 2026-07-10" in md
+
+
+def test_aligned_windows_carry_no_excluded_tail(tmp_path) -> None:
+    """When the shadow reaches the last paper mark, nothing is excluded or dropped."""
+    review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.0095})
+    for acct in review.accounts:
+        if acct.available:
+            assert acct.excluded_tail_days == []
+            assert acct.window is not None and acct.window.n_snapshots == 5
+
+
+def test_trend_week_20260724_lands_within_threshold_once_aligned(tmp_path) -> None:
+    """The 2026-07-24 trend scenario isolated to the five snapshots of that window.
+
+    Published: -54.33 bps, DIVERGING. The 07-24 14:00Z snapshot was compared
+    against a shadow that had no 07-24 session at all (SPY's EOD bar for that
+    session did not exist yet), so that day's -32 bps landed whole in the
+    divergence. Aligning to 07-23 leaves the ~-22 bps of mark-phase drift over
+    07-21..07-23 and puts the account inside the 50 bps threshold.
+
+    This fixture seeds ONLY the window's five snapshots, so the aligned window has
+    four. The real account also has earlier snapshots, so its production window
+    slides back to keep five --
+    ``test_aligned_window_slides_back_to_preserve_a_full_week`` covers that.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(
+        data_dir / "equity_history_trend.parquet",
+        ["2026-07-20 14:00:14", "2026-07-21 14:00:11", "2026-07-22 14:00:28",
+         "2026-07-23 14:00:16", "2026-07-24 14:00:18"],
+        [99_209.80, 99_167.23, 99_609.55, 98_467.50, 98_147.57],
+    )
+    # trend held 100% SPY all week, so its shadow is SPY close-to-close.
+    spy = {"2026-07-20": 742.09, "2026-07-21": 748.28,
+           "2026-07-22": 747.41, "2026-07-23": 738.18}
+    shadow = _dated({
+        "2026-07-21": spy["2026-07-21"] / spy["2026-07-20"] - 1.0,
+        "2026-07-22": spy["2026-07-22"] / spy["2026-07-21"] - 1.0,
+        "2026-07-23": spy["2026-07-23"] / spy["2026-07-22"] - 1.0,
+    })
+    review = build_weekly_review(
+        {"trend": object()}, MagicMock(), TradingCalendar(),
+        datetime(2026, 7, 24, 21, 0, 0, tzinfo=UTC), date(2026, 7, 24),
+        shadow_fn=_stub_shadow_series({"trend": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    tr = next(a for a in review.accounts if a.label == "trend")
+
+    assert tr.excluded_tail_days == [date(2026, 7, 24)]
+    assert tr.window is not None
+    assert tr.window.start == date(2026, 7, 20)
+    assert tr.window.end == date(2026, 7, 23)
+    assert tr.window.n_snapshots == 4
+
+    aligned_paper = 98_467.50 / 99_209.80 - 1.0
+    aligned_shadow = float((1.0 + shadow).prod() - 1.0)
+    assert tr.paper_week_return == pytest.approx(aligned_paper)
+    assert tr.shadow_week_return == pytest.approx(aligned_shadow)
+    # ~-22 bps, comfortably inside the 50 bps threshold -> TRACKING, not DIVERGING.
+    assert tr.divergence_bps == pytest.approx(-22.1, abs=1.0)
+    assert abs(tr.divergence_bps) <= review.divergence_threshold_bps
+    assert tr.verdict == "TRACKING"
+    assert not any("trend: DIVERGING" in b for b in review.readiness.blockers)
+
+    # And the ragged comparison that produced the published figure was ~-54 bps.
+    ragged = (98_147.57 / 99_209.80 - 1.0 - aligned_shadow) * 1e4
+    assert ragged == pytest.approx(-54.3, abs=1.0)
+    assert abs(ragged) > review.divergence_threshold_bps
+
+
+def test_aligned_window_slides_back_to_preserve_a_full_week(tmp_path) -> None:
+    """Truncating the tail must not shrink the week: the window slides back.
+
+    A week is defined as the last N snapshots, so applying that definition to the
+    ALIGNED history keeps a full five-snapshot comparison rather than silently
+    reporting a four-snapshot one. Shaped like trend's real history, which carries
+    snapshots before the published window (2026-07-09/13/14/16) and therefore
+    slides from 07-20..07-24 back to 07-16..07-23.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(
+        data_dir / "equity_history_trend.parquet",
+        ["2026-07-13 14:00:17", "2026-07-14 14:00:48", "2026-07-16 15:09:32",
+         "2026-07-20 14:00:14", "2026-07-21 14:00:11", "2026-07-22 14:00:28",
+         "2026-07-23 14:00:16", "2026-07-24 14:00:18"],
+        [100_288.65, 99_913.52, 100_203.52,
+         99_209.80, 99_167.23, 99_609.55, 98_467.50, 98_147.57],
+    )
+    shadow = _dated({d: 0.0 for d in
+                     ["2026-07-14", "2026-07-16", "2026-07-20", "2026-07-21",
+                      "2026-07-22", "2026-07-23"]})
+    review = build_weekly_review(
+        {"trend": object()}, MagicMock(), TradingCalendar(),
+        datetime(2026, 7, 24, 21, 0, 0, tzinfo=UTC), date(2026, 7, 24),
+        shadow_fn=_stub_shadow_series({"trend": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    tr = next(a for a in review.accounts if a.label == "trend")
+    assert tr.excluded_tail_days == [date(2026, 7, 24)]
+    assert tr.window is not None
+    # Five snapshots still, ending at coverage -- start slid back from 07-20.
+    assert tr.window.n_snapshots == 5
+    assert tr.window.insufficient is False
+    assert tr.window.start == date(2026, 7, 16)
+    assert tr.window.end == date(2026, 7, 23)
+    assert tr.paper_week_return == pytest.approx(98_467.50 / 100_203.52 - 1.0)
+    # Cumulative also stops at coverage: 07-13 -> 07-23, not -> 07-24.
+    assert tr.cumulative is not None
+    assert tr.cumulative.paper_total_return == pytest.approx(
+        98_467.50 / 100_288.65 - 1.0
+    )
+
+
+def test_no_paper_snapshots_within_coverage_is_insufficient_not_a_divergence(
+    tmp_path,
+) -> None:
+    """Shadow coverage predating every paper mark: report the tail, claim nothing."""
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet",
+                 ["2026-07-09", "2026-07-10"], [100_000, 101_000])
+    shadow = _dated({"2026-07-01": 0.001})
+    review = build_weekly_review(
+        {"voltarget": object()}, MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow_series({"voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    assert vt.verdict == "INSUFFICIENT"
+    assert vt.divergence_bps is None
+    assert vt.cumulative is None
+    assert vt.excluded_tail_days == [date(2026, 7, 9), date(2026, 7, 10)]
+    assert "- excluded from comparison (no shadow data yet): 2026-07-09, 2026-07-10" \
+        in render_markdown(review)
+
+
+def test_empty_shadow_leaves_the_paper_window_untouched(tmp_path) -> None:
+    """No coverage information at all: do not truncate, do not invent exclusions."""
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", WEEK_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    review = build_weekly_review(
+        {"voltarget": object()}, MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow_series({}), alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    assert vt.excluded_tail_days == []
+    assert vt.window is not None and vt.window.n_snapshots == 5
+    assert vt.window.end == date(2026, 7, 10)
+    assert vt.verdict == "INSUFFICIENT"  # nothing to compare against
+
+
+def test_crypto_alignment_uses_utc_day_marks(tmp_path) -> None:
+    """Crypto collapses to one mark per UTC day BEFORE alignment, then truncates."""
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    # Two marks on the final day (the double-run shape); shadow stops a day earlier.
+    _seed_equity(
+        data_dir / "equity_history_crypto_voltarget.parquet",
+        ["2026-07-04 05:00:00", "2026-07-05 05:00:00", "2026-07-06 05:00:00",
+         "2026-07-07 05:00:00", "2026-07-08 05:00:00", "2026-07-09 05:00:00",
+         "2026-07-10 00:30:00", "2026-07-10 14:00:00"],
+        [200_000, 200_200, 200_600, 200_800, 201_200, 201_600, 202_000, 202_100],
+    )
+    shadow = _dated({d: 0.001 for d in
+                     ["2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08",
+                      "2026-07-09"]})
+    review = build_weekly_review(
+        {"crypto_voltarget": object()}, MagicMock(), TradingCalendar(),
+        NOW, WEEK_ENDING, shadow_fn=_stub_shadow_series({"crypto_voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    cv = next(a for a in review.accounts if a.label == "crypto_voltarget")
+    # 07-10 appears ONCE in the exclusions despite carrying two raw marks.
+    assert cv.excluded_tail_days == [date(2026, 7, 10)]
+    assert cv.window is not None
+    assert cv.window.end == date(2026, 7, 9)
+    assert cv.paper_week_return == pytest.approx(201_600 / 200_000 - 1.0)
 
 
 # --------------------------------------------------------------------------
