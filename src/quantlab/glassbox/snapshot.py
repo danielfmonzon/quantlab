@@ -56,6 +56,15 @@ def depth_for(path: str) -> int:
 
 MANIFEST_NAME = "manifest.json"
 REPORT_NAME = "sanitization-report.txt"
+# The report is an OPERATOR artifact and is written OUTSIDE the published tree.
+#
+# It used to land in the snapshot directory, which meant it was copied into `dist/` and
+# served publicly. Two things were wrong with that. It is an internal review document,
+# not content. And it lists the very pattern names it searches for — including
+# "authorization_header" — so `verify-dist` matched the gate's own vocabulary and failed
+# the build on its own report. Publishing a document that describes your secret-detection
+# rules is also just poor practice.
+DEFAULT_REPORT_DIR = Path("reports") / "glassbox"
 
 # Query parameters that do not participate in snapshot addressing (see module docstring).
 _KEY_EXCLUDED_PARAMS = frozenset({"limit"})
@@ -145,6 +154,7 @@ class SnapshotResult(BaseModel):
     report: SanitizationReport
     out_dir: str
     files_written: list[str] = []
+    report_path: str = ""
 
 
 def _api_get_paths(app: Any) -> list[str]:
@@ -268,8 +278,13 @@ def write_snapshot(
     paths_on_disk: GlassboxPaths | None = None,
     *,
     env_path: Path | None = None,
+    report_dir: Path | None = None,
 ) -> SnapshotResult:
-    """Capture, sanitize, then write. Nothing is written unless the gate passes."""
+    """Capture, sanitize, then write. Nothing is written unless the gate passes.
+
+    The snapshot goes to ``out_dir`` (published); the sanitization report goes to
+    ``report_dir`` (operator-only, never published — see ``DEFAULT_REPORT_DIR``).
+    """
     clean, manifest, report = capture(paths_on_disk, env_path=env_path)
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -277,6 +292,7 @@ def write_snapshot(
     # served as if it were current.
     for existing in out_dir.glob("*.json"):
         existing.unlink()
+    # Clean up a report left inside the published tree by an older version.
     stale_report = out_dir / REPORT_NAME
     if stale_report.exists():
         stale_report.unlink()
@@ -285,10 +301,15 @@ def write_snapshot(
     for name in sorted(clean):
         (out_dir / name).write_text(clean[name], encoding="utf-8")
         written.append(name)
-    (out_dir / REPORT_NAME).write_text(report.render() + "\n", encoding="utf-8")
+
+    resolved_report_dir = report_dir if report_dir is not None else DEFAULT_REPORT_DIR
+    resolved_report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = resolved_report_dir / REPORT_NAME
+    report_path.write_text(report.render() + "\n", encoding="utf-8")
 
     return SnapshotResult(
-        manifest=manifest, report=report, out_dir=str(out_dir), files_written=written,
+        manifest=manifest, report=report, out_dir=str(out_dir),
+        files_written=written, report_path=str(report_path),
     )
 
 
@@ -306,4 +327,5 @@ __all__ = [
     "SnapshotCaptureError",
     "MANIFEST_NAME",
     "REPORT_NAME",
+    "DEFAULT_REPORT_DIR",
 ]

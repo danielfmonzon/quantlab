@@ -68,34 +68,51 @@ export function Chart({
   assertChartContract({ takeaway, mechanics, title })
 
   return (
-    <figure className="rounded-lg border border-ink-500 bg-ink-800" data-testid="chart">
-      <div className="border-b border-ink-600 px-5 py-4">
-        <h3 className="text-2xs font-medium uppercase tracking-widest text-signal-idle">
+    <figure className="rounded-brand border border-ink/[0.16] bg-cream-2" data-testid="chart">
+      <div className="border-b border-ink/[0.10] px-5 py-4">
+        <h3 className="text-2xs font-medium uppercase tracking-widest text-muted">
           {title}
         </h3>
         <p
-          className="mt-2 text-[0.95rem] leading-snug text-slate-100"
+          className="mt-2 text-[0.95rem] leading-snug text-ink"
           data-testid="chart-takeaway"
         >
           {takeaway}
         </p>
       </div>
 
-      <div className="px-2 py-4">{children}</div>
+      {/*
+        The plot is exposed as a single image whose accessible name IS the takeaway.
+        Recharts emits hundreds of <path>/<text> nodes that a screen reader would read as
+        meaningless fragments; naming the whole figure and hiding its internals gives a
+        non-visual reader the same one-sentence conclusion a sighted reader gets, and the
+        table/raw link below carry the detail. Wide plots scroll inside their own
+        container so the page body never scrolls sideways on a phone.
+      */}
+      <div
+        className="scroll-x px-2 py-4"
+        role="img"
+        aria-label={`${title}. ${takeaway}`}
+        data-testid="chart-plot"
+      >
+        <div className="min-w-[22rem]" aria-hidden>
+          {children}
+        </div>
+      </div>
 
       {annotation ? (
-        <div className="border-t border-ink-600 px-5 py-3" data-testid="chart-annotation">
+        <div className="border-t border-ink/[0.10] px-5 py-3" data-testid="chart-annotation">
           {annotation}
         </div>
       ) : null}
 
-      <figcaption className="flex flex-wrap items-baseline justify-between gap-3 border-t border-ink-600 px-5 py-3">
-        <p className="max-w-3xl text-xs leading-relaxed text-signal-idle" data-testid="chart-mechanics">
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-3 border-t border-ink/[0.10] px-5 py-3">
+        <p className="max-w-3xl text-xs leading-relaxed text-muted" data-testid="chart-mechanics">
           {mechanics}
         </p>
         <a
           href={rawHref}
-          className="shrink-0 font-mono text-2xs text-signal-info underline decoration-dotted underline-offset-4 hover:text-slate-100"
+          className="shrink-0 font-mono text-2xs text-signal-info underline decoration-dotted underline-offset-4 hover:text-ink"
           data-testid="chart-raw-link"
         >
           raw ↗

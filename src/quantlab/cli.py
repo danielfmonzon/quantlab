@@ -1082,7 +1082,7 @@ def cmd_glassbox_snapshot(args: argparse.Namespace) -> int:
     partially-written snapshot looks finished and is not.
     """
     from quantlab.glassbox.sanitize import SanitizationError
-    from quantlab.glassbox.snapshot import REPORT_NAME, write_snapshot
+    from quantlab.glassbox.snapshot import write_snapshot
 
     out_dir = Path(args.out)
     print(f"quantlab glassbox snapshot -> {out_dir}")
@@ -1105,7 +1105,7 @@ def cmd_glassbox_snapshot(args: argparse.Namespace) -> int:
         f"  generated_at       : {result.manifest.generated_at}\n"
         f"  quantlab           : {result.manifest.quantlab_version} "
         f"@ {result.manifest.git_commit}\n"
-        f"  report             : {out_dir / REPORT_NAME}"
+        f"  report             : {result.report_path}  (operator-only, NOT published)"
     )
     print(
         "\nDEPLOY IS GATED: a human must read the sanitization report above before "
@@ -1113,6 +1113,31 @@ def cmd_glassbox_snapshot(args: argparse.Namespace) -> int:
     )
     log.info("snapshot_written", out=str(out_dir),
              endpoints=result.manifest.endpoint_count)
+    return 0
+
+
+def cmd_glassbox_verify_dist(args: argparse.Namespace) -> int:
+    """Run the sanitization gate over an entire built site before deploying.
+
+    Scope is the thing being published: compiled JS/CSS/HTML/SVG/JSON, not just the
+    snapshot the writer already vetted. Non-zero exit on any forbidden match.
+    """
+    from quantlab.glassbox.verify_dist import verify_dist
+
+    dist = Path(args.dir)
+    try:
+        result = verify_dist(dist)
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        print("Build first:  cd frontend && npm run build:public", file=sys.stderr)
+        return 2
+
+    print(result.render())
+    if not result.passed:
+        log.error("verify_dist_failed",
+                  patterns=[f.pattern for f in result.report.failures])
+        return 3
+    log.info("verify_dist_passed", files=result.files_text)
     return 0
 
 
@@ -1636,6 +1661,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"output directory (default {DEFAULT_SNAPSHOT_DIR})",
     )
     p_gb_snap.set_defaults(func=cmd_glassbox_snapshot)
+    p_gb_verify = gb_sub.add_parser(
+        "verify-dist",
+        help="run the sanitization gate over every file in a built site (pre-deploy)",
+    )
+    p_gb_verify.add_argument(
+        "--dir", default="frontend/dist",
+        help="built site directory to scan (default frontend/dist)",
+    )
+    p_gb_verify.set_defaults(func=cmd_glassbox_verify_dist)
 
     return parser
 

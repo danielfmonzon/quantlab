@@ -200,8 +200,13 @@ def test_write_snapshot_writes_files_and_a_report(tree: Path) -> None:
                                      env_path=_no_env(tree))
     assert result.report.passed
     assert (out / MANIFEST_NAME).is_file()
-    assert (out / REPORT_NAME).is_file()
-    assert "SANITIZATION REPORT" in (out / REPORT_NAME).read_text(encoding="utf-8")
+    # The report is an operator artifact and must NOT land in the published tree: it
+    # would be served publicly, and it lists the pattern names the gate searches for
+    # (including "authorization_header"), which made verify-dist fail on its own report.
+    assert not (out / REPORT_NAME).exists()
+    written_report = Path(result.report_path)
+    assert written_report.is_file()
+    assert "SANITIZATION REPORT" in written_report.read_text(encoding="utf-8")
 
     manifest = json.loads((out / MANIFEST_NAME).read_text(encoding="utf-8"))
     for entry in manifest["endpoints"]:
@@ -215,7 +220,8 @@ def test_write_snapshot_removes_stale_captures(tree: Path) -> None:
     stale = out / "api-endpoint-that-no-longer-exists.json"
     stale.write_text('{"stale": true}', encoding="utf-8")
 
-    write_snapshot(out, GlassboxPaths.from_root(tree), env_path=_no_env(tree))
+    write_snapshot(out, GlassboxPaths.from_root(tree), env_path=_no_env(tree),
+                   report_dir=tree / "reports")
     assert not stale.exists()
 
 
@@ -224,7 +230,7 @@ def test_snapshot_of_an_empty_tree_still_succeeds(tmp_path: Path) -> None:
     empty.mkdir()
     out = tmp_path / "out"
     result = write_snapshot(out, GlassboxPaths.from_root(empty),
-                            env_path=_no_env(tmp_path))
+                            env_path=_no_env(tmp_path), report_dir=tmp_path / "reports")
     assert result.report.passed
     assert (out / MANIFEST_NAME).is_file()
     overview = json.loads((out / "api-overview.json").read_text(encoding="utf-8"))
@@ -323,8 +329,8 @@ def test_clean_fixture_passes_byte_identical(tmp_path: Path) -> None:
     [
         ("alpaca_account_id", "account PA3XKLM99Q1 rebalanced"),
         ("email_address", "notify quant.lead@example.com on halt"),
-        ("apca_api_header", "APCA-API-KEY-ID: redacted"),
-        ("authorization_header", "Authorization: Bearer x"),
+        ("apca_api_header", "APCA-API-KEY-ID: PKLIVEKEY123"),
+        ("authorization_header", "Authorization: Bearer abc.def.ghi"),
     ],
 )
 def test_planted_forbidden_pattern_fails_the_snapshot(
@@ -355,10 +361,40 @@ def test_a_planted_account_id_blocks_the_write_entirely(tree: Path) -> None:
 
     out = tree / "out"
     with pytest.raises(SanitizationError):
-        write_snapshot(out, GlassboxPaths.from_root(tree), env_path=_no_env(tree))
+        write_snapshot(out, GlassboxPaths.from_root(tree), env_path=_no_env(tree),
+                       report_dir=tree / "reports")
 
     # Nothing at all was created.
     assert not out.exists() or list(out.iterdir()) == []
+
+
+def test_prose_about_the_gate_does_not_trip_the_gate(tmp_path: Path) -> None:
+    """This project documents its own security design, and that documentation is
+    published through /api/decisions. Matching the bare header NAMES made the gate fail
+    the build over its own decision log — so the patterns require a header with a value.
+    """
+    documents = {
+        "api-decisions.json": json.dumps({
+            "entries": [{
+                "title": "Sanitization gate",
+                "body": "FAILS on Alpaca account ids, any email address, "
+                        "`APCA-API` / `Authorization` header names, and env prefixes.",
+            }],
+        }),
+    }
+    _clean, report = sanitize(documents, env_path=_no_env(tmp_path))
+    assert report.passed, report.render()
+
+
+def test_a_real_auth_header_with_a_value_still_fails(tmp_path: Path) -> None:
+    for planted in (
+        "APCA-API-KEY-ID: PKREALKEY0001",
+        "APCA-API-SECRET-KEY=abcdef123456",
+        "Authorization: Bearer eyJhbGciOi",
+        'headers={"Authorization": "Basic dXNlcjpwYXNz"}',
+    ):
+        with pytest.raises(SanitizationError):
+            sanitize({"api-x.json": planted}, env_path=_no_env(tmp_path))
 
 
 def test_report_names_every_declared_check_even_when_it_passes(tmp_path: Path) -> None:

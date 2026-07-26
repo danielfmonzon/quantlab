@@ -76,10 +76,27 @@ FORBIDDEN_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # strictly worse than a paper one.
     ("alpaca_account_id", re.compile(r"PA[A-Z0-9]{8,}")),
     ("email_address", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
-    # Broker auth header names. Their presence means a request or response envelope
-    # has been captured, not just a computed figure.
-    ("apca_api_header", re.compile(r"APCA-API", re.IGNORECASE)),
-    ("authorization_header", re.compile(r"Authorization", re.IGNORECASE)),
+    # Broker auth headers WITH A VALUE. The threat is a captured request/response
+    # envelope, and an envelope always has `Name: value` — the bare header name on its
+    # own is prose.
+    #
+    # These were originally the bare words `APCA-API` and `Authorization`, which fired
+    # on `docs/decisions.md` the moment that file documented the gate's own design. That
+    # content is published through /api/decisions, so the gate failed the build over its
+    # own documentation. Same principle as the env allowlist below: a gate that fires
+    # falsely trains its operator to ignore it, and this project deliberately writes down
+    # how its security works.
+    (
+        "apca_api_header",
+        re.compile(r"APCA-API-(?:KEY-ID|SECRET-KEY)\s*[:=]\s*\S", re.IGNORECASE),
+    ),
+    (
+        "authorization_header",
+        re.compile(
+            r"Authorization\s*[\"']?\s*[:=]\s*[\"']?\s*(?:Bearer|Basic|Token)\s+\S",
+            re.IGNORECASE,
+        ),
+    ),
 )
 
 ENV_SECRET_PATTERN_PREFIX = "env_secret_prefix"
@@ -118,6 +135,7 @@ class SanitizationReport(BaseModel):
     forbidden: list[ForbiddenRecord] = []
     env_checked: bool = False
     env_keys_checked: list[str] = []
+    env_keys_excluded: list[str] = []
     env_note: str | None = None
 
     @property
@@ -164,6 +182,13 @@ class SanitizationReport(BaseModel):
                 f"{_ENV_PREFIX_LEN}-char prefixes and searched."
             )
             lines.append(f"  keys checked: {', '.join(self.env_keys_checked) or '(none)'}")
+            if self.env_keys_excluded:
+                lines.append(
+                    f"  keys EXCLUDED as non-secret: {', '.join(self.env_keys_excluded)}"
+                )
+                lines.append(
+                    "  (public URLs and documented endpoints; see is_secret_bearing)"
+                )
             lines.append("  (prefixes themselves are never printed or stored)")
         else:
             lines.append(f"  NOT CHECKED — {self.env_note or 'no .env found'}")
@@ -210,17 +235,65 @@ class _EnvSecrets:
     prefixes: dict[str, str] = field(default_factory=dict)
     found: bool = False
     note: str | None = None
+    # Keys deliberately NOT searched (non-secret), reported for transparency.
+    excluded: list[str] = field(default_factory=list)
 
     @property
     def keys(self) -> list[str]:
         return sorted(self.prefixes)
 
 
+# Keys whose values are NOT secrets and must be excluded from the prefix check.
+#
+# A GATE THAT FIRES FALSELY TRAINS ITS OPERATOR TO IGNORE IT. `ALPACA_BASE_URL` is
+# `https://paper-api.alpaca.markets` — a public, documented endpoint that is *supposed*
+# to be greppable, and which shares its `https://` prefix with any other URL that might
+# legitimately appear in a snapshot. Including it means the report can show a red FAIL
+# for something harmless, and the second time that happens the reader stops reading the
+# report. The check is worth more narrow and trusted than broad and ignored.
+_ENV_NON_SECRET_KEYS = frozenset({
+    "ALPACA_BASE_URL",
+    "SMTP_HOST",
+    "SMTP_PORT",
+})
+
+# Any value that parses as a public http(s) URL is likewise excluded, so a future
+# endpoint variable does not have to be added to the list above by hand.
+_PUBLIC_URL = re.compile(r"^https?://", re.IGNORECASE)
+# An env value that is itself an email address. Prefix-matching one collides with the
+# owner's name in prose; the exact `email_address` forbidden pattern covers the real leak.
+_EMAIL_VALUE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def is_secret_bearing(key: str, value: str) -> bool:
+    """Whether ``key``'s value should be searched for as a secret PREFIX.
+
+    Excludes explicitly-listed non-secret keys, public URLs, email addresses, and values
+    too short to match without hitting ordinary prose.
+
+    EMAIL ADDRESSES are excluded because prefix-matching them is a name collision, not a
+    secret check: the first eight characters of ``danielmonzonautomation@gmail.com`` are
+    ``danielmo``, which matched the phrase "danielmonzonautomation.com" in the project's
+    own decision log and failed an otherwise-clean snapshot. Emails are not
+    high-entropy secrets and they already have a dedicated, exact check —
+    ``email_address`` in :data:`FORBIDDEN_PATTERNS` — which catches a real leak of the
+    whole address. Keeping both would trade a precise check for a noisy one.
+    """
+    if key in _ENV_NON_SECRET_KEYS:
+        return False
+    if _PUBLIC_URL.match(value):
+        return False
+    if _EMAIL_VALUE.match(value):
+        return False
+    return len(value) >= _ENV_MIN_LEN
+
+
 def load_env_secret_prefixes(env_path: Path) -> _EnvSecrets:
-    """Read ``.env`` and reduce each value to its leading characters.
+    """Read ``.env`` and reduce each SECRET-BEARING value to its leading characters.
 
     The returned prefixes are used only as search needles. They are never printed,
-    logged, or attached to a report.
+    logged, or attached to a report. Non-secret keys are filtered by
+    :func:`is_secret_bearing` — see its rationale.
     """
     if not env_path.exists():
         return _EnvSecrets(note=f"no .env at {env_path.name}; secret-prefix check skipped")
@@ -230,6 +303,7 @@ def load_env_secret_prefixes(env_path: Path) -> _EnvSecrets:
         return _EnvSecrets(note=f".env unreadable ({type(exc).__name__}); check skipped")
 
     prefixes: dict[str, str] = {}
+    excluded: list[str] = []
     for line in raw.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -237,10 +311,13 @@ def load_env_secret_prefixes(env_path: Path) -> _EnvSecrets:
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip().strip("'\"")
-        if len(value) < _ENV_MIN_LEN:
+        if not value:
+            continue
+        if not is_secret_bearing(key, value):
+            excluded.append(key)
             continue
         prefixes[key] = value[:_ENV_PREFIX_LEN]
-    return _EnvSecrets(prefixes=prefixes, found=True)
+    return _EnvSecrets(prefixes=prefixes, found=True, excluded=sorted(set(excluded)))
 
 
 # --------------------------------------------------------------------------- #
@@ -343,6 +420,7 @@ def sanitize(
         forbidden=records,
         env_checked=env.found,
         env_keys_checked=env.keys if env.found else [],
+        env_keys_excluded=env.excluded if env.found else [],
         env_note=env.note,
     )
     if not report.passed:
@@ -359,6 +437,7 @@ __all__ = [
     "SanitizationError",
     "RedactionRecord",
     "ForbiddenRecord",
+    "is_secret_bearing",
     "REDACTION_PATTERNS",
     "FORBIDDEN_PATTERNS",
     "ENV_SECRET_PATTERN_PREFIX",

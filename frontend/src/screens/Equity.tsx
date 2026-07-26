@@ -28,9 +28,9 @@ import { Chart } from '../components/Chart'
 import { EmptyState, PROVENANCE_LABEL, SectionHeading } from '../components/primitives'
 
 const PROVENANCE_COLOR: Record<Provenance, string> = {
-  on_schedule: '#4ade80',
-  catch_up: '#fbbf24',
-  leaked: '#60a5fa',
+  on_schedule: '#1e5141',
+  catch_up: '#8f5113',
+  leaked: '#1d4e6b',
 }
 
 export function Equity() {
@@ -75,8 +75,8 @@ export function Equity() {
             aria-pressed={label === account}
             className={`rounded border px-2.5 py-1 text-xs transition-colors ${
               label === account
-                ? 'border-signal-info/50 bg-signal-info/10 text-slate-100'
-                : 'border-ink-500 bg-ink-800 text-signal-idle hover:text-slate-200'
+                ? 'border-signal-info/50 bg-signal-info/10 text-ink'
+                : 'border-ink/[0.16] bg-cream-2 text-muted hover:text-ink-2'
             }`}
           >
             {accountName(account)}
@@ -87,7 +87,7 @@ export function Equity() {
       {resource.error ? (
         <EmptyState title="Could not read /api/equity." detail={resource.error} />
       ) : resource.loading ? (
-        <p className="text-xs text-signal-idle">reading /api/equity…</p>
+        <p className="text-xs text-muted">reading /api/equity…</p>
       ) : points.length === 0 ? (
         <EmptyState
           title="No equity snapshots for this account yet."
@@ -115,17 +115,17 @@ export function Equity() {
                         style={{ background: PROVENANCE_COLOR[p] }}
                         aria-hidden
                       />
-                      <span className="text-2xs text-slate-300">
+                      <span className="text-2xs text-ink-2">
                         {PROVENANCE_LABEL[p]}
-                        <span className="ml-1 font-mono tabular-nums text-signal-idle">
+                        <span className="ml-1 font-mono tabular-nums text-muted">
                           ×{counts[p] ?? 0}
                         </span>
                       </span>
                     </span>
                   ))}
                 </div>
-                <p className="max-w-4xl text-2xs leading-relaxed text-signal-idle">
-                  <span className="text-slate-300">Why provenance matters: </span>
+                <p className="max-w-4xl text-2xs leading-relaxed text-muted">
+                  <span className="text-ink-2">Why provenance matters: </span>
                   {rationaleFor('catch_up') ||
                     'A catch-up run produces a real mark whose spacing from its neighbours is not one uniform session, so a "daily" return computed from it covers the wrong window.'}
                 </p>
@@ -134,27 +134,27 @@ export function Equity() {
           >
             <ResponsiveContainer width="100%" height={260}>
               <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                <CartesianGrid stroke="#2a2f3a" strokeDasharray="2 4" />
+                <CartesianGrid stroke="#e6dcc7" strokeDasharray="2 4" />
                 <XAxis
                   dataKey="index"
                   type="number"
                   domain={[0, Math.max(0, data.length - 1)]}
-                  tick={{ fill: '#8b93a7', fontSize: 11 }}
-                  stroke="#3a4150"
+                  tick={{ fill: '#645f4e', fontSize: 11 }}
+                  stroke="#c9bda3"
                   tickFormatter={(i: number) => data[i]?.day ?? ''}
                 />
                 <YAxis
                   dataKey="equity"
                   type="number"
                   domain={['dataMin - 500', 'dataMax + 500']}
-                  tick={{ fill: '#8b93a7', fontSize: 11 }}
-                  stroke="#3a4150"
+                  tick={{ fill: '#645f4e', fontSize: 11 }}
+                  stroke="#c9bda3"
                   tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}k`}
                 />
                 <ZAxis range={[46, 46]} />
                 <Tooltip
                   contentStyle={{
-                    background: '#0a0b0d',
+                    background: '#fffdf8',
                     border: '1px solid #3a4150',
                     borderRadius: 6,
                     fontSize: 12,
@@ -169,7 +169,7 @@ export function Equity() {
                   data={data}
                   dataKey="equity"
                   type="linear"
-                  stroke="#3a4150"
+                  stroke="#c9bda3"
                   strokeWidth={1}
                   dot={false}
                   isAnimationActive={false}
@@ -188,21 +188,21 @@ export function Equity() {
             </ResponsiveContainer>
           </Chart>
 
-          <details className="rounded-lg border border-ink-500 bg-ink-800 px-5 py-3">
-            <summary className="cursor-pointer text-2xs font-medium uppercase tracking-widest text-signal-idle hover:text-slate-200">
+          <details className="rounded-brand border border-ink/[0.16] bg-cream-2 px-5 py-3">
+            <summary className="cursor-pointer text-2xs font-medium uppercase tracking-widest text-muted hover:text-ink-2">
               every mark, with its provenance ({points.length})
             </summary>
             <table className="mt-3 w-full text-left font-mono text-2xs tabular-nums">
-              <thead className="text-signal-idle">
+              <thead className="text-muted">
                 <tr>
                   <th className="py-1 pr-4 font-normal">snapshot (UTC)</th>
                   <th className="py-1 pr-4 font-normal">equity</th>
                   <th className="py-1 font-normal">provenance</th>
                 </tr>
               </thead>
-              <tbody className="text-slate-300">
+              <tbody className="text-ink-2">
                 {points.map((point) => (
-                  <tr key={point.timestamp} className="border-t border-ink-600">
+                  <tr key={point.timestamp} className="border-t border-ink/[0.10]">
                     <td className="py-1 pr-4">{stamp(point.timestamp)}</td>
                     <td className="py-1 pr-4">{money(point.equity)}</td>
                     <td className="py-1" style={{ color: PROVENANCE_COLOR[point.provenance] }}>

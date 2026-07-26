@@ -1,27 +1,158 @@
+/*
+ * Glass Box base styles — MonzonAutomation brand.
+ *
+ * Fonts are self-hosted (Fontsource), matching dma-website exactly: Fraunces on its
+ * opsz+wght axes for display, Hanken Grotesk for body. Nothing is fetched from a third
+ * party, which is what lets the published site run under `default-src 'self'`.
+ */
+
+@import '@fontsource-variable/fraunces/standard.css';
+@import '@fontsource-variable/fraunces/standard-italic.css';
+@import '@fontsource-variable/hanken-grotesk/index.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Dark-first: declare the scheme so form controls and scrollbars follow. */
-:root {
-  color-scheme: dark;
-}
+@layer base {
+  :root {
+    color-scheme: light;
+  }
 
-html {
-  background: #0a0b0d;
-}
+  html {
+    background: #f7f2e9;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
 
-/* Motion only for state transitions. Anyone who has asked for less gets none. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
+  body {
+    @apply bg-cream font-sans text-ink;
+    line-height: 1.62;
+    letter-spacing: -0.006em;
+    -webkit-font-smoothing: antialiased;
+    /* Fraunces' optical-size axis tracks font-size, as on the marketing site. */
+    font-optical-sizing: auto;
+  }
+
+  /* Warm atmosphere, matching the brand: honey glow top-right, green top-left.
+     Fixed and non-interactive. The brand's multiply-blended grain layer is omitted:
+     behind dense tabular figures it costs legibility for no benefit. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(110% 70% at 82% -6%, rgba(212, 154, 78, 0.16), transparent 55%),
+      radial-gradient(90% 60% at 2% 4%, rgba(30, 81, 65, 0.07), transparent 52%);
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display text-ink;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: #1e5141;
+    color: #fbf7ef;
+  }
+
+  /* Keyboard focus only, so pointer users see no change. The double ring — ink
+     outline plus a cream halo — stays visible on cream, green and honey alike, which
+     a single-colour ring cannot do across this palette. */
+  :focus-visible {
+    outline: 2px solid #221f18;
+    outline-offset: 2px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 4px rgba(251, 247, 239, 0.85);
+  }
+
+  /* Motion is reserved for state transitions. Anyone who asked for less gets none. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
-/* Recharts injects focus outlines on surfaces that are not interactive. */
+@layer components {
+  /* Brand eyebrow: tracked uppercase clay label with a honey rule. */
+  .eyebrow {
+    @apply inline-flex items-center font-sans text-2xs font-bold uppercase text-clay;
+    letter-spacing: 0.18em;
+    gap: 0.7em;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 24px;
+    height: 2px;
+    border-radius: 2px;
+    background: #d49a4e;
+    flex: none;
+  }
+
+  /* Brand pill buttons. */
+  .btn {
+    @apply inline-flex min-h-touch items-center justify-center gap-2 rounded-full
+           border-[1.5px] border-transparent font-sans text-base font-semibold;
+    padding: 0.75em 1.4em;
+    letter-spacing: -0.005em;
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.25s ease,
+      background 0.2s ease,
+      color 0.2s ease,
+      border-color 0.2s ease;
+  }
+  .btn-primary {
+    @apply bg-green text-cream-2 shadow-brand-sm;
+  }
+  .btn-primary:hover {
+    @apply bg-green-2 shadow-brand-md;
+    transform: translateY(-2px);
+  }
+  .btn-ghost {
+    @apply bg-transparent text-green;
+    border-color: rgba(34, 31, 24, 0.16);
+  }
+  .btn-ghost:hover {
+    @apply border-green;
+    background: rgba(30, 81, 65, 0.07);
+    transform: translateY(-2px);
+  }
+
+  /* Skip link: off-screen until focused. */
+  .skip-link {
+    @apply absolute left-4 z-[100] rounded bg-green px-4 py-2 text-sm font-semibold text-cream-2;
+    top: -100px;
+    transition: top 0.15s ease;
+  }
+  .skip-link:focus {
+    top: 0.75rem;
+  }
+
+  /* Wide content (tables, charts) scrolls inside its own container so the page body
+     never scrolls horizontally on a phone. */
+  .scroll-x {
+    @apply overflow-x-auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Recharts puts focus outlines on non-interactive surfaces. */
 .recharts-wrapper:focus,
 .recharts-surface:focus {
   outline: none;

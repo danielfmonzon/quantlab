@@ -1,0 +1,4 @@
+# Client-side routing: every unknown path serves the SPA shell with a 200 (not a
+# 301/404), so a deep link like /tracking renders the app instead of Netlify's
+# not-found page. Must stay LAST — earlier rules win.
+/*  /index.html  200

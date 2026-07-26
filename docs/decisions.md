@@ -6,6 +6,90 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-26 — Glass Box is a MonzonAutomation property: brand, canonical copy, and a public deploy
+
+**Brand adoption, not brand invention.** `docs/brand.md` records the extraction from
+`danielfmonzon/dma-website`: the full cream/ink/green/honey/clay token block, Fraunces +
+Hanken Grotesk on their variable axes, the typographic wordmark with its honey dot, and
+the voice. The brand is coherent and well-tokenised, so Glass Box adopts it rather than
+proposing a replacement. `monzonautomation.com` did not resolve from this machine, so the
+findings come from the repository — which is upstream of the site anyway.
+
+**The dark theme is gone.** Glass Box was near-black by deliberate choice in F2
+("Bloomberg-meets-Linear"). The brand is unambiguously warm-light, and a black dashboard
+hanging off a cream marketing site reads as two companies. Brand coherence beats an
+aesthetic preference. Density, typographic hierarchy, motion-only-on-state-change, and the
+three-layer chart contract all survived the port.
+
+Three additions were needed and are documented as such: semantic status colours (derived
+from existing brand hues and darkened until each measures AA on cream), a system mono
+stack for tabular figures, and nothing else.
+
+**Contrast is measured.** `scripts/contrast.mjs` computes exact WCAG ratios for all 23
+foreground/background pairs the UI renders: 23 AA, 15 AAA, zero failures. The script exits
+non-zero, so it can gate a build. Its blind spot is documented and cost us a real failure:
+it measures TOKEN pairs, and `text-clay/70` rendered at 3.1:1 where `text-clay` measures
+5.61:1. Opacity is no longer applied to text anywhere.
+
+**Copy is canonical.** Every `PLACEHOLDER_*` flag and its UI warning is deleted. The Story
+hero, five sections, nav labels with teaching subtitles, and the footer disclaimer are the
+approved wording, reproduced verbatim in `src/content/copy.ts`. One divergence from the
+brand voice is retained as supplied and flagged in `docs/brand.md` §6.2: the CTA block uses
+"We", where the rest of the brand is emphatically first-person singular.
+
+**Accessibility is a requirement, not a score.** WCAG 2.2 AA, verified by axe-core over
+every screen in both populated and empty states — zero violations, 40 a11y tests. The parts
+axe cannot judge are pinned by hand:
+
+* **Provenance is encoded three ways** — shape (● ◐ ▲), colour, and text. Roughly one man
+  in twelve cannot separate the green from the clay, and provenance is precisely the field
+  where that matters, so any one of the three carries the meaning alone.
+* **Glossary terms open on click/focus, never hover.** A hover-only disclosure is invisible
+  on touch and unreachable by keyboard — it would show the definitions only to mouse users,
+  the group least likely to need them.
+* **Charts are `role="img"` with the takeaway as the accessible name.** Recharts emits
+  hundreds of path nodes a screen reader would read as fragments; naming the figure gives a
+  non-visual reader the same one-sentence conclusion a sighted reader gets.
+* **The mobile drawer traps focus** and hides BOTH the content column and the footer. Marking
+  only the content left the disclaimer reachable from inside a modal.
+
+**Sanitizer hardening, and two lessons about gates.** `verify-dist` now scans the entire
+published directory — compiled JS, CSS, HTML, SVG, JSON — because the snapshot gate only
+vets what the snapshot writer wrote, and a secret can reach the public through an inlined
+constant or a stray file in `public/`. Two false positives were fixed on the principle that
+**a gate which fires falsely trains its operator to ignore it**:
+
+1. `ALPACA_BASE_URL` is a public documented endpoint; secret-prefix checking it could fail
+   the build over a URL that is meant to be greppable. Non-secret keys are now excluded by
+   an allowlist plus a public-URL test, and the exclusions are **printed**, so a reader can
+   see which checks did not run.
+2. The bare header names `APCA-API` and `Authorization` matched this very decision log,
+   which is published through `/api/decisions` — the gate failed the build over its own
+   documentation. The patterns now require a header WITH a value, which is what a captured
+   request envelope always has.
+
+The sanitization report also moved OUT of the published tree to
+`reports/glassbox/sanitization-report.txt`. It was being served publicly, it is an internal
+review document, and it lists the patterns the gate searches for.
+
+**Deployed.** https://monzonautomation-glassbox.netlify.app — HTTPS with HSTS, the
+`netlify.toml` CSP (`default-src 'self'`, `frame-ancestors 'none'`), nosniff,
+referrer-policy, immutable asset caching, real 301s for every pre-G1 path. Lighthouse on
+the live site: **100/100/100/100** on `/` (mobile and desktop) and 97/100/100/100 on
+`/decisions` mobile.
+
+**No custom domain, deliberately.** DNS belongs to the domain owner; `frontend/README.md`
+carries the exact CNAME record and the two follow-ups (rebuild with `VITE_SITE_URL`, and
+decide which apex is canonical — the marketing repo says `danielmonzonautomation.com` while
+this project links to `monzonautomation.com`, and two apexes for one brand split SEO
+authority).
+
+**The deploy gate still stands.** The tool's PASS is necessary, not sufficient: it only
+knows the patterns it was told about. This deploy was authorised explicitly, and the
+sanitization report is in the G2 report for review.
+
+---
+
 ## 2026-07-26 — Two products from one codebase, and a gate between them
 
 **Decision.** The Glass Box is now **two products** built from one codebase:

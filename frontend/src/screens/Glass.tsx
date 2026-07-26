@@ -18,15 +18,15 @@ export function Glass() {
 
   return (
     <div>
-      <header className="border-b border-ink-600 pb-8">
-        <p className="text-2xs font-medium uppercase tracking-[0.2em] text-signal-idle">
+      <header className="border-b border-ink/[0.10] pb-8">
+        <p className="text-2xs font-medium uppercase tracking-[0.2em] text-muted">
           the glass box
         </p>
-        <h1 className="mt-3 max-w-4xl text-3xl font-semibold leading-tight tracking-tight text-slate-50 sm:text-4xl">
+        <h1 className="mt-3 max-w-4xl text-3xl font-semibold leading-tight tracking-tight text-ink sm:text-4xl">
           What it knows, and what it refuses to know.
         </h1>
         {data ? (
-          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-slate-400">
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted">
             {data.statement}
           </p>
         ) : null}
@@ -37,7 +37,7 @@ export function Glass() {
           <EmptyState title="Could not read /api/ignored-inputs." detail={resource.error} />
         </div>
       ) : resource.loading ? (
-        <p className="mt-8 text-xs text-signal-idle">reading /api/ignored-inputs…</p>
+        <p className="mt-8 text-xs text-muted">reading /api/ignored-inputs…</p>
       ) : !data ? null : (
         <>
           <div className="mt-8 grid gap-6 lg:grid-cols-2">
@@ -47,7 +47,7 @@ export function Glass() {
                 <h2 className="text-sm font-medium uppercase tracking-widest text-signal-ok">
                   What it reads
                 </h2>
-                <span className="font-mono text-2xs text-signal-idle">
+                <span className="font-mono text-2xs text-muted">
                   {data.reads.length} inputs
                 </span>
               </div>
@@ -61,7 +61,7 @@ export function Glass() {
                   {data.reads.map((input) => (
                     <li
                       key={input.name}
-                      className="rounded-lg border border-ink-500 bg-ink-800 p-4"
+                      className="rounded-brand border border-ink/[0.16] bg-cream-2 p-4"
                     >
                       <div className="flex items-start gap-3">
                         <span
@@ -69,11 +69,11 @@ export function Glass() {
                           aria-hidden
                         />
                         <div>
-                          <h3 className="text-sm font-medium text-slate-100">{input.name}</h3>
-                          <p className="mt-0.5 font-mono text-2xs uppercase tracking-wider text-signal-idle">
+                          <h3 className="text-sm font-medium text-ink">{input.name}</h3>
+                          <p className="mt-0.5 font-mono text-2xs uppercase tracking-wider text-muted">
                             {input.role}
                           </p>
-                          <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                          <p className="mt-2 text-xs leading-relaxed text-muted">
                             {input.rationale}
                           </p>
                         </div>
@@ -90,7 +90,7 @@ export function Glass() {
                 <h2 className="text-sm font-medium uppercase tracking-widest text-signal-warn">
                   What it deliberately ignores
                 </h2>
-                <span className="font-mono text-2xs text-signal-idle">
+                <span className="font-mono text-2xs text-muted">
                   {data.ignores.length} refusals
                 </span>
               </div>
@@ -104,18 +104,18 @@ export function Glass() {
                   {data.ignores.map((input) => (
                     <li
                       key={input.name}
-                      className="rounded-lg border border-dashed border-ink-500 bg-ink-900/40 p-4"
+                      className="rounded-brand border border-dashed border-ink/[0.16] bg-cream-3/60 p-4"
                     >
                       <div className="flex items-start gap-3">
                         <span
-                          className="mt-1 shrink-0 font-mono text-signal-warn/70"
+                          className="mt-1 shrink-0 font-mono text-signal-warn"
                           aria-hidden
                         >
                           ✕
                         </span>
                         <div>
-                          <h3 className="text-sm font-medium text-slate-300">{input.name}</h3>
-                          <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                          <h3 className="text-sm font-medium text-ink-2">{input.name}</h3>
+                          <p className="mt-2 text-xs leading-relaxed text-muted">
                             {input.rationale}
                           </p>
                         </div>
@@ -127,11 +127,11 @@ export function Glass() {
             </section>
           </div>
 
-          <section className="mt-10 border-t border-ink-600 pt-8">
-            <h2 className="text-2xs font-medium uppercase tracking-widest text-signal-idle">
+          <section className="mt-10 border-t border-ink/[0.10] pt-8">
+            <h2 className="text-2xs font-medium uppercase tracking-widest text-muted">
               Why publish the refusals
             </h2>
-            <div className="mt-3 grid max-w-5xl gap-6 text-xs leading-relaxed text-slate-400 sm:grid-cols-2">
+            <div className="mt-3 grid max-w-5xl gap-6 text-xs leading-relaxed text-muted sm:grid-cols-2">
               <p>
                 A feature list tells you what a system can do, and lets you assume the
                 rest. The refusal list tells you what it structurally cannot do, which

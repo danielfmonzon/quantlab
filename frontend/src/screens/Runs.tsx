@@ -91,21 +91,21 @@ export function NarrationFacts({
   }
 
   return (
-    <p className="text-[0.95rem] leading-7 text-slate-200" data-testid={testId}>
+    <p className="text-[0.95rem] leading-7 text-ink-2" data-testid={testId}>
       {nodes.map((node, index) =>
         typeof node === 'string' ? (
           <span key={index}>{node}</span>
         ) : (
           <span
             key={index}
-            className="group relative cursor-help font-mono text-slate-50 underline decoration-signal-info/40 decoration-dotted underline-offset-4 hover:decoration-signal-info"
+            className="group relative cursor-help font-mono text-ink underline decoration-signal-info/40 decoration-dotted underline-offset-4 hover:decoration-signal-info"
             title={`source: ${node.source}`}
             data-testid="narration-fact"
             data-source={node.source}
           >
             {node.rendered}
             <span
-              className="pointer-events-none absolute bottom-full left-0 z-20 mb-1.5 hidden w-max max-w-sm rounded border border-ink-400 bg-ink-900 px-2 py-1 font-mono text-2xs text-signal-info shadow-xl group-hover:block"
+              className="pointer-events-none absolute bottom-full left-0 z-20 mb-1.5 hidden w-max max-w-sm rounded border border-ink/[0.16] bg-cream px-2 py-1 font-mono text-2xs text-signal-info shadow-xl group-hover:block"
               role="tooltip"
               data-testid="fact-source"
             >
@@ -120,7 +120,7 @@ export function NarrationFacts({
 
 function StageChecklist({ stages }: { stages: RunView['stages'] }) {
   if (stages.length === 0) {
-    return <p className="text-2xs text-signal-idle">no stages recorded</p>
+    return <p className="text-2xs text-muted">no stages recorded</p>
   }
   return (
     <ol className="flex flex-wrap gap-1.5" data-testid="stage-checklist">
@@ -129,7 +129,7 @@ function StageChecklist({ stages }: { stages: RunView['stages'] }) {
           key={`${stage.stage}-${index}`}
           className={`rounded border px-1.5 py-0.5 font-mono text-2xs ${
             stage.ok
-              ? 'border-signal-ok/30 bg-signal-ok/5 text-signal-ok/90'
+              ? 'border-signal-ok/30 bg-signal-ok/5 text-signal-ok'
               : 'border-signal-warn/50 bg-signal-warn/10 text-signal-warn'
           }`}
           title={stage.detail ?? undefined}
@@ -151,18 +151,20 @@ function RunCard({ run }: { run: RunView }) {
 
   return (
     <article
-      className="rounded-lg border border-ink-500 bg-ink-800"
+      className="rounded-brand border border-ink/[0.16] bg-cream-2"
       data-testid={`run-${run.run_id}`}
     >
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-600 px-5 py-4">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-ink/[0.10] px-5 py-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-2">
-            <h3 className="font-medium tracking-tight text-slate-100">
+            {/* h2, not h3: the page heading is the h1, so an h3 here skips a level
+                and breaks the document outline for screen-reader navigation. */}
+            <h2 className="text-[1.05rem] font-medium tracking-tight text-ink">
               {accountName(run.strategy ?? 'unknown')}
-            </h3>
-            <span className="font-mono text-2xs text-signal-idle">{stamp(run.timestamp)}</span>
+            </h2>
+            <span className="font-mono text-2xs text-muted">{stamp(run.timestamp)}</span>
             {run.dry_run ? (
-              <span className="rounded border border-ink-400 bg-ink-700 px-1.5 py-0.5 text-2xs uppercase tracking-wider text-signal-idle">
+              <span className="rounded border border-ink/[0.16] bg-cream-3 px-1.5 py-0.5 text-2xs uppercase tracking-wider text-muted">
                 dry run
               </span>
             ) : (
@@ -179,11 +181,11 @@ function RunCard({ run }: { run: RunView }) {
               </span>
             ) : null}
           </div>
-          <p className="mt-1 font-mono text-2xs text-signal-idle/70">{run.run_id}</p>
+          <p className="mt-1 font-mono text-2xs text-muted">{run.run_id}</p>
         </div>
         <div className="text-right">
-          <p className="font-mono text-sm tabular-nums text-slate-200">{money(run.equity)}</p>
-          <p className="text-2xs text-signal-idle">equity at run</p>
+          <p className="font-mono text-sm tabular-nums text-ink-2">{money(run.equity)}</p>
+          <p className="text-2xs text-muted">equity at run</p>
         </div>
       </header>
 
@@ -191,7 +193,7 @@ function RunCard({ run }: { run: RunView }) {
         <StageChecklist stages={run.stages} />
 
         {run.aborted && run.abort_reason ? (
-          <p className="rounded border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-xs leading-relaxed text-signal-warn/90">
+          <p className="rounded border border-signal-warn/30 bg-signal-warn/5 px-3 py-2 text-xs leading-relaxed text-signal-warn">
             {run.abort_reason}
           </p>
         ) : null}
@@ -200,13 +202,13 @@ function RunCard({ run }: { run: RunView }) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="rounded border border-ink-400 bg-ink-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-signal-info/50 hover:text-slate-100"
+            className="rounded border border-ink/[0.16] bg-cream-3 px-3 py-1.5 text-xs text-ink-2 transition-colors hover:border-signal-info/50 hover:text-ink"
             data-testid={`explain-${run.run_id}`}
           >
             Explain this run
           </button>
         ) : narration.loading ? (
-          <p className="text-xs text-signal-idle">reading narration…</p>
+          <p className="text-xs text-muted">reading narration…</p>
         ) : narration.error ? (
           <EmptyState title="Narration unavailable." detail={narration.error} />
         ) : narration.data ? (
@@ -215,15 +217,15 @@ function RunCard({ run }: { run: RunView }) {
 
             {narration.data.counterfactuals.length > 0 ? (
               <div
-                className="rounded-md border border-dashed border-ink-400 bg-ink-900/50 px-4 py-3"
+                className="rounded-md border border-dashed border-ink/[0.16] bg-cream-3/60 px-4 py-3"
                 data-testid="counterfactual-block"
               >
-                <p className="text-2xs font-medium uppercase tracking-widest text-signal-idle">
+                <p className="text-2xs font-medium uppercase tracking-widest text-muted">
                   What it did NOT do
                 </p>
                 <ul className="mt-2 space-y-2">
                   {narration.data.counterfactuals.map((line, index) => (
-                    <li key={index} className="text-xs leading-relaxed text-slate-300">
+                    <li key={index} className="text-xs leading-relaxed text-ink-2">
                       <NarrationFacts
                         text={line}
                         facts={narration.data!.facts}
@@ -235,15 +237,15 @@ function RunCard({ run }: { run: RunView }) {
               </div>
             ) : null}
 
-            <p className="border-t border-ink-600 pt-3 text-2xs leading-relaxed text-signal-idle/80">
+            <p className="border-t border-ink/[0.10] pt-3 text-2xs leading-relaxed text-muted">
               {narration.data.disclaimer}
             </p>
 
             <details className="group">
-              <summary className="cursor-pointer font-mono text-2xs text-signal-info hover:text-slate-100">
+              <summary className="cursor-pointer font-mono text-2xs text-signal-info hover:text-ink">
                 raw run report (JSON)
               </summary>
-              <pre className="mt-2 max-h-96 overflow-auto rounded border border-ink-600 bg-ink-900 p-3 font-mono text-2xs leading-relaxed text-slate-400">
+              <pre className="mt-2 max-h-96 overflow-auto rounded border border-ink/[0.10] bg-cream p-3 font-mono text-2xs leading-relaxed text-muted">
                 {JSON.stringify(run, null, 2)}
               </pre>
             </details>
@@ -284,7 +286,7 @@ export function Runs() {
       {runs.error ? (
         <EmptyState title="Could not read /api/runs." detail={runs.error} />
       ) : runs.loading ? (
-        <p className="text-xs text-signal-idle">reading /api/runs…</p>
+        <p className="text-xs text-muted">reading /api/runs…</p>
       ) : (runs.data?.runs.length ?? 0) === 0 ? (
         <EmptyState
           title="No run reports on file."
@@ -321,8 +323,8 @@ function FilterButton({
       onClick={onClick}
       className={`rounded border px-2.5 py-1 text-xs transition-colors ${
         active
-          ? 'border-signal-info/50 bg-signal-info/10 text-slate-100'
-          : 'border-ink-500 bg-ink-800 text-signal-idle hover:text-slate-200'
+          ? 'border-signal-info/50 bg-signal-info/10 text-ink'
+          : 'border-ink/[0.16] bg-cream-2 text-muted hover:text-ink-2'
       }`}
       aria-pressed={active}
     >

@@ -24,15 +24,15 @@ export function Panel({
   actions?: ReactNode
 }) {
   return (
-    <section className="rounded-lg border border-ink-500 bg-ink-800">
+    <section className="rounded-brand border border-ink/[0.16] bg-cream-2">
       {title ? (
-        <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-ink-600 px-5 py-3">
+        <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-ink/[0.10] px-5 py-3">
           <div>
-            <h2 className="text-2xs font-medium uppercase tracking-widest text-signal-idle">
+            <h2 className="text-2xs font-medium uppercase tracking-widest text-muted">
               {title}
             </h2>
             {subtitle ? (
-              <p className="mt-1 text-sm text-slate-300">{subtitle}</p>
+              <p className="mt-1 text-sm text-ink-2">{subtitle}</p>
             ) : null}
           </div>
           {actions}
@@ -54,12 +54,12 @@ export function SectionHeading({
 }) {
   return (
     <header className="mb-6">
-      <p className="text-2xs font-medium uppercase tracking-[0.2em] text-signal-idle">
+      <p className="text-2xs font-medium uppercase tracking-[0.2em] text-muted">
         {eyebrow}
       </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-50">{title}</h1>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{title}</h1>
       {lede ? (
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">{lede}</p>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">{lede}</p>
       ) : null}
     </header>
   )
@@ -80,15 +80,15 @@ export function EmptyState({
 }) {
   return (
     <div
-      className="rounded-md border border-dashed border-ink-500 bg-ink-900/40 px-5 py-8 text-center"
+      className="rounded-md border border-dashed border-ink/[0.16] bg-cream-3/60 px-5 py-8 text-center"
       data-testid="empty-state"
     >
-      <p className="text-sm font-medium text-slate-300">{title}</p>
-      <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-signal-idle">
+      <p className="text-sm font-medium text-ink-2">{title}</p>
+      <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-muted">
         {detail}
       </p>
       {hint ? (
-        <p className="mx-auto mt-3 max-w-xl font-mono text-2xs text-signal-idle/70">{hint}</p>
+        <p className="mx-auto mt-3 max-w-xl font-mono text-2xs text-muted">{hint}</p>
       ) : null}
     </div>
   )
@@ -105,15 +105,20 @@ export function Metric({
   hint?: string
   mono?: boolean
 }) {
+  // The hint lives INSIDE the <dd>. A <dl>'s div wrapper may contain only <dt>/<dd>
+  // groups, so a sibling <p> here is a real structure violation (axe: definition-list)
+  // and leaves the hint outside the term/definition pairing a screen reader announces.
   return (
     <div>
-      <dt className="text-2xs uppercase tracking-widest text-signal-idle">{label}</dt>
-      <dd
-        className={`mt-1 text-slate-100 ${mono ? 'font-mono tabular-nums' : ''} text-[0.95rem]`}
-      >
+      <dt className="text-2xs uppercase tracking-widest text-muted">{label}</dt>
+      <dd className={`mt-1 text-[0.95rem] text-ink ${mono ? 'font-mono tabular-nums' : ''}`}>
         {value}
+        {hint ? (
+          <span className="mt-1 block font-sans text-2xs normal-case tracking-normal text-muted">
+            {hint}
+          </span>
+        ) : null}
       </dd>
-      {hint ? <p className="mt-1 text-2xs text-signal-idle/80">{hint}</p> : null}
     </div>
   )
 }
@@ -123,15 +128,30 @@ export function Metric({
 // --------------------------------------------------------------------------- //
 
 const PROVENANCE_STYLE: Record<Provenance, string> = {
-  on_schedule: 'border-signal-ok/40 bg-signal-ok/10 text-signal-ok',
-  catch_up: 'border-signal-warn/40 bg-signal-warn/10 text-signal-warn',
-  leaked: 'border-signal-info/40 bg-signal-info/10 text-signal-info',
+  on_schedule: 'border-signal-ok/40 bg-signal-ok/[0.08] text-signal-ok',
+  catch_up: 'border-signal-warn/40 bg-signal-warn/[0.08] text-signal-warn',
+  leaked: 'border-signal-info/40 bg-signal-info/[0.08] text-signal-info',
 }
 
 export const PROVENANCE_LABEL: Record<Provenance, string> = {
   on_schedule: 'on schedule',
   catch_up: 'catch-up',
   leaked: 'leaked task',
+}
+
+/**
+ * Provenance is encoded THREE ways: shape, colour, and text.
+ *
+ * WCAG 1.4.1 forbids colour as the only carrier of meaning, and this is the field where
+ * that rule bites hardest — the whole point of provenance is that a reader can tell a
+ * clean mark from a late one, and roughly 1 in 12 men cannot separate the green from the
+ * clay. So each state also gets a distinct glyph (● on time, ◐ late, ▲ wrong task) and a
+ * written label. Any one of the three carries the meaning alone.
+ */
+export const PROVENANCE_SHAPE: Record<Provenance, string> = {
+  on_schedule: '●', // ● filled circle — complete, as intended
+  catch_up: '◐', // ◐ half-filled — happened, but late
+  leaked: '▲', // ▲ triangle — a warning shape, distinct at any size
 }
 
 export function ProvenanceBadge({
@@ -143,17 +163,21 @@ export function ProvenanceBadge({
 }) {
   if (!provenance) {
     return (
-      <span className="rounded border border-ink-400 px-1.5 py-0.5 text-2xs text-signal-idle">
+      <span className="rounded border border-ink/[0.16] px-1.5 py-0.5 text-2xs text-muted">
+        <span aria-hidden className="mr-1">○</span>
         no marks
       </span>
     )
   }
   return (
     <span
-      className={`rounded border px-1.5 py-0.5 text-2xs ${PROVENANCE_STYLE[provenance]}`}
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-2xs ${PROVENANCE_STYLE[provenance]}`}
       title={title}
       data-testid={`provenance-${provenance}`}
     >
+      <span aria-hidden data-testid={`provenance-shape-${provenance}`}>
+        {PROVENANCE_SHAPE[provenance]}
+      </span>
       {PROVENANCE_LABEL[provenance]}
     </span>
   )
@@ -162,9 +186,15 @@ export function ProvenanceBadge({
 // Amber, not red, for DIVERGING: a diverging week is a question to investigate,
 // not an emergency. Red is reserved for a live KILL.
 const VERDICT_STYLE: Record<Verdict, string> = {
-  TRACKING: 'border-signal-ok/40 bg-signal-ok/10 text-signal-ok',
-  DIVERGING: 'border-signal-warn/50 bg-signal-warn/10 text-signal-warn',
-  INSUFFICIENT: 'border-ink-400 bg-ink-700 text-signal-idle',
+  TRACKING: 'border-signal-ok/40 bg-signal-ok/[0.08] text-signal-ok',
+  DIVERGING: 'border-signal-warn/50 bg-signal-warn/[0.08] text-signal-warn',
+  INSUFFICIENT: 'border-ink/[0.16] bg-cream-3 text-muted',
+}
+
+const VERDICT_SHAPE: Record<Verdict, string> = {
+  TRACKING: '✓', // ✓
+  DIVERGING: '▲', // ▲ — a question to investigate, not an alarm
+  INSUFFICIENT: '–', // – nothing to say yet
 }
 
 export function VerdictChip({ verdict }: { verdict: Verdict | string | null }) {
@@ -172,9 +202,10 @@ export function VerdictChip({ verdict }: { verdict: Verdict | string | null }) {
   const style = VERDICT_STYLE[key] ?? VERDICT_STYLE.INSUFFICIENT
   return (
     <span
-      className={`rounded border px-2 py-0.5 font-mono text-2xs uppercase tracking-wider ${style}`}
+      className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-2xs uppercase tracking-wider ${style}`}
       data-testid={`verdict-${key}`}
     >
+      <span aria-hidden>{VERDICT_SHAPE[key] ?? VERDICT_SHAPE.INSUFFICIENT}</span>
       {verdict ?? 'INSUFFICIENT'}
     </span>
   )
@@ -192,19 +223,19 @@ export function TierBadge({
 }) {
   return (
     <span
-      className="group relative cursor-help rounded border border-ink-400 bg-ink-700 px-2 py-0.5 text-2xs uppercase tracking-wider text-slate-300"
+      className="group relative cursor-help rounded border border-ink/[0.16] bg-cream-3 px-2 py-0.5 text-2xs uppercase tracking-wider text-ink-2"
       title={`${rationale}\n\nTo upgrade: ${upgradeCondition}`}
       data-testid="tier-badge"
     >
       {tier}
       <span
-        className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-ink-400 bg-ink-900 p-3 text-2xs normal-case leading-relaxed tracking-normal text-slate-300 shadow-xl group-hover:block"
+        className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-ink/[0.16] bg-cream p-3 text-2xs normal-case leading-relaxed tracking-normal text-ink-2 shadow-xl group-hover:block"
         role="tooltip"
         data-testid="tier-tooltip"
       >
-        <span className="block text-slate-400">{rationale}</span>
-        <span className="mt-2 block border-t border-ink-600 pt-2 text-slate-200">
-          <span className="text-signal-idle">To upgrade: </span>
+        <span className="block text-muted">{rationale}</span>
+        <span className="mt-2 block border-t border-ink/[0.10] pt-2 text-ink-2">
+          <span className="text-muted">To upgrade: </span>
           {upgradeCondition}
         </span>
       </span>
@@ -234,7 +265,7 @@ export function KillSwitchBadge({
   // A live KILL is the one place red is correct: it stops trading until a human acts.
   return (
     <span
-      className="rounded border border-red-500/50 bg-red-500/10 px-2 py-0.5 text-2xs uppercase tracking-wider text-red-300"
+      className="rounded border border-signal-danger/40 bg-signal-danger/10 px-2 py-0.5 text-2xs uppercase tracking-wider text-signal-danger"
       title={reason ?? undefined}
       data-testid="kill-active"
     >
@@ -251,17 +282,17 @@ export function ClockBar({ clock }: { clock: ClockLike }) {
   const pct = Math.max(0, Math.min(100, clock.pct_complete))
   return (
     <div data-testid="clock-bar">
-      <div className="flex items-baseline justify-between text-2xs text-signal-idle">
+      <div className="flex items-baseline justify-between text-2xs text-muted">
         <span>
           day{' '}
-          <span className="font-mono tabular-nums text-slate-200">
+          <span className="font-mono tabular-nums text-ink-2">
             {clock.calendar_days_elapsed}
           </span>{' '}
           of {clock.target_days}
         </span>
         <span className="font-mono tabular-nums">{pct.toFixed(1)}%</span>
       </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-600">
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-cream-4">
         <div
           className="h-full rounded-full bg-signal-info/70 transition-[width] duration-500"
           style={{ width: `${pct}%` }}

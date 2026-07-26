@@ -15,7 +15,14 @@ import { App } from '../src/App'
 import { RouterProvider, LEGACY_REDIRECTS, resolveRoute } from '../src/lib/router'
 import { Story, equityClockDays } from '../src/screens/Story'
 import { canonicalKey, getJson, resetManifestCache } from '../src/lib/transport'
-import { DISCLAIMER, NAV_COPY, STORY_SECTIONS, withDayCount } from '../src/content/copy'
+import {
+  DISCLAIMER,
+  NAV_COPY,
+  STORY_CTA,
+  STORY_HERO,
+  STORY_SECTIONS,
+  withDayCount,
+} from '../src/content/copy'
 import { EMPTY, POPULATED, mockApi } from './fixtures'
 
 const mount = (element: React.ReactElement, path = '/') =>
@@ -232,24 +239,67 @@ describe('data modes render identically', () => {
 // --------------------------------------------------------------------------- //
 
 describe('Story', () => {
-  it('renders the hero and exactly three sections', async () => {
+  it('renders the canonical hero and every section', async () => {
     mockApi(POPULATED)
     mount(<Story />)
     expect(await screen.findByTestId('story-hero')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-    expect(STORY_SECTIONS).toHaveLength(3)
+    // The H1 is the approved headline, verbatim.
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Every decision this system makes is arithmetic you can check.',
+    )
+    expect(STORY_SECTIONS).toHaveLength(4)
     for (const section of STORY_SECTIONS) {
       expect(screen.getByTestId(`story-section-${section.id}`)).toBeInTheDocument()
     }
+    // Plus the MonzonAutomation CTA block.
+    expect(screen.getByTestId('story-cta')).toBeInTheDocument()
+  })
+
+  it('reproduces the approved hero paragraphs verbatim', async () => {
+    mockApi(POPULATED)
+    mount(<Story />)
+    const first = await screen.findByTestId('story-para-1')
+    expect(first).toHaveTextContent(STORY_HERO.paragraphs[0])
+    expect(first).toHaveTextContent('an autonomous trading-research system')
+    const second = screen.getByTestId('story-para-2')
+    expect(second).toHaveTextContent('Nothing here is investment advice')
+  })
+
+  it('carries both hero CTAs pointing where the brief specified', async () => {
+    mockApi(POPULATED)
+    mount(<Story />)
+    await screen.findByTestId('story-hero')
+    expect(
+      screen.getByRole('link', { name: /See what it decided today/ }),
+    ).toHaveAttribute('href', '/decisions')
+    expect(screen.getByRole('link', { name: 'How it works' })).toHaveAttribute(
+      'href',
+      '#how-it-works',
+    )
+  })
+
+  it('links to MonzonAutomation from the CTA block', async () => {
+    mockApi(POPULATED)
+    mount(<Story />)
+    const cta = await screen.findByTestId('story-cta')
+    expect(cta).toHaveTextContent('Glass Box is a MonzonAutomation project.')
+    expect(
+      within(cta).getByRole('link', { name: /Work with MonzonAutomation/ }),
+    ).toHaveAttribute('href', 'https://monzonautomation.com')
+    expect(within(cta).getByRole('link', { name: /Read the build log/ })).toHaveAttribute(
+      'href',
+      '/ledger',
+    )
+    expect(STORY_CTA.ctas).toHaveLength(2)
   })
 
   it('substitutes {N} from the us_equity readiness clock', async () => {
     mockApi(POPULATED)
     mount(<Story />)
-    const subhead = await screen.findByTestId('story-subhead')
+    const para = await screen.findByTestId('story-para-2')
     // The fixture's equity clock reads 15 elapsed days.
-    expect(subhead).toHaveTextContent('15 days')
-    expect(subhead.textContent).not.toContain('{N}')
+    expect(para).toHaveTextContent('running unattended for 15 days')
+    expect(para.textContent).not.toContain('{N}')
   })
 
   it('leaves no {N} token unsubstituted anywhere on the page', async () => {
@@ -262,9 +312,9 @@ describe('Story', () => {
   it('renders from empty data with an em dash rather than a fabricated zero', async () => {
     mockApi(EMPTY)
     mount(<Story />)
-    const subhead = await screen.findByTestId('story-subhead')
-    expect(subhead).toHaveTextContent('— days')
-    expect(subhead.textContent).not.toContain('0 days')
+    const para = await screen.findByTestId('story-para-2')
+    expect(para).toHaveTextContent('running unattended for — days')
+    expect(para.textContent).not.toContain('0 days')
     expect(screen.getByText(/Day count unavailable/)).toBeInTheDocument()
   })
 
@@ -275,7 +325,7 @@ describe('Story', () => {
     mockSnapshotHost()
     mount(<SnapStory />)
     expect(await screen.findByTestId('story-hero')).toBeInTheDocument()
-    expect(screen.getByTestId('story-subhead')).toHaveTextContent('15 days')
+    expect(screen.getByTestId('story-para-2')).toHaveTextContent('15 days')
   })
 
   it('states where the day count came from', async () => {
@@ -286,12 +336,12 @@ describe('Story', () => {
     ).toBeInTheDocument()
   })
 
-  it('flags that the copy is a placeholder, not canonical F4 text', async () => {
+  it('no longer carries a placeholder warning — the copy is canonical', async () => {
     mockApi(POPULATED)
     mount(<Story />)
-    expect(await screen.findByTestId('placeholder-copy-warning')).toHaveTextContent(
-      /not the canonical F4 audit text/,
-    )
+    await screen.findByTestId('story-hero')
+    expect(screen.queryByTestId('placeholder-copy-warning')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/PLACEHOLDER/i)
   })
 
   it('equityClockDays reads only the us_equity clock', () => {
@@ -330,13 +380,14 @@ describe('routing', () => {
   })
 
   it('serves the operational Overview at /live', async () => {
+    const { FreshApp, FreshProvider } = await freshApp('live')
     mockApi(POPULATED)
     render(
-      <RouterProvider initialPath="/live">
-        <App />
-      </RouterProvider>,
+      <FreshProvider initialPath="/live">
+        <FreshApp />
+      </FreshProvider>,
     )
-    expect(await screen.findByTestId('hero')).toBeInTheDocument()
+    // Screens are lazy: await the Suspense boundary resolving.
     expect(await screen.findByTestId('account-card-voltarget')).toBeInTheDocument()
   })
 
@@ -371,6 +422,16 @@ describe('routing', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/decisions'))
   })
 
+  it('the Story headline is not reused as another screen heading', async () => {
+    // Duplicate H1s across routes are duplicate content, and they waste the one line
+    // that should tell a reader where they have just arrived.
+    const { HERO_SENTENCE } = await import('../src/screens/Overview')
+    expect(HERO_SENTENCE).not.toBe(STORY_HERO.headline)
+    expect(STORY_HERO.headline).toBe(
+      'Every decision this system makes is arithmetic you can check.',
+    )
+  })
+
   it('every route has nav copy with a label, subtitle, title and description', () => {
     for (const [path, copy] of Object.entries(NAV_COPY)) {
       expect(copy.label, path).toBeTruthy()
@@ -381,16 +442,19 @@ describe('routing', () => {
   })
 
   it('renders teaching subtitles in the nav', async () => {
+    const { FreshApp, FreshProvider } = await freshApp('live')
     mockApi(POPULATED)
     render(
-      <RouterProvider initialPath="/">
-        <App />
-      </RouterProvider>,
+      <FreshProvider initialPath="/">
+        <FreshApp />
+      </FreshProvider>,
     )
-    const nav = screen.getByRole('navigation')
-    expect(nav).toHaveTextContent('What each account holds right now')
-    expect(nav).toHaveTextContent('Each rebalance, and the rule behind it')
-    expect(nav).toHaveTextContent('The inputs it deliberately refuses')
+    await screen.findByTestId('story-hero')
+    // Desktop nav is the labelled landmark; the mobile bar is separate.
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(nav).toHaveTextContent('the accounts now')
+    expect(nav).toHaveTextContent('every trade, explained')
+    expect(nav).toHaveTextContent(NAV_COPY['/ignores']!.subtitle)
   })
 
   it('sets a per-route document title', async () => {
@@ -423,32 +487,33 @@ describe('footer', () => {
     expect(within(footer).getByTestId('disclaimer')).toHaveTextContent(DISCLAIMER)
     expect(footer).toHaveTextContent('Built by Daniel Monzon')
     expect(within(footer).getByTestId('built-by-github')).toBeInTheDocument()
-    expect(within(footer).getByTestId('built-by-linkedin')).toBeInTheDocument()
-    expect(within(footer).getByTestId('built-by-contact')).toBeInTheDocument()
+    expect(within(footer).getByTestId('built-by-monzonautomation')).toHaveAttribute(
+      'href',
+      'https://monzonautomation.com',
+    )
     expect(within(footer).getByTestId('footer-version')).toHaveTextContent('live mode')
   })
 
-  it('flags that the disclaimer is a placeholder, not canonical F15 text', async () => {
+  it('carries no placeholder warning — the disclaimer is canonical', async () => {
     mockApi(POPULATED)
     render(
       <RouterProvider initialPath="/">
         <App />
       </RouterProvider>,
     )
-    expect(
-      await screen.findByTestId('placeholder-disclaimer-warning'),
-    ).toHaveTextContent(/not the canonical F15 text/)
+    await screen.findByTestId('footer')
+    expect(screen.queryByTestId('placeholder-disclaimer-warning')).not.toBeInTheDocument()
   })
 
   it('the disclaimer covers the substance a paper-trading site must state', () => {
     // Substance, not phrasing: canonical F15 text will word these differently, and
     // this test must survive that swap.
     const text = DISCLAIMER.toLowerCase()
-    expect(text).toContain('paper')
+    expect(text).toContain('paper accounts')
     expect(text).toContain('investment advice')
-    expect(text).toContain('no real capital')
+    expect(text).toContain('no real capital is at risk')
     expect(text).toContain('simulated')
-    expect(text).toMatch(/does not indicate future|past performance/)
+    expect(text).toContain('do not indicate future performance')
   })
 
   it('appears on every route', async () => {
@@ -494,8 +559,12 @@ describe('App shell in snapshot mode', () => {
       </FreshProvider>,
     )
     await screen.findByTestId('story-hero')
-    await userEvent.click(screen.getByRole('link', { name: /Live State/ }))
-    await screen.findByTestId('hero')
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', {
+        name: /Live State/,
+      }),
+    )
+    await screen.findByTestId('account-card-voltarget')
 
     const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
     expect(calls.map((c) => String(c[0])).some((u) => u.startsWith('/api/'))).toBe(false)

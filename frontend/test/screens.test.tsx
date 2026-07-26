@@ -520,9 +520,11 @@ describe('App shell', () => {
       </RouterProvider>,
     )
     // /live is the operational Overview (G1 moved it off `/`, which is now Story).
-    expect(await screen.findByTestId('hero')).toBeInTheDocument()
+    // Screens are lazy, so wait for the Suspense boundary rather than the shell.
+    expect(await screen.findByTestId('account-card-voltarget')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('link', { name: /What It Ignores/ }))
+    // Nav label renamed in G2: "What It Ignores" -> "Refusals".
+    await userEvent.click(screen.getByRole('link', { name: /Refusals/ }))
     expect(
       await screen.findByRole('heading', { level: 1, name: /refuses to know/ }),
     ).toBeInTheDocument()

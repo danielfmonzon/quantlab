@@ -33,9 +33,9 @@ import { Chart } from '../components/Chart'
 import { EmptyState, SectionHeading, VerdictChip } from '../components/primitives'
 
 const VERDICT_FILL: Record<string, string> = {
-  TRACKING: '#4ade80',
-  DIVERGING: '#fbbf24',
-  INSUFFICIENT: '#8b93a7',
+  TRACKING: '#1e5141',
+  DIVERGING: '#8f5113',
+  INSUFFICIENT: '#645f4e',
 }
 
 const takeawayFor = (weeks: WeekDivergence[], threshold: number): string => {
@@ -60,40 +60,40 @@ function CorrectionCallout({ correction }: { correction: WeekCorrection }) {
         <span className="text-2xs font-medium uppercase tracking-widest text-signal-warn">
           re-ruled
         </span>
-        <span className="font-mono text-2xs text-signal-idle">
+        <span className="font-mono text-2xs text-muted">
           week {correction.week_ending}
         </span>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-sm tabular-nums">
-        <span className="text-slate-400 line-through decoration-signal-warn/50">
+        <span className="text-muted line-through decoration-signal-warn/50">
           {bps(correction.published_divergence_bps, 2)}
         </span>
-        <span className="text-2xs uppercase tracking-wider text-signal-idle">
+        <span className="text-2xs uppercase tracking-wider text-muted">
           {correction.published_verdict}
         </span>
         <span aria-hidden className="text-signal-warn">
           →
         </span>
-        <span className="text-slate-100" data-testid="corrected-value">
+        <span className="text-ink" data-testid="corrected-value">
           {correction.corrected_divergence_bps === null
             ? 'no figure'
             : bps(correction.corrected_divergence_bps, 2)}
         </span>
         <VerdictChip verdict={correction.corrected_verdict} />
         {correction.corrected_window ? (
-          <span className="text-2xs text-signal-idle">
+          <span className="text-2xs text-muted">
             over {correction.corrected_window}
           </span>
         ) : null}
       </div>
 
       {correction.cause ? (
-        <p className="mt-3 max-w-3xl text-xs leading-relaxed text-slate-300">
+        <p className="mt-3 max-w-3xl text-xs leading-relaxed text-ink-2">
           {correction.cause}
         </p>
       ) : null}
-      <p className="mt-2 font-mono text-2xs text-signal-idle">
+      <p className="mt-2 font-mono text-2xs text-muted">
         re-ruled: see decision 2026-07-25 — {correction.reference}
       </p>
     </div>
@@ -135,8 +135,8 @@ export function Divergence() {
             aria-pressed={label === account}
             className={`rounded border px-2.5 py-1 text-xs transition-colors ${
               label === account
-                ? 'border-signal-info/50 bg-signal-info/10 text-slate-100'
-                : 'border-ink-500 bg-ink-800 text-signal-idle hover:text-slate-200'
+                ? 'border-signal-info/50 bg-signal-info/10 text-ink'
+                : 'border-ink/[0.16] bg-cream-2 text-muted hover:text-ink-2'
             }`}
           >
             {accountName(account)}
@@ -147,7 +147,7 @@ export function Divergence() {
       {resource.error ? (
         <EmptyState title="Could not read /api/divergence." detail={resource.error} />
       ) : resource.loading ? (
-        <p className="text-xs text-signal-idle">reading /api/divergence…</p>
+        <p className="text-xs text-muted">reading /api/divergence…</p>
       ) : (
         <div className="space-y-6">
           {weeks.length === 0 ? (
@@ -170,11 +170,11 @@ export function Divergence() {
                         key={`${week.label}-${week.week_ending}`}
                         className="flex items-center gap-2"
                       >
-                        <span className="font-mono text-2xs text-signal-idle">
+                        <span className="font-mono text-2xs text-muted">
                           {week.week_ending}
                         </span>
                         <VerdictChip verdict={week.verdict} />
-                        <span className="font-mono text-2xs tabular-nums text-slate-300">
+                        <span className="font-mono text-2xs tabular-nums text-ink-2">
                           paper {signedPct(week.paper_week_return)} / shadow{' '}
                           {signedPct(week.shadow_week_return)}
                         </span>
@@ -183,7 +183,7 @@ export function Divergence() {
                   </div>
                   {weeks.some((w) => w.excluded_tail_days.length > 0) ? (
                     <p
-                      className="text-2xs leading-relaxed text-signal-warn/90"
+                      className="text-2xs leading-relaxed text-signal-warn"
                       data-testid="excluded-annotation"
                     >
                       ✳ excluded from comparison (no shadow data yet):{' '}
@@ -202,7 +202,7 @@ export function Divergence() {
             >
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                  <CartesianGrid stroke="#2a2f3a" strokeDasharray="2 4" vertical={false} />
+                  <CartesianGrid stroke="#e6dcc7" strokeDasharray="2 4" vertical={false} />
                   {/*
                     The ±threshold band. x1/x2 are given explicitly: on a category
                     x-axis a ReferenceArea with only y-bounds computes no x range and
@@ -216,42 +216,42 @@ export function Divergence() {
                       x2={chartData[chartData.length - 1]!.week}
                       y1={-threshold}
                       y2={threshold}
-                      fill="#4ade80"
+                      fill="#1e5141"
                       fillOpacity={0.06}
                       ifOverflow="extendDomain"
                     />
                   ) : null}
-                  <ReferenceLine y={threshold} stroke="#fbbf24" strokeDasharray="3 3" />
-                  <ReferenceLine y={-threshold} stroke="#fbbf24" strokeDasharray="3 3" />
-                  <ReferenceLine y={0} stroke="#3a4150" />
+                  <ReferenceLine y={threshold} stroke="#8f5113" strokeDasharray="3 3" />
+                  <ReferenceLine y={-threshold} stroke="#8f5113" strokeDasharray="3 3" />
+                  <ReferenceLine y={0} stroke="#c9bda3" />
                   <XAxis
                     dataKey="week"
-                    tick={{ fill: '#8b93a7', fontSize: 11 }}
-                    stroke="#3a4150"
+                    tick={{ fill: '#645f4e', fontSize: 11 }}
+                    stroke="#c9bda3"
                     tickFormatter={(value: string, index: number) => {
                       const row = chartData[index]
                       return row && row.excluded.length > 0 ? `${value} ✳` : value
                     }}
                   />
                   <YAxis
-                    tick={{ fill: '#8b93a7', fontSize: 11 }}
-                    stroke="#3a4150"
+                    tick={{ fill: '#645f4e', fontSize: 11 }}
+                    stroke="#c9bda3"
                     label={{
                       value: 'bps',
                       angle: -90,
                       position: 'insideLeft',
-                      fill: '#8b93a7',
+                      fill: '#645f4e',
                       fontSize: 11,
                     }}
                   />
                   <Tooltip
                     contentStyle={{
-                      background: '#0a0b0d',
+                      background: '#fffdf8',
                       border: '1px solid #3a4150',
                       borderRadius: 6,
                       fontSize: 12,
                     }}
-                    labelStyle={{ color: '#e2e8f0' }}
+                    labelStyle={{ color: '#221f18' }}
                     formatter={(value: number | string) => [
                       `${Number(value).toFixed(2)} bps`,
                       'divergence',
@@ -272,7 +272,7 @@ export function Divergence() {
 
           {corrections.length > 0 ? (
             <section>
-              <h2 className="mb-3 text-2xs font-medium uppercase tracking-widest text-signal-idle">
+              <h2 className="mb-3 text-2xs font-medium uppercase tracking-widest text-muted">
                 Published figures later re-ruled
               </h2>
               <div className="space-y-3">
@@ -283,7 +283,7 @@ export function Divergence() {
                   />
                 ))}
               </div>
-              <p className="mt-3 max-w-3xl text-2xs leading-relaxed text-signal-idle">
+              <p className="mt-3 max-w-3xl text-2xs leading-relaxed text-muted">
                 The published reports are left exactly as they were written. A number
                 that turned out to be wrong is more useful next to its correction than
                 deleted — that pairing is the audit trail.
@@ -293,11 +293,11 @@ export function Divergence() {
 
           {structural ? (
             <section>
-              <h2 className="mb-2 text-2xs font-medium uppercase tracking-widest text-signal-idle">
+              <h2 className="mb-2 text-2xs font-medium uppercase tracking-widest text-muted">
                 Structural drift for this asset class
               </h2>
               <p
-                className="max-w-4xl text-xs leading-relaxed text-slate-400"
+                className="max-w-4xl text-xs leading-relaxed text-muted"
                 data-testid="structural-note"
               >
                 {structural}

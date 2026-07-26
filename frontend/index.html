@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f7f2e9" />
 
     <!--
       Defaults only. The head manager in src/components/chrome.tsx rewrites title and
@@ -11,38 +12,35 @@
       does not execute JavaScript sees, so they describe the site rather than any one
       screen.
     -->
-    <title>quantlab — a trading system that shows its work</title>
+    <title>Glass Box — every decision is arithmetic you can check</title>
     <meta
       name="description"
-      content="A paper-trading research system published with its arithmetic left in: every position, order, and rule, with the evidence for each claim it makes about itself."
+      content="The public window into quantlab: an autonomous trading-research system that trades simulated money by pre-registered rules and publishes every decision, mistake, and deliberate refusal. Not investment advice."
     />
+    <link rel="canonical" href="%SITE_URL%/" />
 
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- Font preloads are injected at build time by the `fontPreload` plugin in
+         vite.config.ts, from the ACTUAL hashed filenames Vite emitted. Writing them
+         by hand produced links to files that never existed — two 404s per page load. -->
 
-    <!--
-      Open Graph / Twitter. og:image is a PLACEHOLDER SLOT: public/og-image.png does
-      not exist yet, so a share card degrades to text until one is added (1200x630).
-    -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="quantlab Glass Box" />
-    <meta property="og:title" content="quantlab — a trading system that shows its work" />
+    <meta property="og:site_name" content="Glass Box · MonzonAutomation" />
+    <meta property="og:title" content="Glass Box — every decision is arithmetic you can check" />
     <meta
       property="og:description"
-      content="A paper-trading research system published with its arithmetic left in. Paper trading only; not investment advice."
+      content="An autonomous trading-research system that trades simulated money by pre-registered rules and publishes every decision it makes. A MonzonAutomation project."
     />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="%SITE_URL%/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="quantlab Glass Box" />
+    <meta property="og:image:alt" content="Glass Box, a MonzonAutomation project — every decision is arithmetic you can check." />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="quantlab — a trading system that shows its work" />
+    <meta name="twitter:title" content="Glass Box — every decision is arithmetic you can check" />
     <meta
       name="twitter:description"
-      content="A paper-trading research system published with its arithmetic left in. Paper trading only; not investment advice."
+      content="An autonomous trading-research system that trades simulated money by pre-registered rules and publishes every decision it makes. A MonzonAutomation project."
     />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image" content="%SITE_URL%/og-image.png" />
   </head>
   <body>
     <div id="root"></div>

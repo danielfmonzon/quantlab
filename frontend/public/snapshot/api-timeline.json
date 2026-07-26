@@ -1,6 +1,22 @@
 {
-  "count": 296,
+  "count": 298,
   "events": [
+    {
+      "at": "2026-07-26T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Glass Box is a MonzonAutomation property: brand, canonical copy, and a public deploy",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-26T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Two products from one codebase, and a gate between them",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
     {
       "at": "2026-07-25T00:32:11.359798Z",
       "kind": "alert",

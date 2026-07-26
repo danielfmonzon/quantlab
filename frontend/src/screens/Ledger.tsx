@@ -24,13 +24,13 @@ const KIND_STYLE: Record<Kind, string> = {
   order: 'border-signal-info/40 text-signal-info',
   alert: 'border-signal-warn/40 text-signal-warn',
   weekly_verdict: 'border-signal-ok/40 text-signal-ok',
-  decision: 'border-ink-400 text-slate-300',
+  decision: 'border-ink/[0.16] text-ink-2',
 }
 
 const LEVEL_STYLE: Record<string, string> = {
-  INFO: 'text-signal-idle',
+  INFO: 'text-muted',
   WARNING: 'text-signal-warn',
-  CRITICAL: 'text-red-300',
+  CRITICAL: 'text-signal-danger',
 }
 
 export function Ledger() {
@@ -70,8 +70,8 @@ export function Ledger() {
             aria-pressed={active.has(kind)}
             className={`rounded border px-2.5 py-1 text-xs transition-colors ${
               active.has(kind)
-                ? 'border-signal-info/50 bg-signal-info/10 text-slate-100'
-                : 'border-ink-500 bg-ink-800 text-signal-idle hover:text-slate-200'
+                ? 'border-signal-info/50 bg-signal-info/10 text-ink'
+                : 'border-ink/[0.16] bg-cream-2 text-muted hover:text-ink-2'
             }`}
           >
             {label}
@@ -82,7 +82,7 @@ export function Ledger() {
       {timeline.error ? (
         <EmptyState title="Could not read /api/timeline." detail={timeline.error} />
       ) : timeline.loading ? (
-        <p className="text-xs text-signal-idle">reading /api/timeline…</p>
+        <p className="text-xs text-muted">reading /api/timeline…</p>
       ) : events.length === 0 ? (
         <EmptyState
           title={
@@ -104,7 +104,7 @@ export function Ledger() {
             return (
               <li
                 key={`${event.kind}-${index}`}
-                className="rounded border border-ink-600 bg-ink-800/60 px-4 py-2.5"
+                className="rounded border border-ink/[0.10] bg-cream-2/70 px-4 py-2.5"
                 data-testid={`ledger-${event.kind}`}
               >
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -113,35 +113,35 @@ export function Ledger() {
                   >
                     {event.kind === 'weekly_verdict' ? 'verdict' : event.kind}
                   </span>
-                  <span className="min-w-0 flex-1 text-sm text-slate-200">{event.title}</span>
+                  <span className="min-w-0 flex-1 text-sm text-ink-2">{event.title}</span>
                   {event.label ? (
-                    <span className="font-mono text-2xs text-signal-idle">{event.label}</span>
+                    <span className="font-mono text-2xs text-muted">{event.label}</span>
                   ) : null}
                   {event.level ? (
                     <span
-                      className={`font-mono text-2xs ${LEVEL_STYLE[event.level] ?? 'text-signal-idle'}`}
+                      className={`font-mono text-2xs ${LEVEL_STYLE[event.level] ?? 'text-muted'}`}
                     >
                       {event.level}
                     </span>
                   ) : null}
-                  <span className="font-mono text-2xs tabular-nums text-signal-idle/70">
+                  <span className="font-mono text-2xs tabular-nums text-muted">
                     {event.at ? stamp(event.at) : 'undated'}
                   </span>
                 </div>
 
                 {event.detail && event.kind !== 'decision' ? (
-                  <p className="mt-1.5 text-xs leading-relaxed text-signal-idle">
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted">
                     {event.detail}
                   </p>
                 ) : null}
 
                 {body ? (
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-2xs text-signal-info hover:text-slate-100">
+                    <summary className="cursor-pointer text-2xs text-signal-info hover:text-ink">
                       read the ruling
                     </summary>
                     <div
-                      className="mt-2 whitespace-pre-wrap border-l-2 border-ink-500 pl-3 text-xs leading-relaxed text-slate-400"
+                      className="mt-2 whitespace-pre-wrap border-l-2 border-ink/[0.16] pl-3 text-xs leading-relaxed text-muted"
                       data-testid="decision-body"
                     >
                       {body}

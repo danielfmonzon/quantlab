@@ -55,11 +55,11 @@ function Gauge({ account }: { account: AccountRisk }) {
 
   return (
     <div data-testid={`gauge-${account.label}`}>
-      <div className="flex items-baseline justify-between text-2xs text-signal-idle">
+      <div className="flex items-baseline justify-between text-2xs text-muted">
         <span>0%</span>
-        <span className="text-slate-300">
+        <span className="text-ink-2">
           drawdown{' '}
-          <span className="font-mono tabular-nums text-slate-100">
+          <span className="font-mono tabular-nums text-ink">
             {signedPct(account.current_drawdown)}
           </span>
         </span>
@@ -71,7 +71,7 @@ function Gauge({ account }: { account: AccountRisk }) {
         </span>
       </div>
 
-      <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-ink-600">
+      <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-cream-4">
         {/* Filled portion = how much of the kill budget the drawdown has consumed. */}
         <div
           className="h-full rounded-full bg-signal-warn/60 transition-[width] duration-500"
@@ -80,7 +80,7 @@ function Gauge({ account }: { account: AccountRisk }) {
         />
         {dd !== null && kill !== null ? (
           <div
-            className="absolute top-0 h-full w-0.5 bg-slate-100"
+            className="absolute top-0 h-full w-0.5 bg-ink"
             style={{ left: `${fillPct}%` }}
             aria-hidden
           />
@@ -88,10 +88,10 @@ function Gauge({ account }: { account: AccountRisk }) {
       </div>
 
       <p
-        className="mt-3 text-xs leading-relaxed text-slate-300"
+        className="mt-3 text-xs leading-relaxed text-ink-2"
         data-testid={`worry-${account.label}`}
       >
-        <span className="text-signal-idle">Should I be worried? </span>
+        <span className="text-muted">Should I be worried? </span>
         {worryCaption(account)}
       </p>
     </div>
@@ -113,7 +113,7 @@ export function Risk() {
       {resource.error ? (
         <EmptyState title="Could not read /api/risk." detail={resource.error} />
       ) : resource.loading ? (
-        <p className="text-xs text-signal-idle">reading /api/risk…</p>
+        <p className="text-xs text-muted">reading /api/risk…</p>
       ) : accounts.length === 0 ? (
         <EmptyState
           title="No accounts to report."
@@ -135,7 +135,7 @@ export function Risk() {
             >
               <Gauge account={account} />
 
-              <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-ink-600 pt-4 sm:grid-cols-4">
+              <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-ink/[0.10] pt-4 sm:grid-cols-4">
                 <Metric label="peak" value={money(account.peak_equity)} />
                 <Metric label="latest" value={money(account.latest_equity)} />
                 <Metric
@@ -156,11 +156,11 @@ export function Risk() {
                 />
               </dl>
 
-              <p className="mt-4 font-mono text-2xs text-signal-idle">
+              <p className="mt-4 font-mono text-2xs text-muted">
                 limits read from {account.limits_source}
               </p>
               {account.note ? (
-                <p className="mt-2 text-2xs leading-relaxed text-signal-warn/80">
+                <p className="mt-2 text-2xs leading-relaxed text-signal-warn">
                   {account.note}
                 </p>
               ) : null}

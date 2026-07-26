@@ -93,6 +93,7 @@ export function Link({
   to,
   children,
   className,
+  onClick,
   ...rest
 }: {
   to: string
@@ -104,13 +105,20 @@ export function Link({
     <a
       href={to}
       className={className}
+      // `rest` is spread BEFORE onClick, and the caller's handler is composed rather
+      // than replaced. Spreading after would let a caller-supplied `onClick` — even an
+      // `undefined` one, which is what a component passing an optional callback sends —
+      // silently overwrite the navigation handler. That produced links that looked
+      // correct, had the right href, and did nothing when clicked.
+      {...rest}
       onClick={(event) => {
+        onClick?.(event)
+        if (event.defaultPrevented) return
         // Let modified clicks (new tab, download) behave natively.
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
         event.preventDefault()
         navigate(to)
       }}
-      {...rest}
     >
       {children}
     </a>
