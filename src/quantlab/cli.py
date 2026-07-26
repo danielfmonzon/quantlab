@@ -59,6 +59,9 @@ from quantlab.data.reconcile import ReconcileReport, reconcile
 from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
+from quantlab.glassbox.completeness import (
+    DEFAULT_MAX_AGE_DAYS as GLASSBOX_MAX_SNAPSHOT_AGE_DAYS,
+)
 
 # Constants only: glassbox/__init__ is lazy, so this does not import FastAPI.
 from quantlab.glassbox.serve import DEFAULT_PORT as GLASSBOX_DEFAULT_PORT
@@ -1126,7 +1129,7 @@ def cmd_glassbox_verify_dist(args: argparse.Namespace) -> int:
 
     dist = Path(args.dir)
     try:
-        result = verify_dist(dist)
+        result = verify_dist(dist, max_age_days=args.max_age_days)
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         print("Build first:  cd frontend && npm run build:public", file=sys.stderr)
@@ -1134,8 +1137,11 @@ def cmd_glassbox_verify_dist(args: argparse.Namespace) -> int:
 
     print(result.render())
     if not result.passed:
-        log.error("verify_dist_failed",
-                  patterns=[f.pattern for f in result.report.failures])
+        log.error(
+            "verify_dist_failed",
+            patterns=[f.pattern for f in result.report.failures],
+            content=[c.name for c in result.content.failures],
+        )
         return 3
     log.info("verify_dist_passed", files=result.files_text)
     return 0
@@ -1668,6 +1674,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_gb_verify.add_argument(
         "--dir", default="frontend/dist",
         help="built site directory to scan (default frontend/dist)",
+    )
+    p_gb_verify.add_argument(
+        "--max-age-days", type=int, default=GLASSBOX_MAX_SNAPSHOT_AGE_DAYS,
+        help=(
+            "fail if the snapshot manifest is older than this "
+            f"(default {GLASSBOX_MAX_SNAPSHOT_AGE_DAYS})"
+        ),
     )
     p_gb_verify.set_defaults(func=cmd_glassbox_verify_dist)
 

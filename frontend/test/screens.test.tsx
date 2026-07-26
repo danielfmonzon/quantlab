@@ -151,10 +151,7 @@ describe('Runs', () => {
   it('renders the narration and exposes each fact source path on hover', async () => {
     mockApi(POPULATED)
     mount(<Runs />, '/decisions')
-    await userEvent.click(
-      await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
-    )
-
+    // The newest run renders EXPANDED by default in G3 — no click needed.
     const narration = await screen.findByTestId('narration')
     expect(narration).toHaveTextContent('$98,821.82')
 
@@ -179,9 +176,6 @@ describe('Runs', () => {
   it('renders the counterfactual in a distinct "what it did NOT do" block', async () => {
     mockApi(POPULATED)
     mount(<Runs />, '/decisions')
-    await userEvent.click(
-      await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
-    )
     const block = await screen.findByTestId('counterfactual-block')
     expect(block).toHaveTextContent(/What it did NOT do/i)
     expect(block).toHaveTextContent('would have left the position to drift untouched')
@@ -195,9 +189,6 @@ describe('Runs', () => {
   it('keeps the raw report behind a collapsed disclosure', async () => {
     mockApi(POPULATED)
     mount(<Runs />, '/decisions')
-    await userEvent.click(
-      await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
-    )
     const summary = await screen.findByText(/raw run report \(JSON\)/)
     const details = summary.closest('details')!
     expect(details.open).toBe(false)
@@ -209,9 +200,6 @@ describe('Runs', () => {
       narrate: { ...POPULATED.narrate, narration: 'Equity was $98,821.82 and 42 widgets.', facts: [POPULATED.narrate.facts[0]!] },
     })
     mount(<Runs />, '/decisions')
-    await userEvent.click(
-      await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
-    )
     const narration = await screen.findByTestId('narration')
     const facts = within(narration).getAllByTestId('narration-fact')
     expect(facts).toHaveLength(1)
@@ -245,9 +233,6 @@ describe('Runs', () => {
       },
     })
     mount(<Runs />, '/decisions')
-    await userEvent.click(
-      await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
-    )
     const narration = await screen.findByTestId('narration')
 
     // The run id and timestamp survive intact.

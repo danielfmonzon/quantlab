@@ -9,6 +9,7 @@ through the snapshot writer, so the two gates are not interchangeable and both a
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -35,12 +36,40 @@ def _dist(tmp_path: Path, files: dict[str, str], binaries: tuple[str, ...] = ())
     return root
 
 
+def _manifest(endpoints: int) -> str:
+    """A manifest the completeness gate accepts: recent, and matching the files present."""
+    return json.dumps({
+        # Freshness is relative to now, so this fixture does not rot into a failure.
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "git_commit": "abc1234",
+        "quantlab_version": "1.0.0",
+        "endpoint_count": endpoints,
+        "endpoints": [
+            {"key": f"/api/e{i}", "file": f"api-e{i}.json", "path": f"/api/e{i}",
+             "params": {}, "status": 200, "bytes": 10}
+            for i in range(endpoints)
+        ],
+    })
+
+
+# A dist that is both CLEAN (no forbidden patterns) and COMPLETE (real data present).
+# Both are required now: G2 shipped a build that was clean only because it was empty.
+_ENDPOINTS = 25
 CLEAN = {
-    "index.html": "<!doctype html><title>Glass Box</title><div id=root></div>",
+    "index.html": (
+        '<!doctype html><title>Glass Box</title>'
+        '<script type="module" src="/assets/index-abc123.js"></script><div id=root></div>'
+    ),
     "assets/index-abc123.js": 'const s="/snapshot";export{s};',
     "assets/index-abc123.css": ":root{--cream:#f7f2e9}",
-    "snapshot/manifest.json": json.dumps({"generated_at": "2026-07-26T00:00:00Z"}),
-    "snapshot/api-overview.json": json.dumps({"accounts": [{"label": "voltarget"}]}),
+    "snapshot/manifest.json": _manifest(_ENDPOINTS),
+    "snapshot/api-overview.json": json.dumps(
+        {"accounts": [{"label": "voltarget", "latest_equity": 98821.82}]}
+    ),
+    **{
+        f"snapshot/api-e{i}.json": "{}"
+        for i in range(_ENDPOINTS - 1)  # + api-overview.json == _ENDPOINTS files
+    },
     "robots.txt": "User-agent: *\nAllow: /\n",
     "favicon.svg": '<svg xmlns="http://www.w3.org/2000/svg"><title>GB</title></svg>',
 }
@@ -61,6 +90,7 @@ def test_clean_dist_passes(tmp_path: Path) -> None:
     assert result.passed
     assert result.report.passed
     assert result.files_text == len(CLEAN)
+    assert result.content.passed
     assert result.redactable_findings == []
     assert "DIST PASS" in result.render()
 
@@ -127,7 +157,8 @@ def test_every_forbidden_pattern_fails_wherever_it_hides(
 def test_documentation_of_the_gate_does_not_fail_the_build(tmp_path: Path) -> None:
     """The published decisions log describes the gate's own patterns by name."""
     files = dict(CLEAN)
-    files["snapshot/api-decisions.json"] = json.dumps(
+    # Replaces one filler capture so the endpoint count still matches the files present.
+    files["snapshot/api-e0.json"] = json.dumps(
         {"body": "FAILS on `APCA-API` / `Authorization` header names."}
     )
     dist = _dist(tmp_path, files)
@@ -171,7 +202,9 @@ def test_a_leaked_local_path_is_reported_not_rewritten(tmp_path: Path) -> None:
 
     result = verify_dist(dist, env_path=_no_env(tmp_path))
 
-    # Not a hard failure — embarrassing, not dangerous — but visible.
+    # Not a hard failure — embarrassing, not dangerous — but visible. Content is
+    # complete, so nothing else is holding the gate open.
+    assert result.content.passed
     assert result.passed
     assert any("windows_user_path" in f for f in result.redactable_findings)
     assert "REDACTABLE CONTENT IN PUBLISHED BYTES (1)" in result.render()
@@ -280,10 +313,12 @@ def test_the_base_url_no_longer_produces_a_false_failure(tmp_path: Path) -> None
     env = tmp_path / ".env"
     env.write_text("ALPACA_BASE_URL=https://paper-api.alpaca.markets\n", encoding="utf-8")
     files = dict(CLEAN)
-    # A perfectly legitimate mention of the documented paper endpoint.
-    files["snapshot/api-overview.json"] = json.dumps(
-        {"note": "orders route to https://paper-api.alpaca.markets"}
-    )
+    # A perfectly legitimate mention of the documented paper endpoint, alongside real data
+    # so the completeness gate is satisfied too.
+    files["snapshot/api-overview.json"] = json.dumps({
+        "note": "orders route to https://paper-api.alpaca.markets",
+        "accounts": [{"label": "voltarget", "latest_equity": 100.0}],
+    })
     dist = _dist(tmp_path, files)
 
     result = verify_dist(dist, env_path=env)

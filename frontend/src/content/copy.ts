@@ -9,10 +9,11 @@
  * readiness clock; see `withDayCount`. It renders as an em dash when unknown, never as a
  * zero, because "unknown" and "zero days" are different claims.
  *
- * VOICE. Matches MonzonAutomation (see docs/brand.md §4): first person, concrete over
- * abstract, names the failure mode before the mechanism, no hype. One known divergence is
- * documented there — the Section 5 CTA block uses "We", where the rest of the brand uses
- * "I". It is reproduced as supplied.
+ * VOICE. Matches MonzonAutomation (see docs/brand.md §4): first person SINGULAR, concrete
+ * over abstract, names the failure mode before the mechanism, no hype. The G2 CTA block
+ * used "We"; the 2026-07-26 ruling replaced it with "I", which is both the brand voice and
+ * the honest number of people involved — on a page arguing against overclaiming, an
+ * inflated pronoun is the wrong first impression.
  */
 
 /** Token replaced with the paper-tracking day count from the equity clock. */
@@ -138,9 +139,13 @@ export const STORY_CTA = {
   id: 'why-this-exists',
   title: 'Why this exists',
   body: [
-    'Glass Box is a MonzonAutomation project. We build automation for businesses that ' +
+    // First person SINGULAR, per the 2026-07-26 ruling. The brand voice is "I", and a
+    // page whose argument is against overclaiming should not inflate one builder into a
+    // "we". This replaced the G2 wording and resolves the inconsistency flagged in
+    // docs/brand.md §6.2.
+    'Glass Box is a MonzonAutomation project. I build automation for businesses that ' +
       'need to trust what a system did while nobody was watching — and this is the ' +
-      'standard we hold our own work to: every action logged, every claim traceable, every ' +
+      'standard I hold my own work to: every action logged, every claim traceable, every ' +
       'failure published.',
     'It was built in collaboration with an AI engineering partner across twelve reviewed ' +
       'batches, with a human approval gate at every step that touched money, credentials, ' +
@@ -155,6 +160,62 @@ export const STORY_CTA = {
       primary: true,
     },
     { label: 'Read the build log →', href: '/ledger', external: false, primary: false },
+  ],
+} as const
+
+// --------------------------------------------------------------------------- //
+// How this was built                                                          //
+// --------------------------------------------------------------------------- //
+
+/**
+ * The section a recruiter or hiring manager actually needs.
+ *
+ * Before this existed, the only route from the landing page to *who made this* was one
+ * line in the footer, five sections down. Facts and numbers only — no résumé voice, no
+ * adjectives about the work. Every claim here is checkable from the ledger or the repo,
+ * which is the same standard the rest of the site holds itself to.
+ */
+export const BUILD_PROCESS = {
+  id: 'how-this-was-built',
+  eyebrow: 'How this was built',
+  title: 'Twelve reviewed batches, and a human gate on anything that mattered.',
+  lede:
+    'Glass Box and the system behind it were built in collaboration with an AI ' +
+    'engineering partner. The process is part of the record, not a footnote to it.',
+  facts: [
+    {
+      label: 'Twelve reviewed batches',
+      detail:
+        'Each batch shipped with its own verification: linting, type checking, and a test ' +
+        'suite that had to pass in isolation against the previous batch before the new ' +
+        'work counted.',
+    },
+    {
+      label: 'A human gate on money, credentials, and claims',
+      detail:
+        'No batch that touched an order path, a secret, or a published number merged ' +
+        'without explicit human approval. The trading path has been frozen under review ' +
+        'since the first paper account went live.',
+    },
+    {
+      label: 'Two self-caught incidents, both published',
+      detail:
+        'A scheduler that ran the crypto accounts twice a day, and a price read before ' +
+        'the day had settled. Both were found by the system measuring itself, and both ' +
+        'write-ups sit beside the original wrong numbers.',
+    },
+    {
+      label: 'Errors caught in both directions',
+      detail:
+        'The AI found faults a human review would have passed over — a partial bar read as ' +
+        'final, a signed value compared against an absolute threshold. The human caught ' +
+        'work the AI would have shipped, including a gate that failed the build on its own ' +
+        'documentation.',
+    },
+  ],
+  ctas: [
+    { label: 'The full dated ledger →', href: '/ledger', external: false },
+    { label: 'GitHub ↗', href: 'https://github.com/danielfmonzon', external: true },
   ],
 } as const
 

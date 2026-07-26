@@ -6,6 +6,76 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-26 — A gate that checks for presence, and a page readable without JavaScript
+
+**The completeness gate.** `verify-dist` only ever asserted the ABSENCE of forbidden
+content, and on 2026-07-26 it passed a build with no snapshot in it at all — because with
+no data there was nothing forbidden to find. The deploy that followed served a working
+shell with zero figures. **A gate that only looks for poison cannot notice an empty plate.**
+
+`glassbox/completeness.py` adds five positive assertions, each a claim the published site
+makes implicitly by existing, restated as something falsifiable: the manifest exists and
+parses; its `endpoint_count` clears a floor of 20 AND matches both its own `endpoints` list
+and the files on disk; the capture is within `--max-age-days` (default 14); at least one
+account carries a non-null equity figure; and `index.html` references an entry bundle that
+is actually present. They render as their own CONTENT section with the same loud PASS/FAIL,
+and `verify_dist.passed` now requires both.
+
+Deliberately a **separate module**: content completeness and secret detection fail for
+different causes and should be readable independently — and the sanitization patterns are
+frozen by ruling, so the new work had to sit beside them rather than inside them.
+
+**Prerendering.** The site served an empty shell to anything that did not run JavaScript:
+head tags and `<div id="root"></div>`, under 100 characters of readable content. For a page
+whose entire argument is "you can check this", that was the wrong first impression.
+
+`scripts/prerender.mjs` builds an SSR bundle, renders Story against the snapshot JSON
+already in `dist/`, and injects the markup plus a `<script type="application/json">` data
+block carrying the same overview payload — that type is not executed, so the strict
+`script-src 'self'` CSP does not block it, where an inline assignment would have needed a
+nonce. `main.tsx` hydrates only when `data-prerendered` matches the current path. The live
+page now serves 6.9 kB of readable text and the day count is real, not an em dash.
+
+Non-Story routes get flat `dist/<route>.html` shells with correct per-route head tags and a
+`<noscript>` block, but no prerendered body: those screens are `React.lazy`, so
+`renderToString` would emit the Suspense fallback. Flat files rather than
+`<route>/index.html` because Netlify 301s a directory path to its trailing-slash form,
+adding a redirect hop to every internal link.
+
+**Two mistakes worth recording.** First, the server entry originally composed nav + main +
+footer by hand rather than rendering `<App />`, on the reasoning that App's drawer state and
+banner fetch had no meaningful server form. Hydration compares the WHOLE tree, so the
+missing skip link and mobile bar produced React #418/#423 on every load and the prerendered
+markup was discarded — crawlers still got the HTML, but every real visitor paid for a full
+re-render and saw six console errors. Rendering App is both correct and simpler. Second, a
+`cd` that failed silently meant that fix was not applied to the first redeploy, and it took
+an empirical server-vs-client markup diff to notice; guessing at the cause had already cost
+two wrong attempts.
+
+**Reading experience on /decisions.** Sixty-five run cards at once was a comprehension
+problem before it was a metrics problem. Ten most recent, "Show more" appends ten, filter
+change resets the page. The newest run renders EXPANDED: the narration is the thing this
+site exists to demonstrate, and requiring a click meant the most important feature was
+invisible on arrival. Mobile CLS moved 0.223 → 0.187, which is progress and not a fix — see
+below.
+
+**Copy.** `STORY_CTA` is first person singular. The brand voice is "I", and a page arguing
+against overclaiming should not inflate one builder into a "we".
+
+**The path to the builder.** A recruiter's only route to who made this was one footer line
+five sections down. "How this was built" now sits before the CTA: twelve reviewed batches,
+the human approval gate on money/credentials/claims, the two self-caught incidents, and
+errors caught in both directions — with links to the ledger and the GitHub profile. Facts
+only; every claim is checkable from the ledger.
+
+**Still open.** `/decisions` mobile CLS is 0.187, above the 0.1 "good" threshold. Pagination
+and a reserved narration placeholder brought it down from 0.96, but the remaining shift is
+ten cards mounting into a lazy route on a throttled connection. Fixing it properly means
+virtualising the list or server-rendering that route, and both are larger than this batch.
+It is recorded rather than rounded away.
+
+---
+
 ## 2026-07-26 — Glass Box is a MonzonAutomation property: brand, canonical copy, and a public deploy
 
 **Brand adoption, not brand invention.** `docs/brand.md` records the extraction from

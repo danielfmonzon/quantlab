@@ -17,7 +17,9 @@ import type { OverviewResponse } from '../lib/api'
 import { useApi } from '../lib/useApi'
 import { Link } from '../lib/router'
 import { Term } from '../components/Term'
+import { preloaded } from '../lib/preload'
 import {
+  BUILD_PROCESS,
   STORY_CTA,
   STORY_HERO,
   STORY_SECTIONS,
@@ -75,7 +77,13 @@ function withTerms(text: string, key: string): React.ReactNode {
 }
 
 export function Story() {
-  const overview = useApi<OverviewResponse>(() => api.overview())
+  // Seeded so the prerendered HTML carries the real day count instead of an em dash,
+  // and so the client's first render matches that HTML.
+  const overview = useApi<OverviewResponse>(
+    () => api.overview(),
+    [],
+    preloaded<OverviewResponse>('overview'),
+  )
   const days = equityClockDays(overview.data)
 
   return (
@@ -174,6 +182,50 @@ export function Story() {
           </div>
         </section>
       ))}
+
+      {/* ------------------------------------------------- how this was built */}
+      <section
+        id={BUILD_PROCESS.id}
+        aria-labelledby="how-this-was-built-heading"
+        data-testid="story-build-process"
+        className="border-t border-ink/[0.10] pt-10"
+      >
+        <p className="eyebrow">{BUILD_PROCESS.eyebrow}</p>
+        <h2
+          id="how-this-was-built-heading"
+          className="mt-4 max-w-[34ch] text-[clamp(1.5rem,2.6vw,2.1rem)]"
+        >
+          {BUILD_PROCESS.title}
+        </h2>
+        <p className="mt-4 max-w-measure leading-relaxed text-ink-2">
+          {BUILD_PROCESS.lede}
+        </p>
+
+        <dl className="mt-7 grid gap-x-10 gap-y-6 sm:grid-cols-2">
+          {BUILD_PROCESS.facts.map((fact) => (
+            <div key={fact.label}>
+              <dt className="font-display text-[1.02rem] font-semibold text-ink">
+                {fact.label}
+              </dt>
+              <dd className="mt-1.5 text-sm leading-relaxed text-ink-2">{fact.detail}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-8 flex flex-wrap gap-3">
+          {BUILD_PROCESS.ctas.map((cta) =>
+            cta.external ? (
+              <a key={cta.href} href={cta.href} className="btn btn-ghost">
+                {cta.label}
+              </a>
+            ) : (
+              <Link key={cta.href} to={cta.href} className="btn btn-ghost">
+                {cta.label}
+              </Link>
+            ),
+          )}
+        </div>
+      </section>
 
       {/* ----------------------------------------------------- MonzonAutomation */}
       <section

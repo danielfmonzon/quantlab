@@ -142,8 +142,20 @@ function StageChecklist({ stages }: { stages: RunView['stages'] }) {
   )
 }
 
-function RunCard({ run }: { run: RunView }) {
-  const [open, setOpen] = useState(false)
+function RunCard({
+  run,
+  startOpen = false,
+}: {
+  run: RunView
+  /**
+   * The newest run opens with its narration already visible.
+   *
+   * The narration IS the product — it is the thing this site exists to demonstrate — and
+   * requiring a click to see it meant the most important feature was invisible on arrival.
+   */
+  startOpen?: boolean
+}) {
+  const [open, setOpen] = useState(startOpen)
   const narration = useApi<RunNarration>(
     () => (open ? api.narrate(run.run_id) : Promise.resolve(null as never)),
     [open, run.run_id],
@@ -208,7 +220,12 @@ function RunCard({ run }: { run: RunView }) {
             Explain this run
           </button>
         ) : narration.loading ? (
-          <p className="text-xs text-muted">reading narration…</p>
+          // Reserve roughly the height a narration occupies. The newest card is expanded
+          // on arrival, so without this its content lands late and shoves the rest of the
+          // page down — measured as a third of the /decisions layout shift.
+          <p className="min-h-[9rem] text-xs text-muted" role="status">
+            reading narration…
+          </p>
         ) : narration.error ? (
           <EmptyState title="Narration unavailable." detail={narration.error} />
         ) : narration.data ? (
@@ -256,8 +273,19 @@ function RunCard({ run }: { run: RunView }) {
   )
 }
 
+/**
+ * How many runs to render at once.
+ *
+ * Rendering all 65 at once was both a layout-shift problem (0.19 CLS on mobile as the
+ * cards mounted) and a comprehension problem: a wall of near-identical cards buries the
+ * one thing a reader came for. Ten is roughly two weeks of runs — enough to see the
+ * pattern, small enough to read.
+ */
+const PAGE_SIZE = 10
+
 export function Runs() {
   const [label, setLabel] = useState<string>('')
+  const [shown, setShown] = useState(PAGE_SIZE)
   const runs = useApi<RunsResponse>(() => api.runs(label || undefined, 50), [label])
 
   return (
@@ -269,14 +297,25 @@ export function Runs() {
       />
 
       <div className="mb-6 flex flex-wrap gap-1.5">
-        <FilterButton active={label === ''} onClick={() => setLabel('')}>
+        <FilterButton
+          active={label === ''}
+          onClick={() => {
+            setLabel('')
+            setShown(PAGE_SIZE)
+          }}
+        >
           all accounts
         </FilterButton>
         {ACCOUNTS.map((account) => (
           <FilterButton
             key={account}
             active={label === account}
-            onClick={() => setLabel(account)}
+            onClick={() => {
+              setLabel(account)
+              // A new filter resets the page: keeping a deep offset across filters
+              // shows a reader rows they never asked to scroll past.
+              setShown(PAGE_SIZE)
+            }}
           >
             {accountName(account)}
           </FilterButton>
@@ -298,11 +337,33 @@ export function Runs() {
           hint={runs.data?.note ?? undefined}
         />
       ) : (
-        <div className="space-y-4">
-          {runs.data!.runs.map((run) => (
-            <RunCard key={run.run_id} run={run} />
-          ))}
-        </div>
+        <>
+          <p className="mb-4 text-2xs text-muted" data-testid="runs-count">
+            showing {Math.min(shown, runs.data!.runs.length)} of {runs.data!.runs.length}
+            {label ? ` runs for ${accountName(label)}` : ' runs'}, newest first
+          </p>
+
+          <div className="space-y-4">
+            {runs.data!.runs.slice(0, shown).map((run, index) => (
+              <RunCard key={run.run_id} run={run} startOpen={index === 0} />
+            ))}
+          </div>
+
+          {shown < runs.data!.runs.length ? (
+            <button
+              type="button"
+              onClick={() => setShown((n) => n + PAGE_SIZE)}
+              className="btn btn-ghost mt-6"
+              data-testid="show-more-runs"
+            >
+              Show {Math.min(PAGE_SIZE, runs.data!.runs.length - shown)} more
+            </button>
+          ) : (
+            <p className="mt-6 text-2xs text-muted" data-testid="runs-all-shown">
+              That is every run on file.
+            </p>
+          )}
+        </>
       )}
     </div>
   )

@@ -21,6 +21,11 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from quantlab.glassbox.completeness import (
+    DEFAULT_MAX_AGE_DAYS,
+    ContentReport,
+    check_content,
+)
 from quantlab.glassbox.sanitize import (
     SanitizationReport,
     load_env_secret_prefixes,
@@ -44,6 +49,9 @@ BINARY_SUFFIXES = frozenset({
 
 class DistVerifyResult(BaseModel):
     report: SanitizationReport
+    # Positive assertions about what the site CONTAINS. The pattern scan above can only
+    # find bad content; without this, an empty build passes.
+    content: ContentReport = ContentReport()
     dir: str
     files_text: int = 0
     files_binary_skipped: int = 0
@@ -64,6 +72,8 @@ class DistVerifyResult(BaseModel):
         if self.binary_names:
             lines.append(f"                 {', '.join(self.binary_names)}")
         lines.append("")
+        lines.append(self.content.render())
+        lines.append("")
         lines.append(self.report.render())
         lines.append("")
         lines.append(f"REDACTABLE CONTENT IN PUBLISHED BYTES ({len(self.redactable_findings)})")
@@ -80,7 +90,12 @@ class DistVerifyResult(BaseModel):
         if self.passed:
             lines.append("DIST PASS — safe to deploy, subject to human review of this report.")
         else:
-            lines.append("DIST FAIL — do not deploy.")
+            reasons = []
+            if not self.content.passed:
+                reasons.append("missing content")
+            if not self.report.passed:
+                reasons.append("forbidden pattern")
+            lines.append(f"DIST FAIL ({', '.join(reasons)}) — do not deploy.")
         lines.append("=" * 72)
         return "\n".join(lines)
 
@@ -88,12 +103,21 @@ class DistVerifyResult(BaseModel):
     def passed(self) -> bool:
         # A leaked local path is a finding, not a hard failure: it is embarrassing
         # rather than dangerous, and blocking on it would tempt someone to skip the
-        # gate. A forbidden match is a hard failure.
-        return self.report.passed
+        # gate. A forbidden match is a hard failure — and so is missing content, which
+        # is the hole that let a data-less build ship on 2026-07-26.
+        return self.report.passed and self.content.passed
 
 
-def verify_dist(dist_dir: Path, *, env_path: Path | None = None) -> DistVerifyResult:
-    """Scan every text file under ``dist_dir``. Never modifies anything."""
+def verify_dist(
+    dist_dir: Path,
+    *,
+    env_path: Path | None = None,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+) -> DistVerifyResult:
+    """Scan every text file under ``dist_dir`` and assert it contains real data.
+
+    Never modifies anything.
+    """
     if not dist_dir.exists():
         raise FileNotFoundError(f"no such directory: {dist_dir}")
 
@@ -175,7 +199,9 @@ def verify_dist(dist_dir: Path, *, env_path: Path | None = None) -> DistVerifyRe
     )
 
     return DistVerifyResult(
-        report=report, dir=str(dist_dir), files_text=text_count,
+        report=report,
+        content=check_content(dist_dir, max_age_days=max_age_days),
+        dir=str(dist_dir), files_text=text_count,
         files_binary_skipped=len(binary_names), binary_names=binary_names,
         redactable_findings=redactable,
     )
