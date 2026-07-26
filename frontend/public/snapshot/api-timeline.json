@@ -1,0 +1,2374 @@
+{
+  "count": 296,
+  "events": [
+    {
+      "at": "2026-07-25T00:32:11.359798Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $1,071.79 notional",
+      "detail": "weights={'BTC-USD': 0.6591397035875032}; turnover=0.0108",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-25T00:30:07.916741Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $1,071.79",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260725T003008Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-25T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Tier correction: Proven is earned at day 90, not before",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-25T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Glass Box frontend: seven screens, and two conventions that constrain them",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-25T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Glass Box: narration is template-bound, and ignorance is published",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-25T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Week 2026-07-24 divergence diagnosis, and two re-rulings",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-25T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Aligned comparison windows and completed-session bar reads",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-25T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Correcting the crypto structural-drift note",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-24T21:01:32.643715Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "weekly review: crypto_voltarget DIVERGING",
+      "detail": "crypto_voltarget paper-vs-shadow divergence +91 bps this week exceeds the 50 bps threshold.",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-24T21:01:06.494643Z",
+      "kind": "alert",
+      "label": "trend",
+      "title": "weekly review: trend DIVERGING",
+      "detail": "trend paper-vs-shadow divergence -54 bps this week exceeds the 50 bps threshold.",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-24T21:00:03.939687Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-07-24: voltarget TRACKING",
+      "detail": "divergence -48 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-24T21:00:03.939687Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-07-24: trend DIVERGING",
+      "detail": "divergence -54 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-24T21:00:03.939687Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_trend",
+      "title": "week 2026-07-24: crypto_trend TRACKING",
+      "detail": "divergence +0 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-24T21:00:03.939687Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_voltarget",
+      "title": "week 2026-07-24: crypto_voltarget DIVERGING",
+      "detail": "divergence +91 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-24T14:00:14.764122Z",
+      "kind": "alert",
+      "label": "voltarget",
+      "title": "paper voltarget: 1 order(s) submitted, $7,897.07 notional",
+      "detail": "weights={'SPY': 0.85715659109397}; turnover=0.0799",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-24T14:00:09.762411Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "sell SPY $7,897.07",
+      "detail": "status=pending_new run=run_voltarget_20260724T140007Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-24T05:43:05.412493Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $1,026.27 notional",
+      "detail": "weights={'BTC-USD': 0.6741382252011294}; turnover=0.0102",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-24T05:43:05.264735Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $1,026.27",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260724T054303Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-23T14:00:13.998534Z",
+      "kind": "alert",
+      "label": "voltarget",
+      "title": "paper voltarget: 1 order(s) submitted, $10,413.79 notional",
+      "detail": "weights={'SPY': 0.9372772308818641}; turnover=0.1050",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-23T14:00:13.080126Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $10,413.79",
+      "detail": "status=pending_new run=run_voltarget_20260723T140010Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T22:27:03.741564Z",
+      "kind": "alert",
+      "label": null,
+      "title": "alert-log annotation: 2026-07-22 test pollution",
+      "detail": "49 entries in this log are pytest fixture output, not real operational alerts. They span 2026-07-22T17:19:48Z to 2026-07-22T22:13:56Z in 16 bursts, each burst one pytest invocation. Cause: the suite reached the real reporting.alerts.dispatch, whose FileChannel bound the production path as a signature default, so nothing redirected it. Fixed by the autouse isolate_alert_log conftest fixture plus a late-bound FileChannel path. Entries are RETAINED, not deleted; exclude them from ops statistics. Fixture tells: 'paper trend: 2 order(s) submitted, $200,000.00 notional' and 'paper trend aborted at (account)'.",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:16:12.838018Z",
+      "kind": "alert",
+      "label": null,
+      "title": "weekly review: crypto_voltarget DIVERGING",
+      "detail": "crypto_voltarget paper-vs-shadow divergence -51 bps this week exceeds the 50 bps threshold.",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T22:14:22.654103Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-07-22: voltarget TRACKING",
+      "detail": "divergence +7 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T22:14:22.654103Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-07-22: trend TRACKING",
+      "detail": "divergence +17 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T22:14:22.654103Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_trend",
+      "title": "week 2026-07-22: crypto_trend TRACKING",
+      "detail": "divergence +0 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T22:14:22.654103Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_voltarget",
+      "title": "week 2026-07-22: crypto_voltarget DIVERGING",
+      "detail": "divergence -51 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T22:13:56.046496Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:13:56.027474Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:13:56.002092Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:13:55.951031Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T22:13:55.941585Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T22:13:55.933576Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T22:13:51.118528Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T22:08:46.839489Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:08:46.816030Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:08:46.783869Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T22:08:46.724920Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T22:08:46.711156Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T22:08:46.700792Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T22:08:39.944740Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:58:23.744710Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:58:23.713726Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:58:23.672570Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:58:23.571656Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T21:58:23.544822Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:58:23.526364Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:58:18.092486Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:51:56.263965Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:51:56.244652Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:51:56.219950Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:51:56.170473Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T21:51:56.160107Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:51:56.150749Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:51:48.989941Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:51:21.827414Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:51:21.782573Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:51:21.706572Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T21:51:21.573846Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T21:51:21.537397Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:51:21.509790Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T21:51:10.966794Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T17:39:44.195303Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T17:39:44.143526Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T17:39:44.069560Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T17:39:43.892624Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T17:39:43.845686Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T17:39:43.810838Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T17:39:33.408315Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T17:19:53.988092Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T17:19:53.967879Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T17:19:53.940277Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T17:19:53.888084Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-22T17:19:53.877730Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T17:19:53.866787Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T17:19:48.604862Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-22T14:00:24.486184Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget: 1 order(s) submitted, $2,448.19 notional",
+      "detail": "weights={'SPY': 0.8338370641525762}; turnover=0.0245",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T14:00:21.603981Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "sell SPY $2,448.19",
+      "detail": "status=pending_new run=run_voltarget_20260722T140014Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:30:15.869857Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $3,923.57 notional",
+      "detail": "weights={'BTC-USD': 0.6896326113767148}; turnover=0.0383",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-22T00:30:14.786562Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $3,923.57",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260722T003013Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Scheduler catch-up, paired with a 15:30 ET submit cutoff",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "The test suite polluted the production alert log",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Alert attribution by structured field, not substring",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Weekly review covers every asset class",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Crypto track-record clock restarts (Quant Lead ruling)",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-22T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Equity scheduled task leaked into the crypto accounts",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-21T14:00:18.914588Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $2,698.49 notional",
+      "detail": "weights={'BTC-USD': 0.6521441784706031}; turnover=0.0263",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-21T14:00:18.716134Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $2,698.49",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260721T140017Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-21T14:00:08.538580Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget: 1 order(s) submitted, $4,063.96 notional",
+      "detail": "weights={'SPY': 0.8577671932843185}; turnover=0.0408",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-21T14:00:08.369217Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $4,063.96",
+      "detail": "status=pending_new run=run_voltarget_20260721T140005Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-21T05:18:17.482247Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $3,195.84 notional",
+      "detail": "weights={'BTC-USD': 0.6750158678547528}; turnover=0.0316",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-21T05:18:16.030937Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $3,195.84",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260721T051813Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-20T14:00:11.163105Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget: 1 order(s) submitted, $2,434.96 notional",
+      "detail": "weights={'SPY': 0.8170736800791102}; turnover=0.0244",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-20T14:00:08.711892Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $2,434.96",
+      "detail": "status=pending_new run=run_voltarget_20260720T140005Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-20T05:17:37.853901Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $4,447.94 notional",
+      "detail": "weights={'BTC-USD': 0.6395146468300137}; turnover=0.0446",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-20T05:17:36.293842Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $4,447.94",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260720T051736Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-18T05:34:19.676869Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $1,638.79",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260718T053418Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-18T05:34:19.661273Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $1,638.79 notional",
+      "detail": "weights={'BTC-USD': 0.5946724618542479}; turnover=0.0164",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-17T21:54:31.406663Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-07-17: voltarget TRACKING",
+      "detail": "divergence +25 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-17T21:54:31.406663Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-07-17: trend TRACKING",
+      "detail": "divergence -21 bps",
+      "level": null
+    },
+    {
+      "at": "2026-07-17T06:03:39.158758Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $2,166.12 notional",
+      "detail": "weights={'BTC-USD': 0.5739431396020717}; turnover=0.0220",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-17T06:03:33.935249Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $2,166.12",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260717T060337Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-16T15:09:29.719531Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget: 1 order(s) submitted, $8,292.17 notional",
+      "detail": "weights={'SPY': 0.79431631746107}; turnover=0.0825",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-16T15:09:26.068778Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $8,292.17",
+      "detail": "status=pending_new run=run_voltarget_20260716T150924Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-15T05:23:34.605580Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $4,122.47 notional",
+      "detail": "weights={'BTC-USD': 0.6038496946595474}; turnover=0.0411",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-15T05:23:32.483554Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $4,122.47",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260715T052331Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-14T14:03:05.344248Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $3,513.44 notional",
+      "detail": "weights={'BTC-USD': 0.642517171532439}; turnover=0.0353",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-14T14:01:02.981584Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $3,513.44",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260714T140100Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-14T14:00:42.136630Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget: 1 order(s) submitted, $3,499.21 notional",
+      "detail": "weights={'SPY': 0.7113528517185096}; turnover=0.0349",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-14T14:00:41.193566Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $3,499.21",
+      "detail": "status=pending_new run=run_voltarget_20260714T140035Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-14T05:11:33.188302Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $4,255.44 notional",
+      "detail": "weights={'BTC-USD': 0.6753006827302525}; turnover=0.0432",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-14T05:11:30.918496Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $4,255.44",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260714T051128Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-13T14:00:25.733802Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $1,593.26 notional",
+      "detail": "weights={'BTC-USD': 0.6304640271314673}; turnover=0.0163",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-13T14:00:24.880953Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $1,593.26",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260713T140024Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-13T14:00:14.861750Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget: 1 order(s) submitted, $4,491.02 notional",
+      "detail": "weights={'SPY': 0.6772319156198389}; turnover=0.0446",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-13T14:00:13.998031Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $4,491.02",
+      "detail": "status=pending_new run=run_voltarget_20260713T140011Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-13T05:18:49.006680Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $3,152.32",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260713T051847Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-13T05:18:48.942005Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $3,152.32 notional",
+      "detail": "weights={'BTC-USD': 0.648913291780582}; turnover=0.0320",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:39.323711Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:39.310175Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:39.289746Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:39.254073Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-12T17:14:39.245450Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:14:39.238997Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:14:34.893739Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:14:00.575235Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:00.558556Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:00.535738Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:14:00.489819Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-12T17:14:00.480784Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:14:00.472206Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:13:55.806375Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:12:10.079705Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:12:10.066491Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:12:10.048574Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:12:10.014916Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-12T17:12:10.007863Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:12:09.999964Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:12:03.242358Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-12T17:04:42.857101Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $63,526.29 notional",
+      "detail": "weights={'BTC-USD': 0.6352629187044876}; turnover=0.6353",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-12T17:04:41.733343Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $63,526.29",
+      "detail": "status=pending_new run=run_crypto_voltarget_20260712T170441Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-11T23:59:54.311890Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:59:54.296240Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:59:54.277036Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:59:54.240633Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:59:54.231654Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:59:54.223058Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:59:31.701227Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:59:31.674246Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:59:31.640432Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:59:31.584170Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:59:31.569856Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:59:31.559252Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:59:26.809993Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:58:50.930090Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:58:50.908335Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:58:50.885266Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:58:50.838860Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:58:50.829649Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:58:50.821050Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:58:46.171531Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:55:57.222346Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:55:57.200118Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:55:57.175868Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:55:57.129253Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:55:57.118368Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:55:57.109803Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:55:52.297185Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:55:42.739887Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper crypto_trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: BTC-USD: 2 completed session(s) behind the last NYSE close",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:50:40.602122Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:50:40.588601Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:50:40.569154Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:50:40.533501Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:50:40.523483Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:50:40.517025Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:48:05.649213Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:48:05.635839Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:48:05.617657Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:48:05.574540Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:48:05.559614Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:48:05.548311Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:29:23.829199Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:29:23.815624Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:29:23.798601Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:29:23.760007Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:29:23.751018Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:29:23.744481Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:28:34.103376Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:28:34.084985Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:28:34.056872Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:28:34.010757Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:28:34.001840Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:28:33.991560Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:18:27.250921Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:18:27.237194Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:18:27.216934Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:18:27.181437Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:18:27.173820Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:18:27.167354Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:16:40.001292Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:16:39.972488Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:16:39.928516Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:16:39.841279Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:16:39.828172Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:16:39.812942Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:08:10.734907Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:08:10.722314Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:08:10.705822Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:08:10.672234Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:08:10.664271Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:08:10.658100Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:07:41.164442Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:07:41.143743Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:07:41.119706Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T23:07:41.071102Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T23:07:41.061091Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T23:07:41.050517Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T22:51:57.896428Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:51:57.871453Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:51:57.840753Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:51:57.771821Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T22:51:57.755929Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T22:51:57.741881Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T22:50:55.861115Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:50:55.827843Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:50:55.800649Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:50:55.701357Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T22:50:55.679637Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T22:50:55.659086Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T22:43:44.185100Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:43:44.164098Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:43:44.136695Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-11T22:43:44.086200Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-11T22:43:44.076883Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T22:43:44.065710Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-11T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Crypto sleeve: strategies, accounts, and schedule",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-10T22:15:17.850720Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-07-10: voltarget INSUFFICIENT",
+      "detail": null,
+      "level": null
+    },
+    {
+      "at": "2026-07-10T22:15:17.850720Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-07-10: trend INSUFFICIENT",
+      "detail": null,
+      "level": null
+    },
+    {
+      "at": "2026-07-10T13:27:36.561915Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T13:27:36.543922Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T13:27:36.519808Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T13:27:36.467221Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-10T13:27:36.454568Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-10T13:27:36.444164Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-10T12:00:34.624598Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T12:00:34.603894Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T12:00:34.580076Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T12:00:34.531098Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-10T12:00:34.519070Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-10T12:00:34.509441Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-10T11:58:21.188930Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T11:58:20.846898Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T11:58:20.817003Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-10T11:58:20.754799Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-10T11:58:20.738513Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-10T11:58:20.725433Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-10T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Version stamping on every report",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-09T17:55:36.406396Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 1 order(s) submitted, $100,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=1.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:55:36.254145Z",
+      "kind": "order",
+      "label": "trend",
+      "title": "buy SPY $100,000.00",
+      "detail": "status=pending_new run=run_trend_20260709T175532Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-09T17:51:31.847039Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:51:31.828361Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:51:31.802797Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:51:31.757621Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-09T17:51:31.747856Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:51:31.736462Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:38:43.253701Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:38:43.075944Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:38:42.895021Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:38:42.478486Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-09T17:38:42.360413Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:38:42.236685Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:27:51.482647Z",
+      "kind": "alert",
+      "label": null,
+      "title": "quantlab test alert",
+      "detail": "If you can see this, the alert channel is wired up correctly.",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:24:53.005608Z",
+      "kind": "alert",
+      "label": null,
+      "title": "quantlab test alert",
+      "detail": "If you can see this, the alert channel is wired up correctly.",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:16:27.243629Z",
+      "kind": "alert",
+      "label": null,
+      "title": "quantlab test alert",
+      "detail": "If you can see this, the alert channel is wired up correctly.",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:10:26.303467Z",
+      "kind": "alert",
+      "label": null,
+      "title": "quantlab test alert",
+      "detail": "If you can see this, the alert channel is wired up correctly.",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:09:26.042246Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:09:25.978544Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:09:25.883285Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:09:25.688221Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-09T17:09:25.646897Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:09:25.606892Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:08:44.620010Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:08:44.552982Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:08:44.467051Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend: 2 order(s) submitted, $200,000.00 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-07-09T17:08:44.260479Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'account'",
+      "detail": "trading_blocked is set",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-07-09T17:08:44.221012Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper trend aborted at 'health'",
+      "detail": "FREEZE_STALE_DATA: SPY: 4 sessions behind",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T17:08:44.181492Z",
+      "kind": "alert",
+      "label": null,
+      "title": "paper voltarget aborted at 'risk_state'",
+      "detail": "halted: KILL_DRAWDOWN dd -0.30; quantlab risk reset required",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-07-09T13:10:49.131517Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $63,034.07",
+      "detail": "status=new run=run_voltarget_20260709T131140Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-09T13:10:49.116667Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $63,034.07",
+      "detail": "status=pending_new run=run_voltarget_20260709T131048Z",
+      "level": null
+    },
+    {
+      "at": "2026-07-09T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Dividend-drag expectation in shadow tracking",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-09T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Per-account state isolation",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-08T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Risk thresholds are live-ops policy, never backtest-tuned",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-08T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Converge-to-target vs rebalance-date semantics",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-07T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Exclude `dualmom` from paper trading",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-06T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Literature-fixed parameters and the \"iron rule\"",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-05T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Custom daily engine over vectorbt",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-04T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "10:00 ET scheduled run time",
+      "detail": "docs/decisions.md",
+      "level": null
+    }
+  ],
+  "note": null
+}

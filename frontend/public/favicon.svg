@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Glass Box">
+  <title>quantlab Glass Box</title>
+  <rect width="32" height="32" rx="6" fill="#0a0b0d"/>
+  <!-- An open cube drawn in outline only: a box you can see through. -->
+  <g fill="none" stroke="#e2e8f0" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M6 10.5 16 5.5l10 5v11l-10 5-10-5z"/>
+    <path d="M6 10.5 16 15.5l10-5" stroke-opacity="0.55"/>
+    <path d="M16 15.5v11" stroke-opacity="0.55"/>
+  </g>
+</svg>

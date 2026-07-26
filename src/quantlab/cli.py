@@ -60,8 +60,9 @@ from quantlab.data.store import ParquetStore
 from quantlab.data.tiingo_client import TiingoClient
 from quantlab.data.validate import ValidationReport, validate
 
-# Port constant only: glassbox/__init__ is lazy, so this does not import FastAPI.
+# Constants only: glassbox/__init__ is lazy, so this does not import FastAPI.
 from quantlab.glassbox.serve import DEFAULT_PORT as GLASSBOX_DEFAULT_PORT
+from quantlab.glassbox.serve import DEFAULT_SNAPSHOT_DIR
 from quantlab.logging_setup import get_logger
 from quantlab.paper.runner import (
     PaperRunReport,
@@ -1073,6 +1074,48 @@ def cmd_glassbox_serve(args: argparse.Namespace) -> int:
     return serve(port=args.port)
 
 
+def cmd_glassbox_snapshot(args: argparse.Namespace) -> int:
+    """Capture every Glass Box endpoint to static JSON for the public build.
+
+    The sanitization gate runs in memory before anything is written: on failure this
+    prints the report and returns non-zero WITHOUT creating any file, because a
+    partially-written snapshot looks finished and is not.
+    """
+    from quantlab.glassbox.sanitize import SanitizationError
+    from quantlab.glassbox.snapshot import REPORT_NAME, write_snapshot
+
+    out_dir = Path(args.out)
+    print(f"quantlab glassbox snapshot -> {out_dir}")
+    try:
+        result = write_snapshot(out_dir)
+    except SanitizationError as exc:
+        print(exc.report.render(), file=sys.stderr)
+        print(
+            "\nSNAPSHOT ABORTED. No files were written.",
+            file=sys.stderr,
+        )
+        log.error("snapshot_sanitization_failed",
+                  patterns=[f.pattern for f in exc.report.failures])
+        return 3
+
+    print(result.report.render())
+    print(
+        f"\nwrote {len(result.files_written)} file(s) to {out_dir}\n"
+        f"  endpoints captured : {result.manifest.endpoint_count}\n"
+        f"  generated_at       : {result.manifest.generated_at}\n"
+        f"  quantlab           : {result.manifest.quantlab_version} "
+        f"@ {result.manifest.git_commit}\n"
+        f"  report             : {out_dir / REPORT_NAME}"
+    )
+    print(
+        "\nDEPLOY IS GATED: a human must read the sanitization report above before "
+        "this snapshot is published."
+    )
+    log.info("snapshot_written", out=str(out_dir),
+             endpoints=result.manifest.endpoint_count)
+    return 0
+
+
 def cmd_weekly(args: argparse.Namespace) -> int:
     store = ParquetStore()
     calendar = TradingCalendar()
@@ -1584,6 +1627,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"TCP port on 127.0.0.1 (default {GLASSBOX_DEFAULT_PORT})",
     )
     p_gb_serve.set_defaults(func=cmd_glassbox_serve)
+    p_gb_snap = gb_sub.add_parser(
+        "snapshot",
+        help="capture every endpoint to static JSON for the public build (sanitized)",
+    )
+    p_gb_snap.add_argument(
+        "--out", default=str(DEFAULT_SNAPSHOT_DIR),
+        help=f"output directory (default {DEFAULT_SNAPSHOT_DIR})",
+    )
+    p_gb_snap.set_defaults(func=cmd_glassbox_snapshot)
 
     return parser
 

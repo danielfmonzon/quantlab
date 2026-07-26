@@ -1,0 +1,82 @@
+{
+  "label": "voltarget",
+  "series": [
+    {
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "points": [
+        {
+          "timestamp": "2026-07-09T13:10:29.253560",
+          "equity": 100000.0,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-07-09T13:10:48.982037",
+          "equity": 100000.0,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-07-09T13:11:40.076561",
+          "equity": 100000.0,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-07-13T14:00:11.076837",
+          "equity": 100613.77,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-07-14T14:00:35.353256",
+          "equity": 100386.06,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-07-16T15:09:24.139704",
+          "equity": 100559.93,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-07-20T14:00:05.283595",
+          "equity": 99759.12,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-07-21T14:00:05.366397",
+          "equity": 99728.15,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-07-22T14:00:14.669930",
+          "equity": 100106.44,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-07-23T14:00:10.531256",
+          "equity": 99150.7,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-07-24T14:00:07.519467",
+          "equity": 98821.82,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        }
+      ],
+      "provenance_counts": {
+        "catch_up": 4,
+        "on_schedule": 7
+      }
+    }
+  ],
+  "note": null
+}

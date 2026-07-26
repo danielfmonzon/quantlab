@@ -24,13 +24,13 @@ const mount = (element: ReactElement, path = '/') =>
   render(<RouterProvider initialPath={path}>{element}</RouterProvider>)
 
 const SCREENS: Array<{ name: string; element: ReactElement; path: string }> = [
-  { name: 'Overview', element: <Overview />, path: '/' },
-  { name: 'Runs', element: <Runs />, path: '/runs' },
-  { name: 'Divergence', element: <Divergence />, path: '/divergence' },
-  { name: 'Risk', element: <Risk />, path: '/risk' },
+  { name: 'Overview', element: <Overview />, path: '/live' },
+  { name: 'Runs', element: <Runs />, path: '/decisions' },
+  { name: 'Divergence', element: <Divergence />, path: '/tracking' },
+  { name: 'Risk', element: <Risk />, path: '/limits' },
   { name: 'Equity', element: <Equity />, path: '/equity' },
   { name: 'Ledger', element: <Ledger />, path: '/ledger' },
-  { name: 'Glass', element: <Glass />, path: '/glass' },
+  { name: 'Glass', element: <Glass />, path: '/ignores' },
 ]
 
 // --------------------------------------------------------------------------- //
@@ -137,7 +137,7 @@ describe('Overview', () => {
 describe('Runs', () => {
   it('lists runs with a stage checklist and abort state', async () => {
     mockApi(POPULATED)
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     const good = await screen.findByTestId('run-run_voltarget_20260724T140007Z')
     expect(within(good).getByTestId('stage-checklist')).toHaveTextContent('risk_state')
     expect(within(good).getAllByTestId('stage-ok')).toHaveLength(2)
@@ -150,7 +150,7 @@ describe('Runs', () => {
 
   it('renders the narration and exposes each fact source path on hover', async () => {
     mockApi(POPULATED)
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     await userEvent.click(
       await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
     )
@@ -178,7 +178,7 @@ describe('Runs', () => {
 
   it('renders the counterfactual in a distinct "what it did NOT do" block', async () => {
     mockApi(POPULATED)
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     await userEvent.click(
       await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
     )
@@ -194,7 +194,7 @@ describe('Runs', () => {
 
   it('keeps the raw report behind a collapsed disclosure', async () => {
     mockApi(POPULATED)
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     await userEvent.click(
       await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
     )
@@ -208,7 +208,7 @@ describe('Runs', () => {
       ...POPULATED,
       narrate: { ...POPULATED.narrate, narration: 'Equity was $98,821.82 and 42 widgets.', facts: [POPULATED.narrate.facts[0]!] },
     })
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     await userEvent.click(
       await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
     )
@@ -244,7 +244,7 @@ describe('Runs', () => {
         ],
       },
     })
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     await userEvent.click(
       await screen.findByTestId('explain-run_voltarget_20260724T140007Z'),
     )
@@ -266,7 +266,7 @@ describe('Runs', () => {
 
   it('explains an empty run list rather than showing a blank page', async () => {
     mockApi(EMPTY)
-    mount(<Runs />, '/runs')
+    mount(<Runs />, '/decisions')
     expect(await screen.findByTestId('empty-state')).toHaveTextContent(
       /No run reports on file/,
     )
@@ -279,7 +279,7 @@ describe('Runs', () => {
 
 describe('Divergence', () => {
   const showTrend = async () => {
-    mount(<Divergence />, '/divergence')
+    mount(<Divergence />, '/tracking')
     await userEvent.click(await screen.findByRole('button', { name: 'trend' }))
   }
 
@@ -349,7 +349,7 @@ describe('Divergence', () => {
 
   it('explains an absent weekly series', async () => {
     mockApi(EMPTY)
-    mount(<Divergence />, '/divergence')
+    mount(<Divergence />, '/tracking')
     expect(await screen.findByTestId('empty-state')).toHaveTextContent(
       /No weekly reviews for this account yet/,
     )
@@ -363,7 +363,7 @@ describe('Divergence', () => {
 describe('Risk', () => {
   it('answers "should I be worried?" from the thresholds', async () => {
     mockApi(POPULATED)
-    mount(<Risk />, '/risk')
+    mount(<Risk />, '/limits')
     const calm = await screen.findByTestId('worry-voltarget')
     expect(calm).toHaveTextContent(/^Should I be worried\? No —/)
     expect(calm).toHaveTextContent('would need a further -23.22% from here to trigger the kill switch')
@@ -375,7 +375,7 @@ describe('Risk', () => {
 
   it('renders a gauge scaled to the kill threshold', async () => {
     mockApi(POPULATED)
-    mount(<Risk />, '/risk')
+    mount(<Risk />, '/limits')
     const gauge = await screen.findByTestId('gauge-voltarget')
     expect(gauge).toHaveTextContent('-25.00%') // kill limit
     expect(gauge).toHaveTextContent('-1.78%') // current drawdown
@@ -386,14 +386,14 @@ describe('Risk', () => {
 
   it('names the yaml each limit set came from', async () => {
     mockApi(POPULATED)
-    mount(<Risk />, '/risk')
+    mount(<Risk />, '/limits')
     expect(await screen.findByText(/limits read from risk\.yaml/)).toBeInTheDocument()
     expect(screen.getByText(/limits read from crypto_risk\.yaml/)).toBeInTheDocument()
   })
 
   it('says drawdown is unknown rather than zero when there is no history', async () => {
     mockApi(EMPTY)
-    mount(<Risk />, '/risk')
+    mount(<Risk />, '/limits')
     const caption = await screen.findByTestId('worry-voltarget')
     expect(caption).toHaveTextContent(/Unknown — there is not enough equity history/)
     expect(screen.getByText(/limits read from risk\.yaml \(absent\)/)).toBeInTheDocument()
@@ -479,7 +479,7 @@ describe('Ledger', () => {
 describe('Glass', () => {
   it('renders both columns with rationales inline', async () => {
     mockApi(POPULATED)
-    mount(<Glass />, '/glass')
+    mount(<Glass />, '/ignores')
     const reads = await screen.findByTestId('inputs-read')
     expect(reads).toHaveTextContent('Tiingo end-of-day bars')
     expect(reads).toHaveTextContent('Alpaca IEX end-of-day bars')
@@ -493,7 +493,7 @@ describe('Glass', () => {
 
   it('carries the same hero weight as Overview', async () => {
     mockApi(POPULATED)
-    mount(<Glass />, '/glass')
+    mount(<Glass />, '/ignores')
     const heading = await screen.findByRole('heading', { level: 1 })
     expect(heading).toHaveTextContent('What it knows, and what it refuses to know.')
     expect(heading.className).toMatch(/text-3xl/)
@@ -501,7 +501,7 @@ describe('Glass', () => {
 
   it('renders with no declared inputs at all', async () => {
     mockApi(EMPTY)
-    mount(<Glass />, '/glass')
+    mount(<Glass />, '/ignores')
     expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
     expect(screen.getAllByTestId('empty-state').length).toBe(2)
   })
@@ -515,27 +515,27 @@ describe('App shell', () => {
   it('navigates between screens without a reload', async () => {
     mockApi(POPULATED)
     render(
-      <RouterProvider initialPath="/">
+      <RouterProvider initialPath="/live">
         <App />
       </RouterProvider>,
     )
+    // /live is the operational Overview (G1 moved it off `/`, which is now Story).
     expect(await screen.findByTestId('hero')).toBeInTheDocument()
 
-    // Exact name: the brand link is "quantlab Glass Box", the nav link is "Glass".
-    await userEvent.click(screen.getByRole('link', { name: 'Glass' }))
+    await userEvent.click(screen.getByRole('link', { name: /What It Ignores/ }))
     expect(
       await screen.findByRole('heading', { level: 1, name: /refuses to know/ }),
     ).toBeInTheDocument()
   })
 
-  it('falls back to Overview for an unknown path', async () => {
+  it('falls back to the Story landing page for an unknown path', async () => {
     mockApi(POPULATED)
     render(
       <RouterProvider initialPath="/not-a-route">
         <App />
       </RouterProvider>,
     )
-    expect(await screen.findByTestId('hero')).toBeInTheDocument()
+    expect(await screen.findByTestId('story-hero')).toBeInTheDocument()
   })
 
   it('states that the interface is read-only', async () => {

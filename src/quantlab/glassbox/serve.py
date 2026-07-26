@@ -25,6 +25,10 @@ from typing import Any
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8600
 
+# Where `quantlab glassbox snapshot` writes by default. Inside the frontend's
+# `public/` tree so `vite build` copies it into `dist/` untouched.
+DEFAULT_SNAPSHOT_DIR = Path("frontend") / "public" / "snapshot"
+
 
 def serve(
     port: int = DEFAULT_PORT,
@@ -49,4 +53,4 @@ def serve(
     return 0
 
 
-__all__ = ["serve", "HOST", "DEFAULT_PORT"]
+__all__ = ["serve", "HOST", "DEFAULT_PORT", "DEFAULT_SNAPSHOT_DIR"]

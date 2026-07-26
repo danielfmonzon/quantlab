@@ -7,6 +7,8 @@
  * UI's job is to render that state explicitly rather than blank a panel.
  */
 
+import { getJson } from './transport'
+
 export type Provenance = 'on_schedule' | 'catch_up' | 'leaked'
 export type Verdict = 'TRACKING' | 'DIVERGING' | 'INSUFFICIENT'
 
@@ -243,23 +245,10 @@ export interface IgnoredInputsResponse {
   ignores: InputIgnored[]
 }
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
-}
-
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path, { headers: { accept: 'application/json' } })
-  if (!response.ok) {
-    throw new ApiError(`${path} returned ${response.status}`, response.status)
-  }
-  return (await response.json()) as T
-}
+// Requests go through the transport layer, which decides between the live API and a
+// static snapshot. Screens are identical in both modes and know nothing about which
+// one they are in — the only mode-aware component is the snapshot banner.
+const get = <T,>(path: string): Promise<T> => getJson<T>(path)
 
 const query = (params: Record<string, string | number | undefined>): string => {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== '')

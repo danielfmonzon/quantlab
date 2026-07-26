@@ -1,0 +1,713 @@
+{
+  "generated_at": "2026-07-26T14:45:20.558253Z",
+  "git_commit": "29f888e",
+  "quantlab_version": "1.0.0",
+  "endpoints": [
+    {
+      "key": "/api/decisions",
+      "file": "api-decisions.json",
+      "path": "/api/decisions",
+      "params": {},
+      "status": 200,
+      "bytes": 39548
+    },
+    {
+      "key": "/api/divergence",
+      "file": "api-divergence.json",
+      "path": "/api/divergence",
+      "params": {},
+      "status": 200,
+      "bytes": 10386
+    },
+    {
+      "key": "/api/divergence?label=voltarget",
+      "file": "api-divergence--label-voltarget.json",
+      "path": "/api/divergence",
+      "params": {
+        "label": "voltarget"
+      },
+      "status": 200,
+      "bytes": 2579
+    },
+    {
+      "key": "/api/divergence?label=trend",
+      "file": "api-divergence--label-trend.json",
+      "path": "/api/divergence",
+      "params": {
+        "label": "trend"
+      },
+      "status": 200,
+      "bytes": 3251
+    },
+    {
+      "key": "/api/divergence?label=crypto_trend",
+      "file": "api-divergence--label-crypto_trend.json",
+      "path": "/api/divergence",
+      "params": {
+        "label": "crypto_trend"
+      },
+      "status": 200,
+      "bytes": 1989
+    },
+    {
+      "key": "/api/divergence?label=crypto_voltarget",
+      "file": "api-divergence--label-crypto_voltarget.json",
+      "path": "/api/divergence",
+      "params": {
+        "label": "crypto_voltarget"
+      },
+      "status": 200,
+      "bytes": 2822
+    },
+    {
+      "key": "/api/equity",
+      "file": "api-equity.json",
+      "path": "/api/equity",
+      "params": {},
+      "status": 200,
+      "bytes": 21309
+    },
+    {
+      "key": "/api/equity?label=voltarget",
+      "file": "api-equity--label-voltarget.json",
+      "path": "/api/equity",
+      "params": {
+        "label": "voltarget"
+      },
+      "status": 200,
+      "bytes": 3462
+    },
+    {
+      "key": "/api/equity?label=trend",
+      "file": "api-equity--label-trend.json",
+      "path": "/api/equity",
+      "params": {
+        "label": "trend"
+      },
+      "status": 200,
+      "bytes": 3080
+    },
+    {
+      "key": "/api/equity?label=crypto_trend",
+      "file": "api-equity--label-crypto_trend.json",
+      "path": "/api/equity",
+      "params": {
+        "label": "crypto_trend"
+      },
+      "status": 200,
+      "bytes": 7471
+    },
+    {
+      "key": "/api/equity?label=crypto_voltarget",
+      "file": "api-equity--label-crypto_voltarget.json",
+      "path": "/api/equity",
+      "params": {
+        "label": "crypto_voltarget"
+      },
+      "status": 200,
+      "bytes": 7489
+    },
+    {
+      "key": "/api/ignored-inputs",
+      "file": "api-ignored-inputs.json",
+      "path": "/api/ignored-inputs",
+      "params": {},
+      "status": 200,
+      "bytes": 2866
+    },
+    {
+      "key": "/api/overview",
+      "file": "api-overview.json",
+      "path": "/api/overview",
+      "params": {},
+      "status": 200,
+      "bytes": 5455
+    },
+    {
+      "key": "/api/risk",
+      "file": "api-risk.json",
+      "path": "/api/risk",
+      "params": {},
+      "status": 200,
+      "bytes": 3036
+    },
+    {
+      "key": "/api/runs",
+      "file": "api-runs.json",
+      "path": "/api/runs",
+      "params": {},
+      "status": 200,
+      "bytes": 119139
+    },
+    {
+      "key": "/api/runs?label=voltarget",
+      "file": "api-runs--label-voltarget.json",
+      "path": "/api/runs",
+      "params": {
+        "label": "voltarget"
+      },
+      "status": 200,
+      "bytes": 24412
+    },
+    {
+      "key": "/api/runs?label=trend",
+      "file": "api-runs--label-trend.json",
+      "path": "/api/runs",
+      "params": {
+        "label": "trend"
+      },
+      "status": 200,
+      "bytes": 16387
+    },
+    {
+      "key": "/api/runs?label=crypto_trend",
+      "file": "api-runs--label-crypto_trend.json",
+      "path": "/api/runs",
+      "params": {
+        "label": "crypto_trend"
+      },
+      "status": 200,
+      "bytes": 33184
+    },
+    {
+      "key": "/api/runs?label=crypto_voltarget",
+      "file": "api-runs--label-crypto_voltarget.json",
+      "path": "/api/runs",
+      "params": {
+        "label": "crypto_voltarget"
+      },
+      "status": 200,
+      "bytes": 45388
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260726T003008Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260726T003008Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260726T003008Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2862
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260726T003005Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260726T003005Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260726T003005Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260725T003008Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260725T003008Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260725T003008Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3532
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260725T003006Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260725T003006Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260725T003006Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260724T140018Z/narrate",
+      "file": "api-runs-run_trend_20260724T140018Z-narrate.json",
+      "path": "/api/runs/run_trend_20260724T140018Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2292
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260724T140007Z/narrate",
+      "file": "api-runs-run_voltarget_20260724T140007Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260724T140007Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3429
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260724T054303Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260724T054303Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260724T054303Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3535
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260724T054257Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260724T054257Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260724T054257Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260723T140016Z/narrate",
+      "file": "api-runs-run_trend_20260723T140016Z-narrate.json",
+      "path": "/api/runs/run_trend_20260723T140016Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2291
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260723T140010Z/narrate",
+      "file": "api-runs-run_voltarget_20260723T140010Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260723T140010Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3441
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260723T003009Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260723T003009Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260723T003009Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2865
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260723T003007Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260723T003007Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260723T003007Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260722T140046Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260722T140046Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260722T140046Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2865
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260722T140036Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260722T140036Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260722T140036Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260722T140028Z/narrate",
+      "file": "api-runs-run_trend_20260722T140028Z-narrate.json",
+      "path": "/api/runs/run_trend_20260722T140028Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2291
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260722T140014Z/narrate",
+      "file": "api-runs-run_voltarget_20260722T140014Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260722T140014Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3440
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260722T003013Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260722T003013Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260722T003013Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3531
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260722T003010Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260722T003010Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260722T003010Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260721T140017Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260721T140017Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260721T140017Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3533
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260721T140015Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260721T140015Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260721T140015Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260721T140011Z/narrate",
+      "file": "api-runs-run_trend_20260721T140011Z-narrate.json",
+      "path": "/api/runs/run_trend_20260721T140011Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2291
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260721T140005Z/narrate",
+      "file": "api-runs-run_voltarget_20260721T140005Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260721T140005Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3435
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260721T051813Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260721T051813Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260721T051813Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3530
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260721T051807Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260721T051807Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260721T051807Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260720T140100Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260720T140100Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260720T140100Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2862
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260720T140054Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260720T140054Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260720T140054Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260720T140014Z/narrate",
+      "file": "api-runs-run_trend_20260720T140014Z-narrate.json",
+      "path": "/api/runs/run_trend_20260720T140014Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2291
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260720T140005Z/narrate",
+      "file": "api-runs-run_voltarget_20260720T140005Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260720T140005Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3436
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260720T051736Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260720T051736Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260720T051736Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3527
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260720T051733Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260720T051733Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260720T051733Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260719T051733Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260719T051733Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260719T051733Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2866
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260719T051730Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260719T051730Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260719T051730Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260718T053418Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260718T053418Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260718T053418Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3527
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260718T053415Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260718T053415Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260718T053415Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260717T060337Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260717T060337Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260717T060337Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3532
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260717T060334Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260717T060334Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260717T060334Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260716T150939Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260716T150939Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260716T150939Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2866
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260716T150937Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260716T150937Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260716T150937Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260716T150932Z/narrate",
+      "file": "api-runs-run_trend_20260716T150932Z-narrate.json",
+      "path": "/api/runs/run_trend_20260716T150932Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2294
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260716T150924Z/narrate",
+      "file": "api-runs-run_voltarget_20260716T150924Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260716T150924Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3431
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260716T003008Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260716T003008Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260716T003008Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2867
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260716T003005Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260716T003005Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260716T003005Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260715T052331Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260715T052331Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260715T052331Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3531
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260715T052327Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260715T052327Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260715T052327Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260714T140100Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260714T140100Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260714T140100Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3526
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260714T140055Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260714T140055Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260714T140055Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260714T140048Z/narrate",
+      "file": "api-runs-run_trend_20260714T140048Z-narrate.json",
+      "path": "/api/runs/run_trend_20260714T140048Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2290
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260714T140035Z/narrate",
+      "file": "api-runs-run_voltarget_20260714T140035Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260714T140035Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3438
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260714T051128Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260714T051128Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260714T051128Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3526
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260714T051121Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260714T051121Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260714T051121Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260713T140024Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260713T140024Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260713T140024Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3531
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260713T140022Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260713T140022Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260713T140022Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_trend_20260713T140017Z/narrate",
+      "file": "api-runs-run_trend_20260713T140017Z-narrate.json",
+      "path": "/api/runs/run_trend_20260713T140017Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2294
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260713T140011Z/narrate",
+      "file": "api-runs-run_voltarget_20260713T140011Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260713T140011Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3437
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260713T051847Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260713T051847Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260713T051847Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3526
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260713T051844Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260713T051844Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260713T051844Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260712T170500Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260712T170500Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260712T170500Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260712T170441Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260712T170441Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260712T170441Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3518
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260712T170329Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260712T170329Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260712T170329Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3303
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260712T170312Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260712T170312Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260712T170312Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1633
+    },
+    {
+      "key": "/api/runs/run_trend_20260709T175532Z/narrate",
+      "file": "api-runs-run_trend_20260709T175532Z-narrate.json",
+      "path": "/api/runs/run_trend_20260709T175532Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2893
+    },
+    {
+      "key": "/api/runs/run_trend_20260709T175420Z/narrate",
+      "file": "api-runs-run_trend_20260709T175420Z-narrate.json",
+      "path": "/api/runs/run_trend_20260709T175420Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2680
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260709T131140Z/narrate",
+      "file": "api-runs-run_voltarget_20260709T131140Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260709T131140Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3438
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260709T131048Z/narrate",
+      "file": "api-runs-run_voltarget_20260709T131048Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260709T131048Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3424
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260709T131029Z/narrate",
+      "file": "api-runs-run_voltarget_20260709T131029Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260709T131029Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3213
+    },
+    {
+      "key": "/api/timeline",
+      "file": "api-timeline.json",
+      "path": "/api/timeline",
+      "params": {},
+      "status": 200,
+      "bytes": 73980
+    }
+  ],
+  "endpoint_count": 85,
+  "note": "Static capture of a localhost-only read-only API. Every figure was read from an artifact this system wrote. Refreshed manually."
+}

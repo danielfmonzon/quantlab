@@ -1,0 +1,965 @@
+{
+  "count": 11,
+  "label": "voltarget",
+  "runs": [
+    {
+      "run_id": "run_voltarget_20260724T140007Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-24T14:00:07.519467Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 98821.82,
+      "target_weights": {
+        "SPY": 0.85715659109397
+      },
+      "no_trades": false,
+      "est_turnover": 0.0799121917011657,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=98821.82 cash=6218.98"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-23 -> {'SPY': 0.85715659109397}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.017810186418817153)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0799"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "sell",
+          "notional": 7897.068224098091,
+          "current_w": 0.9370687827951357,
+          "target_w": 0.85715659109397
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "sell",
+          "notional": 7897.07,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260724-SPY-sell",
+          "submitted_at": "2026-07-24T14:00:09.762411Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260723T140010Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-23T14:00:10.531256Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 99150.7,
+      "target_weights": {
+        "SPY": 0.9372772308818641
+      },
+      "no_trades": false,
+      "est_turnover": 0.10502989106479776,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=99150.70 cash=16632.79"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-22 -> {'SPY': 0.9372772308818641}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.014541448948787061)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.1050"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 10413.787219998443,
+          "current_w": 0.8322473398170663,
+          "target_w": 0.9372772308818641
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 10413.79,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260723-SPY-buy",
+          "submitted_at": "2026-07-23T14:00:13.080126Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260722T140014Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-22T14:00:14.669930Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100106.44,
+      "target_weights": {
+        "SPY": 0.8338370641525762
+      },
+      "no_trades": false,
+      "est_turnover": 0.024455891964932364,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100106.44 cash=14184.61"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-21 -> {'SPY': 0.8338370641525762}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.005042351558837366)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0245"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "sell",
+          "notional": 2448.192281633984,
+          "current_w": 0.8582929561175086,
+          "target_w": 0.8338370641525762
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "sell",
+          "notional": 2448.19,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260722-SPY-sell",
+          "submitted_at": "2026-07-22T14:00:21.603981Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260721T140005Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-21T14:00:05.366397Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 99728.15,
+      "target_weights": {
+        "SPY": 0.8577671932843185
+      },
+      "no_trades": false,
+      "est_turnover": 0.040750347238342366,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=99728.15 cash=18248.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-20 -> {'SPY': 0.8577671932843185}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.008802174891170522)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0408"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 4063.956741937493,
+          "current_w": 0.8170168460459761,
+          "target_w": 0.8577671932843185
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 4063.96,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260721-SPY-buy",
+          "submitted_at": "2026-07-21T14:00:08.369217Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260720T140005Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-20T14:00:05.283595Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 99759.12,
+      "target_weights": {
+        "SPY": 0.8170736800791102
+      },
+      "no_trades": false,
+      "est_turnover": 0.024408399280722914,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=99759.12 cash=20683.53"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-17 -> {'SPY': 0.8170736800791102}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.00849436414121063)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0244"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 2434.9604328535506,
+          "current_w": 0.7926652807983873,
+          "target_w": 0.8170736800791102
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 2434.96,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260720-SPY-buy",
+          "submitted_at": "2026-07-20T14:00:08.711892Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260716T150924Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-16T15:09:24.139704Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100559.93,
+      "target_weights": {
+        "SPY": 0.79431631746107
+      },
+      "no_trades": false,
+      "est_turnover": 0.08245994219310793,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100559.93 cash=28975.70"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-15 -> {'SPY': 0.79431631746107}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.0005351156208539543)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0825"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 8292.16601474298,
+          "current_w": 0.7118563752679621,
+          "target_w": 0.79431631746107
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 8292.17,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260716-SPY-buy",
+          "submitted_at": "2026-07-16T15:09:26.068778Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260714T140035Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-14T14:00:35.353256Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100386.06,
+      "target_weights": {
+        "SPY": 0.7113528517185096
+      },
+      "no_trades": false,
+      "est_turnover": 0.034857544690820697,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100386.06 cash=32474.91"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-13 -> {'SPY': 0.7113528517185096}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.0022632091014977984)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0349"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 3499.211572785408,
+          "current_w": 0.6764953070276889,
+          "target_w": 0.7113528517185096
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 3499.21,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260714-SPY-buy",
+          "submitted_at": "2026-07-14T14:00:41.193566Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260713T140011Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-13T14:00:11.076837Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100613.77,
+      "target_weights": {
+        "SPY": 0.6772319156198389
+      },
+      "no_trades": false,
+      "est_turnover": 0.044636235734272556,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100613.77 cash=36965.93"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-10 -> {'SPY': 0.6772319156198389}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=0.0)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0446"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 4491.01995583388,
+          "current_w": 0.6325956798855663,
+          "target_w": 0.6772319156198389
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 4491.02,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260713-SPY-buy",
+          "submitted_at": "2026-07-13T14:00:13.998031Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260709T131140Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-09T13:11:40.076561Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100000.0,
+      "target_weights": {
+        "SPY": 0.6303407033003855
+      },
+      "no_trades": false,
+      "est_turnover": 0.6303407033003855,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100000.00 cash=100000.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-08 -> {'SPY': 0.6303407033003855}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=0.0)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.6303"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 1 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 63034.07033003855,
+          "current_w": 0.0,
+          "target_w": 0.6303407033003855
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 63034.07,
+          "status": "new",
+          "client_order_id": "ql-voltarget-20260709-SPY-buy",
+          "submitted_at": "2026-07-09T13:10:49.131517Z",
+          "was_duplicate": true
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260709T131048Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-09T13:10:48.982037Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100000.0,
+      "target_weights": {
+        "SPY": 0.6303407033003855
+      },
+      "no_trades": false,
+      "est_turnover": 0.6303407033003855,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100000.00 cash=100000.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-08 -> {'SPY': 0.6303407033003855}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=0.0)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.6303"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 63034.07033003855,
+          "current_w": 0.0,
+          "target_w": 0.6303407033003855
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 63034.07,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260709-SPY-buy",
+          "submitted_at": "2026-07-09T13:10:49.116667Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_voltarget_20260709T131029Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-07-09T13:10:29.253560Z",
+      "dry_run": true,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100000.0,
+      "target_weights": {
+        "SPY": 0.6303407033003855
+      },
+      "no_trades": false,
+      "est_turnover": 0.6303407033003855,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100000.00 cash=100000.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-07-08 -> {'SPY': 0.6303407033003855}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "insufficient history (<2 snapshots)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.6303"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "DRY-RUN: no orders submitted"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 63034.07033003855,
+          "current_w": 0.0,
+          "target_w": 0.6303407033003855
+        }
+      ],
+      "submitted_orders": []
+    }
+  ],
+  "note": null
+}

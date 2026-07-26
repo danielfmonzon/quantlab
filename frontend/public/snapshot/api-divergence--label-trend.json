@@ -1,0 +1,79 @@
+{
+  "label": "trend",
+  "weeks": [
+    {
+      "week_ending": "2026-07-10",
+      "label": "trend",
+      "asset_class": null,
+      "paper_week_return": 0.0,
+      "shadow_week_return": null,
+      "divergence_bps": null,
+      "cumulative_divergence_bps": null,
+      "verdict": "INSUFFICIENT",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-07-09",
+      "window_end": "2026-07-09",
+      "structural_note": null
+    },
+    {
+      "week_ending": "2026-07-17",
+      "label": "trend",
+      "asset_class": null,
+      "paper_week_return": 0.002035200000000126,
+      "shadow_week_return": 0.004127656544284264,
+      "divergence_bps": -20.92456544284138,
+      "cumulative_divergence_bps": -20.92456544284138,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-07-09",
+      "window_end": "2026-07-16",
+      "structural_note": null
+    },
+    {
+      "week_ending": "2026-07-22",
+      "label": "trend",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.0030423310078555588,
+      "shadow_week_return": -0.004726077360422853,
+      "divergence_bps": 16.837463525672945,
+      "cumulative_divergence_bps": 6.625522409333673,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-07-14",
+      "window_end": "2026-07-22",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-07-24",
+      "label": "trend",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.010706905970982672,
+      "shadow_week_return": -0.005273724658708234,
+      "divergence_bps": -54.33181312274438,
+      "cumulative_divergence_bps": -5.0907643736641806,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-07-20",
+      "window_end": "2026-07-24",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    }
+  ],
+  "corrections": [
+    {
+      "week_ending": "2026-07-24",
+      "label": "trend",
+      "published_divergence_bps": -54.33,
+      "published_verdict": "DIVERGING",
+      "corrected_divergence_bps": -6.06,
+      "corrected_verdict": "TRACKING",
+      "corrected_window": "2026-07-16 -> 2026-07-23",
+      "cause": "The 2026-07-24 14:00Z snapshot was compared against a shadow with no 2026-07-24 session at all (SPY's EOD bar did not exist yet), so that day's -32 bps landed whole in the divergence. Aligning the windows leaves structural 10:00-ET-vs-close mark-phase drift.",
+      "reference": "docs/decisions.md \u2014 2026-07-25 \u2014 Week 2026-07-24 divergence diagnosis, and two re-rulings"
+    }
+  ],
+  "note": null
+}

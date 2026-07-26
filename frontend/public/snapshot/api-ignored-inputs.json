@@ -1,0 +1,60 @@
+{
+  "statement": "This system reads settled daily prices and its own account state. It reads no news, no sentiment, and no opinion \u2014 including its own. The list below is published so a reader can judge what the strategies CANNOT know, rather than inferring capability from a feature list.",
+  "reads": [
+    {
+      "name": "Tiingo end-of-day bars",
+      "role": "primary equity EOD price source",
+      "rationale": "Adjusted daily closes are the only prices every strategy signal reads."
+    },
+    {
+      "name": "Alpaca IEX end-of-day bars",
+      "role": "independent cross-check on Tiingo",
+      "rationale": "A second feed reconciled against the first (data/reconcile.py) catches a bad vendor print before it reaches a signal."
+    },
+    {
+      "name": "Coinbase daily candles",
+      "role": "crypto EOD price source (BTC-USD)",
+      "rationale": "The 24/7 UTC-day equivalent of the equity EOD feed."
+    },
+    {
+      "name": "Alpaca paper account state",
+      "role": "positions, cash, equity for the paper accounts",
+      "rationale": "What the account actually holds, never a source of signal."
+    },
+    {
+      "name": "Exchange calendars (XNYS) and a 24/7 UTC calendar",
+      "role": "session boundaries and completion cutoffs",
+      "rationale": "Decides which bars are settled enough to read at all."
+    }
+  ],
+  "ignores": [
+    {
+      "name": "News and headlines",
+      "rationale": "No strategy has a news term. Surfacing headlines beside a position would invite a causal story the system never computed."
+    },
+    {
+      "name": "Earnings reports and guidance",
+      "rationale": "The universe is broad-market ETFs; single-name fundamentals are not an input to any signal."
+    },
+    {
+      "name": "Analyst ratings and price targets",
+      "rationale": "Third-party opinion is not a pre-registered, testable input."
+    },
+    {
+      "name": "Social and market sentiment scores",
+      "rationale": "Not in any pre-registered rule, and the iron rule forbids adding an input because it would have improved a backtest."
+    },
+    {
+      "name": "Intraday bars, quotes, and order-book depth",
+      "rationale": "Every signal is computed from settled daily closes. Intraday data is not stored, which is why the Glass Box reports mark timing as structural drift rather than pretending to price it."
+    },
+    {
+      "name": "Macroeconomic releases and rate decisions",
+      "rationale": "Trend and volatility targeting respond to price only; a macro overlay would be a new, unvalidated strategy."
+    },
+    {
+      "name": "Any large-language-model judgement about the market",
+      "rationale": "No endpoint in this service asks a model what it thinks. Narration is template-bound to structured run fields (see narrate.py); anything beyond that would be fabrication wearing an explanation's clothes."
+    }
+  ]
+}

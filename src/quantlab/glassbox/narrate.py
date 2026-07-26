@@ -194,11 +194,16 @@ def _order_lines(report: dict[str, Any], facts: _Facts) -> tuple[list[str], list
         diff = _as_float(entry.get("diff"))
         if diff is None or band is None:
             continue
+        # `plan.skipped[].diff` is SIGNED (target minus current), but the band test the
+        # sentence describes is on its magnitude — the runner skips when
+        # |diff| <= min_trade_frac. Reporting the signed value produced "drift was
+        # -0.13%, at or below the 1.00% band", which reads as a different, weaker claim.
         counterfactuals.append(
             f"{symbol}: NOT traded because drift was "
-            f"{facts.pct(diff, f'report.plan.skipped[{idx}].diff')}, at or below the "
-            f"{facts.pct(band, 'report.plan.min_trade_frac')} minimum-trade band; had "
-            "drift exceeded that band the runner would have re-traded it back to target."
+            f"{facts.pct(abs(diff), f'derived.abs(report.plan.skipped[{idx}].diff)')}, "
+            f"at or below the {facts.pct(band, 'report.plan.min_trade_frac')} "
+            "minimum-trade band; had drift exceeded that band the runner would have "
+            "re-traded it back to target."
         )
 
     return lines, counterfactuals

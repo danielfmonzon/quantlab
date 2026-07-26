@@ -1,29 +1,48 @@
 /**
  * Hash-free client-side routing over the History API.
  *
- * No router dependency: seven static routes need path matching and a link
- * component, nothing more. The server serves `index.html` for unknown paths (see
- * `_SpaStaticFiles`), so deep links survive a reload.
+ * No router dependency: eight static routes need path matching, a link component, and
+ * a redirect table — nothing more. The server serves `index.html` for unknown paths
+ * (see `_SpaStaticFiles` locally, `_redirects` on Netlify), so deep links survive a
+ * reload.
+ *
+ * ROUTE RENAMES. The paths changed in G1: `/` is now the Story landing page and the
+ * operational Overview moved to `/live`. Old paths are kept working through
+ * `LEGACY_REDIRECTS` — a client-side equivalent of a 301, which replaces the history
+ * entry rather than pushing one so Back does not bounce the reader through the dead
+ * URL.
  */
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 export const ROUTES = [
-  { path: '/', label: 'Overview' },
-  { path: '/runs', label: 'Runs' },
-  { path: '/divergence', label: 'Divergence' },
-  { path: '/risk', label: 'Risk' },
-  { path: '/equity', label: 'Equity' },
-  { path: '/ledger', label: 'Ledger' },
-  { path: '/glass', label: 'Glass' },
+  { path: '/' },
+  { path: '/live' },
+  { path: '/decisions' },
+  { path: '/tracking' },
+  { path: '/limits' },
+  { path: '/equity' },
+  { path: '/ledger' },
+  { path: '/ignores' },
 ] as const
 
 export type RoutePath = (typeof ROUTES)[number]['path']
 
+/** Pre-G1 paths → their current home. Old links must not rot. */
+export const LEGACY_REDIRECTS: Record<string, RoutePath> = {
+  '/runs': '/decisions',
+  '/divergence': '/tracking',
+  '/risk': '/limits',
+  '/glass': '/ignores',
+  // `/overview` was never shipped as a path, but it is the obvious guess for the
+  // screen that used to live at `/`, so it is honoured too.
+  '/overview': '/live',
+}
+
 interface RouterValue {
   path: string
-  navigate: (to: string) => void
+  navigate: (to: string, options?: { replace?: boolean }) => void
 }
 
 const RouterContext = createContext<RouterValue>({ path: '/', navigate: () => {} })
@@ -47,12 +66,21 @@ export function RouterProvider({
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  const navigate = useCallback((to: string) => {
+  const navigate = useCallback((to: string, options?: { replace?: boolean }) => {
     if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', to)
+      if (options?.replace) window.history.replaceState({}, '', to)
+      else window.history.pushState({}, '', to)
     }
     setPath(to)
   }, [])
+
+  // A legacy path resolves to its new home and rewrites the URL in place, so the
+  // address bar and the rendered screen never disagree.
+  const legacy = LEGACY_REDIRECTS[normalise(path)]
+  useEffect(() => {
+    if (legacy) navigate(legacy, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacy])
 
   return (
     <RouterContext.Provider value={{ path, navigate }}>{children}</RouterContext.Provider>
@@ -65,11 +93,12 @@ export function Link({
   to,
   children,
   className,
+  ...rest
 }: {
   to: string
   children: ReactNode
   className?: string
-}) {
+} & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'className'>) {
   const { navigate } = useRouter()
   return (
     <a
@@ -81,15 +110,25 @@ export function Link({
         event.preventDefault()
         navigate(to)
       }}
+      {...rest}
     >
       {children}
     </a>
   )
 }
 
-/** Normalise a path to one of the known routes, defaulting to Overview. */
+/** Strip trailing slashes; `''` becomes `/`. */
+export function normalise(path: string): string {
+  return path.replace(/\/+$/, '') || '/'
+}
+
+/**
+ * Resolve a path to a known route, following one legacy redirect, defaulting to Story.
+ */
 export function resolveRoute(path: string): RoutePath {
-  const trimmed = path.replace(/\/+$/, '') || '/'
+  const trimmed = normalise(path)
+  const redirected = LEGACY_REDIRECTS[trimmed]
+  if (redirected) return redirected
   const match = ROUTES.find((r) => r.path === trimmed)
   return match ? match.path : '/'
 }

@@ -1,0 +1,7 @@
+# The public Glass Box is a static snapshot of a paper-trading research project.
+# Crawling is welcome; the snapshot directory is the raw data behind every screen.
+User-agent: *
+Allow: /
+Disallow: /snapshot/sanitization-report.txt
+
+Sitemap: /sitemap.xml

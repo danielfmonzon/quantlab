@@ -1,0 +1,66 @@
+{
+  "run_id": "run_trend_20260709T175420Z",
+  "strategy": "trend",
+  "narration": "Run run_trend_20260709T175420Z: account trend executed at 2026-07-09T17:54:20.810329Z as a DRY RUN (no orders could be sent). The gated pipeline completed 10 stages without aborting. Account equity was read as $100,000.00. Rule: trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise. That rule produced a target of SPY at 100.00%. Planned orders: BUY SPY for $100,000.00 notional moving weight from 0.00% to 100.00%. Estimated turnover for the plan was 1.0000 of equity. Branches the rule did not take: SPY: traded because drift was 100.00%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order.",
+  "rule_sentences": [
+    "Rule: trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise."
+  ],
+  "counterfactuals": [
+    "SPY: traded because drift was 100.00%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order."
+  ],
+  "facts": [
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$100,000.00",
+      "value": 100000.0,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "rule_constant.trend.n_months"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.target_weights.SPY"
+    },
+    {
+      "rendered": "$100,000.00",
+      "value": 100000.0,
+      "source": "report.plan.intents[0].notional"
+    },
+    {
+      "rendered": "0.00%",
+      "value": 0.0,
+      "source": "report.plan.intents[0].current_w"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.plan.intents[0].target_w"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "derived.abs(report.plan.intents[0].target_w - report.plan.intents[0].current_w)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "1.0000",
+      "value": 1.0,
+      "source": "report.plan.est_turnover"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}

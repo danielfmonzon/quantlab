@@ -4,11 +4,45 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
+
+    <!--
+      Defaults only. The head manager in src/components/chrome.tsx rewrites title and
+      description per route once the bundle runs; these values are what a client that
+      does not execute JavaScript sees, so they describe the site rather than any one
+      screen.
+    -->
+    <title>quantlab — a trading system that shows its work</title>
     <meta
       name="description"
-      content="quantlab Glass Box — read-only transparency view over a paper-trading system's own artifacts."
+      content="A paper-trading research system published with its arithmetic left in: every position, order, and rule, with the evidence for each claim it makes about itself."
     />
-    <title>quantlab Glass Box</title>
+
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!--
+      Open Graph / Twitter. og:image is a PLACEHOLDER SLOT: public/og-image.png does
+      not exist yet, so a share card degrades to text until one is added (1200x630).
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="quantlab Glass Box" />
+    <meta property="og:title" content="quantlab — a trading system that shows its work" />
+    <meta
+      property="og:description"
+      content="A paper-trading research system published with its arithmetic left in. Paper trading only; not investment advice."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="quantlab Glass Box" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="quantlab — a trading system that shows its work" />
+    <meta
+      name="twitter:description"
+      content="A paper-trading research system published with its arithmetic left in. Paper trading only; not investment advice."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
   </head>
   <body>
     <div id="root"></div>

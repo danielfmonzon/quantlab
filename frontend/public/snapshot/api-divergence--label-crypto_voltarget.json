@@ -1,0 +1,49 @@
+{
+  "label": "crypto_voltarget",
+  "weeks": [
+    {
+      "week_ending": "2026-07-22",
+      "label": "crypto_voltarget",
+      "asset_class": "crypto",
+      "paper_week_return": 0.01392126477488942,
+      "shadow_week_return": 0.01899412660698041,
+      "divergence_bps": -50.728618320909916,
+      "cumulative_divergence_bps": -56.561944018687086,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-07-16",
+      "window_end": "2026-07-22",
+      "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is timing instead: BTC trades 24/7, while paper equity snapshots and the shadow's daily bars are both once-daily, so weekend and overnight moves land entirely between two marks and produce LARGER structural day-to-day gaps than an equity account shows. The divergence threshold still applies to the weekly aggregate, where those intra-window timing gaps largely wash out."
+    },
+    {
+      "week_ending": "2026-07-24",
+      "label": "crypto_voltarget",
+      "asset_class": "crypto",
+      "paper_week_return": 0.011947408289993078,
+      "shadow_week_return": 0.0028238352561453794,
+      "divergence_bps": 91.23573033847698,
+      "cumulative_divergence_bps": -54.457340461122605,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-07-18",
+      "window_end": "2026-07-24",
+      "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is timing instead: BTC trades 24/7, while paper equity snapshots and the shadow's daily bars are both once-daily, so weekend and overnight moves land entirely between two marks and produce LARGER structural day-to-day gaps than an equity account shows. The divergence threshold still applies to the weekly aggregate, where those intra-window timing gaps largely wash out."
+    }
+  ],
+  "corrections": [
+    {
+      "week_ending": "2026-07-24",
+      "label": "crypto_voltarget",
+      "published_divergence_bps": 91.24,
+      "published_verdict": "DIVERGING",
+      "corrected_divergence_bps": null,
+      "corrected_verdict": "VOIDED",
+      "corrected_window": null,
+      "cause": "The BTC 2026-07-24 daily bar was PARTIAL when the review ran (65,230 at 05:43 UTC against a 64,083 final close), so the figure is not reproducible: recomputing yields +211 bps and flips the cumulative sign. No verdict is recorded for this week; the next clean Friday decides.",
+      "reference": "docs/decisions.md \u2014 2026-07-25 \u2014 Week 2026-07-24 divergence diagnosis, and two re-rulings"
+    }
+  ],
+  "note": null
+}

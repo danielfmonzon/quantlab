@@ -1,0 +1,41 @@
+========================================================================
+GLASS BOX SNAPSHOT — SANITIZATION REPORT
+========================================================================
+files scanned : 86
+bytes scanned : 620,403
+verdict       : PASS
+
+FORBIDDEN PATTERNS (zero matches required to pass)
+------------------------------------------------------------------------
+  alpaca_account_id                                     0  ok
+  email_address                                         0  ok
+  apca_api_header                                       0  ok
+  authorization_header                                  0  ok
+  env_secret_prefix:ALERT_EMAIL_TO                      0  ok
+  env_secret_prefix:ALPACA_API_KEY                      0  ok
+  env_secret_prefix:ALPACA_BASE_URL                     0  ok
+  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok
+  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok
+  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok
+  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok
+  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok
+  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok
+  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok
+  env_secret_prefix:SMTP_HOST                           0  ok
+  env_secret_prefix:SMTP_PASS                           0  ok
+  env_secret_prefix:SMTP_USER                           0  ok
+  env_secret_prefix:TIINGO_API_KEY                      0  ok
+
+ENV-SECRET CHECK
+------------------------------------------------------------------------
+  .env read locally; 14 value(s) reduced to 8-char prefixes and searched.
+  keys checked: ALERT_EMAIL_TO, ALPACA_API_KEY, ALPACA_BASE_URL, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, SMTP_HOST, SMTP_PASS, SMTP_USER, TIINGO_API_KEY
+  (prefixes themselves are never printed or stored)
+
+REDACTIONS PERFORMED (0)
+------------------------------------------------------------------------
+  (none)
+
+========================================================================
+PASS — no forbidden pattern matched. Snapshot may be written.
+========================================================================

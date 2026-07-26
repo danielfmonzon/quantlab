@@ -1,0 +1,86 @@
+{
+  "run_id": "run_crypto_voltarget_20260713T051847Z",
+  "strategy": "crypto_voltarget",
+  "narration": "Run run_crypto_voltarget_20260713T051847Z: account crypto_voltarget executed at 2026-07-13T05:18:47.192714Z as a LIVE SUBMIT against the paper broker. The gated pipeline completed 10 stages without aborting. Account equity was read as $98,439.18. Rule: crypto_voltarget sizes exposure as its target volatility (20%) divided by trailing 20-day realized volatility, annualized on a 365-day year, capped at 100% of equity; the remainder is held in cash. That rule produced a target of BTC-USD at 64.89%. Planned orders: BUY BTC-USD for $3,152.32 notional moving weight from 61.69% to 64.89%. Estimated turnover for the plan was 0.0320 of equity. Submitted to the broker: buy BTC-USD for $3,152.32 \u2014 broker status 'pending_new'. Branches the rule did not take: BTC-USD: traded because drift was 3.20%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order.",
+  "rule_sentences": [
+    "Rule: crypto_voltarget sizes exposure as its target volatility (20%) divided by trailing 20-day realized volatility, annualized on a 365-day year, capped at 100% of equity; the remainder is held in cash."
+  ],
+  "counterfactuals": [
+    "BTC-USD: traded because drift was 3.20%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order."
+  ],
+  "facts": [
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$98,439.18",
+      "value": 98439.18,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "20%",
+      "value": 0.2,
+      "source": "rule_constant.crypto_voltarget.target_vol"
+    },
+    {
+      "rendered": "20",
+      "value": 20,
+      "source": "rule_constant.crypto_voltarget.lookback_days"
+    },
+    {
+      "rendered": "365",
+      "value": 365,
+      "source": "rule_constant.crypto_voltarget.periods_per_year"
+    },
+    {
+      "rendered": "100%",
+      "value": 1.0,
+      "source": "rule_constant.crypto_voltarget.max_weight"
+    },
+    {
+      "rendered": "64.89%",
+      "value": 0.648913291780582,
+      "source": "report.target_weights.BTC-USD"
+    },
+    {
+      "rendered": "$3,152.32",
+      "value": 3152.3214399812223,
+      "source": "report.plan.intents[0].notional"
+    },
+    {
+      "rendered": "61.69%",
+      "value": 0.6168902554247202,
+      "source": "report.plan.intents[0].current_w"
+    },
+    {
+      "rendered": "64.89%",
+      "value": 0.648913291780582,
+      "source": "report.plan.intents[0].target_w"
+    },
+    {
+      "rendered": "3.20%",
+      "value": 0.03202303635586179,
+      "source": "derived.abs(report.plan.intents[0].target_w - report.plan.intents[0].current_w)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "0.0320",
+      "value": 0.03202303635586179,
+      "source": "report.plan.est_turnover"
+    },
+    {
+      "rendered": "$3,152.32",
+      "value": 3152.32,
+      "source": "report.submitted_orders[0].notional"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}

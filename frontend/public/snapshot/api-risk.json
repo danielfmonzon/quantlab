@@ -1,0 +1,109 @@
+{
+  "accounts": [
+    {
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "limits": {
+        "max_position_weight": 1.0,
+        "max_gross_exposure": 1.0,
+        "max_daily_loss": 0.03,
+        "max_weekly_loss": 0.08,
+        "max_drawdown_kill": 0.25,
+        "staleness_max_sessions": 1,
+        "weekly_divergence_alert_bps": 50.0
+      },
+      "limits_source": "risk.yaml",
+      "peak_equity": 100613.77,
+      "latest_equity": 98821.82,
+      "current_drawdown": -0.017810186418817153,
+      "drawdown_kill_limit": 0.25,
+      "drawdown_headroom": 0.23218981358118285,
+      "kill_switch": {
+        "halted": false,
+        "reason": null,
+        "triggered_at": null,
+        "requires_manual_reset": false
+      },
+      "note": null
+    },
+    {
+      "label": "trend",
+      "asset_class": "us_equity",
+      "limits": {
+        "max_position_weight": 1.0,
+        "max_gross_exposure": 1.0,
+        "max_daily_loss": 0.03,
+        "max_weekly_loss": 0.08,
+        "max_drawdown_kill": 0.25,
+        "staleness_max_sessions": 1,
+        "weekly_divergence_alert_bps": 50.0
+      },
+      "limits_source": "risk.yaml",
+      "peak_equity": 100288.65,
+      "latest_equity": 98147.57,
+      "current_drawdown": -0.021349175604617132,
+      "drawdown_kill_limit": 0.25,
+      "drawdown_headroom": 0.22865082439538287,
+      "kill_switch": {
+        "halted": false,
+        "reason": null,
+        "triggered_at": null,
+        "requires_manual_reset": false
+      },
+      "note": null
+    },
+    {
+      "label": "crypto_trend",
+      "asset_class": "crypto",
+      "limits": {
+        "max_position_weight": 1.0,
+        "max_gross_exposure": 1.0,
+        "max_daily_loss": 0.15,
+        "max_weekly_loss": 0.25,
+        "max_drawdown_kill": 0.5,
+        "staleness_max_sessions": 1,
+        "weekly_divergence_alert_bps": null
+      },
+      "limits_source": "crypto_risk.yaml",
+      "peak_equity": 100000.0,
+      "latest_equity": 100000.0,
+      "current_drawdown": 0.0,
+      "drawdown_kill_limit": 0.5,
+      "drawdown_headroom": 0.5,
+      "kill_switch": {
+        "halted": false,
+        "reason": null,
+        "triggered_at": null,
+        "requires_manual_reset": false
+      },
+      "note": null
+    },
+    {
+      "label": "crypto_voltarget",
+      "asset_class": "crypto",
+      "limits": {
+        "max_position_weight": 1.0,
+        "max_gross_exposure": 1.0,
+        "max_daily_loss": 0.15,
+        "max_weekly_loss": 0.25,
+        "max_drawdown_kill": 0.5,
+        "staleness_max_sessions": 1,
+        "weekly_divergence_alert_bps": null
+      },
+      "limits_source": "crypto_risk.yaml",
+      "peak_equity": 102465.73,
+      "latest_equity": 99939.82,
+      "current_drawdown": -0.024651266330703803,
+      "drawdown_kill_limit": 0.5,
+      "drawdown_headroom": 0.4753487336692962,
+      "kill_switch": {
+        "halted": false,
+        "reason": null,
+        "triggered_at": null,
+        "requires_manual_reset": false
+      },
+      "note": null
+    }
+  ],
+  "note": null
+}

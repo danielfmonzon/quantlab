@@ -299,6 +299,28 @@ def test_counterfactual_states_the_branch_the_rule_did_not_take() -> None:
     assert "would have re-traded it back to target" in held
 
 
+def test_skipped_drift_is_reported_as_a_magnitude_not_a_signed_value() -> None:
+    """`plan.skipped[].diff` is signed; the band it is compared against is not.
+
+    Regression: a real snapshot rendered "drift was -0.13%, at or below the 1.00%
+    minimum-trade band", which reads as a weaker claim than the comparison the runner
+    actually made (|diff| <= min_trade_frac).
+    """
+    report = dict(VOLTARGET_RUN)
+    plan = dict(report["plan"])
+    plan["intents"] = []
+    plan["skipped"] = [{"symbol": "BTC-USD", "current_w": 0.66, "target_w": 0.6587,
+                        "diff": -0.0013}]
+    report["plan"] = plan
+
+    narration = narrate_run("x", report)
+    held = next(c for c in narration.counterfactuals if c.startswith("BTC-USD"))
+    assert "0.13%" in held
+    assert "-0.13%" not in held
+    source = next(f.source for f in narration.facts if f.rendered == "0.13%")
+    assert source == "derived.abs(report.plan.skipped[0].diff)"
+
+
 def test_no_trade_run_says_so_without_inventing_orders() -> None:
     narration = narrate_run("run_trend_20260723T140016Z", TREND_RUN)
     assert "No orders were planned" in narration.narration

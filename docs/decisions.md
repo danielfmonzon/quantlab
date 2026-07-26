@@ -6,6 +6,81 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-26 — Two products from one codebase, and a gate between them
+
+**Decision.** The Glass Box is now **two products** built from one codebase:
+
+* the **operational dashboard**, served by `quantlab glassbox serve` on `127.0.0.1`,
+  reading the live API — unchanged in behaviour;
+* the **public site**, a static build that reads flat JSON captured by
+  `quantlab glassbox snapshot` and hosted on Netlify.
+
+The public build has **no route back to the machine that trades**. It fetches
+`/snapshot/*.json` and never `/api/*`, so there is no path from the internet to the
+broker credentials, the artifacts, or the API — not a firewall rule that could be
+misconfigured, but an absence of the capability. That is the whole reason for the
+split, and it is why the public site is a snapshot rather than a read-only proxy:
+a proxy would still be a door.
+
+**Snapshot architecture.** `quantlab glassbox snapshot` enumerates every `/api` GET
+route **from the app itself** rather than from a hand-kept list, so a new endpoint is
+captured automatically and cannot be silently omitted; the parameterised narration
+route is expanded over every run on disk. Capture runs in-process through
+`TestClient` — no server, no port, no network. Files are addressed by a
+`canonical_key` mirrored verbatim in the frontend, with `limit` excluded because
+captures are full-depth. `manifest.json` records the capture instant, git commit and
+version, and the banner on every public screen reads its timestamp from there, so a
+stale snapshot is visible rather than quietly out of date.
+
+Two guards earned their place on the first run:
+
+* **Depth vs declared ceiling.** `/api/runs` declares `le=1000`; the pipeline asked
+  for 5000 and FastAPI answered **422**, so the first snapshot contained five
+  validation-error bodies that serialise to JSON and sit in a capture looking like
+  data. Depth is now per-endpoint, and `capture` **refuses any non-200** rather than
+  trusting those constants to stay correct.
+* **All-or-nothing writes.** A forbidden pattern aborts before any file is created —
+  not even the clean ones. A partially-written snapshot is worse than none, because
+  it looks finished.
+
+**Sanitization is a gate, not a step.** Every byte is redacted and vetted in memory
+before anything is written. Redactions rewrite what is merely *local* (Windows user
+paths, POSIX home directories → `<path>`). Forbidden patterns **abort**: Alpaca
+account ids, any email address, `APCA-API` / `Authorization` header names, and the
+first eight characters of every value in the local `.env`. Redaction runs first, so
+the text that would actually ship is the text that gets vetted.
+
+The report is built to be **safe to share**: pattern names, match counts, and file
+locations, never the matched text — a report that echoed the secret it found in order
+to prove it found one would be the leak it exists to prevent. Secret prefixes are
+searched for and never printed, logged, or attached to the report object. And when
+`.env` is absent the report says **NOT CHECKED** rather than reporting a vacuous pass:
+"0 matches" and "the check did not run" are different claims, and conflating them is
+how a gate fails open.
+
+**Deploy is gated on a human.** A PASS from the tool is **necessary, not sufficient** —
+it only knows the patterns it was told about. The ritual is snapshot → *Quant Lead
+reads the sanitization report* → `build:public` → deploy, and the report is written to
+`frontend/public/snapshot/sanitization-report.txt` for exactly that review. There is
+no automatic refresh by design: each publication is a deliberate act.
+
+**Landing page.** `/` is now the Story screen and the operational Overview moved to
+`/live`. Pre-G1 paths redirect — client-side in the app and as real 301s in
+`netlify.toml` — so existing links do not rot. This is the one intentional behaviour
+change to the operational dashboard; every screen is otherwise identical, which the
+60 pre-existing frontend tests still assert.
+
+**Copy is placeholder, and says so.** The brief specified the Story prose, the nav
+renames, and the footer disclaimer by reference to documents (F4, F2, F15) that are not
+in this repository or its history. Text cannot be reproduced verbatim from an absent
+source, and a public-facing legal disclaimer is the last place to invent
+plausible-looking wording — so every user-facing sentence lives in
+`frontend/src/content/copy.ts`, is flagged in the UI behind `PLACEHOLDER_*` constants,
+and must be replaced before deploy. **The copy review joins the sanitization report at
+the same human gate.**
+
+---
+
 ## 2026-07-25 — Tier correction: Proven is earned at day 90, not before
 
 **Correction (Quant Lead ruling).** The equity accounts were prematurely labelled
