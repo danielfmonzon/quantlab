@@ -1,6 +1,14 @@
 {
-  "count": 300,
+  "count": 301,
   "events": [
+    {
+      "at": "2026-07-26T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "One apex, a real domain, and mail that can finally be authenticated",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
     {
       "at": "2026-07-26T00:00:00Z",
       "kind": "decision",

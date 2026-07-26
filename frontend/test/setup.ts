@@ -1,6 +1,20 @@
 import '@testing-library/jest-dom/vitest'
 import { afterEach, vi } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
+
+/**
+ * Headroom for `findBy*`, which vitest's `testTimeout` does NOT govern.
+ *
+ * This is the setting that actually matters for the G4 flake. Testing Library's async
+ * helpers use their own `asyncUtilTimeout`, defaulting to 1000ms, and a `findBy*` that
+ * exhausts it throws at 1s — long before vitest's per-test timeout is in play. Raising
+ * `testTimeout` alone (see `vite.config.ts`) would have looked like a fix and changed
+ * nothing about the suspected failure mode.
+ *
+ * 5s, not 15s: this bound exists so a genuinely hung query still fails the run in reasonable
+ * time. Only a query that would otherwise fail waits longer, so passing tests pay nothing.
+ */
+configure({ asyncUtilTimeout: 5_000 })
 
 afterEach(() => {
   cleanup()

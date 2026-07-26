@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-26T17:14:55.840684Z",
-  "git_commit": "02f86eb",
+  "generated_at": "2026-07-26T18:02:16.068041Z",
+  "git_commit": "4d45ad4",
   "quantlab_version": "1.0.0",
   "endpoints": [
     {
@@ -9,7 +9,7 @@
       "path": "/api/decisions",
       "params": {},
       "status": 200,
-      "bytes": 58381
+      "bytes": 62781
     },
     {
       "key": "/api/divergence",
@@ -705,7 +705,7 @@
       "path": "/api/timeline",
       "params": {},
       "status": 200,
-      "bytes": 74945
+      "bytes": 75184
     }
   ],
   "endpoint_count": 85,

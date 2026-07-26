@@ -6,6 +6,65 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-26 — One apex, a real domain, and mail that can finally be authenticated
+
+**The two-apex question is closed.** Quant Lead ruling: `monzonautomation.com` is not owned and
+will not be acquired. There is one apex, `danielmonzonautomation.com`, and Glass Box lives at
+`glassbox.danielmonzonautomation.com`. The discrepancy tracked in `docs/brand.md` §6.1 was
+resolved by a decision, not by DNS.
+
+**DNS changes on a domain that carries live mail, done additively.** The zone is Netlify-hosted,
+so this was executable rather than a handover document. `MX` was re-verified before and after
+every individual change — five checkpoints — and never differed from `1 smtp.google.com`. Two
+structural safeguards were worth more than the care: the Netlify API offers `createDnsRecord`
+and `deleteDnsRecord` but **no update method**, so a record cannot be silently mutated; and a
+full record inventory was captured before the first change and diffed after the last, proving
+every pre-existing record was byte-identical afterwards.
+
+**A `CNAME` was the wrong instrument, and the wrong-ness was invisible.** Generic DNS advice —
+and this project's own G4 runbook — says a subdomain takes a `CNAME`. On a Netlify-hosted zone,
+attaching the domain to the site makes Netlify create its own `NETLIFY`-type record, the same
+mechanism already serving the apex and `www`. Doing both left **two records for one hostname**,
+which RFC 1034 forbids: a `CNAME` may not coexist with other data at a name. Nothing failed —
+the resolver silently preferred the managed record and all eight routes returned 200 — which is
+precisely why it was worth finding. The redundant `CNAME` was deleted and the runbook now says
+to let Netlify write the record.
+
+**Mail authentication: two of three, and the third is honestly out of reach.** SPF and DMARC are
+live. SPF was created only after re-confirming zero existing `v=spf1` records, because two is a
+permanent failure rather than a merge. `~all` not `-all`, and DMARC at `p=none`: **observation
+before enforcement.** A domain that has never published SPF does not yet know every service
+legitimately sending on its behalf, and enforcing first is how a business blackholes its own
+invoicing. DKIM requires Google Workspace Admin and cannot be done from here — so it is written
+as click-by-click instructions rather than half-attempted, including the step people miss
+(clicking *Start authentication*, without which the published key does nothing and fails
+silently).
+
+**"Security headers matching the Glass Box standard" stayed refused, and the refusal was
+tested.** The marketing site received four headers — `X-Frame-Options`,
+`X-Content-Type-Options`, `Referrer-Policy`, and a `Permissions-Policy` that denies camera,
+microphone and geolocation but **leaves `payment` enabled because Stripe needs it**. No CSP: all
+22 of that site's scripts are inline and five third parties are load-bearing. Verification
+drove real Chrome before and after and compared: identical third-party load counts, all widget
+globals present, zero blocked resources, zero console errors. The probe had to *trigger* each
+integration — consent-accept for Clarity and Chatbase, booking-intent scroll for Calendly —
+because a plain page load reports zero requests for all five and would have read as "everything
+is broken" when the truth was "everything is correctly deferred". **A verification that cannot
+distinguish deferred from broken is not a verification.**
+
+**Canonical host wired in code, not in a command.** `SITE_URL_DEFAULT` in `vite.config.ts` and
+`VITE_SITE_URL` in `netlify.toml` both name the custom domain. Making it a required env var
+would have meant a forgotten export produced a successful build that quietly declared the wrong
+host canonical, with nothing downstream failing. The `.netlify.app` host still answers 200 but
+declares the custom domain canonical, so it is an alias rather than a competitor.
+
+**A footnote on a number that was being carried forward.** `/decisions` mobile CLS was recorded
+as 0.187 and still-open since G3. Re-measured on the new domain across four runs: **0**. The G3
+work fixed it; the open figure was stale, not the problem. Numbers taken on trust go stale the
+same way code does.
+
+---
+
 ## 2026-07-26 — The marketing site was already live, and the CTA pointed at nothing
 
 **Three findings, none of them what the batch was scoped around.** G4 was written to deploy

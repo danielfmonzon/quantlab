@@ -18,6 +18,10 @@
   # declared here too so a Netlify-triggered build cannot accidentally ship live mode
   # (which would try to fetch /api/* against a static host and render error states).
   VITE_DATA_MODE = "snapshot"
+  # The canonical host. `vite.config.ts` defaults to this same value, so the two would have
+  # to disagree for a build to publish the wrong canonical; declared here as well so a
+  # Netlify-triggered build is explicit about which hostname it claims to be.
+  VITE_SITE_URL = "https://glassbox.danielmonzonautomation.com"
 
 # --------------------------------------------------------------------------- #
 # Security headers                                                            #

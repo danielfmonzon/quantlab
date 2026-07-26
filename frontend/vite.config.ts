@@ -2,8 +2,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig } from 'vite'
 
-/** Production host. Override per-deploy with VITE_SITE_URL. */
-const SITE_URL_DEFAULT = 'https://monzonautomation-glassbox.netlify.app'
+/**
+ * Production host. Override per-deploy with VITE_SITE_URL.
+ *
+ * This is the custom domain, not the `.netlify.app` one, because the value ends up in
+ * `<link rel="canonical">`, `og:image`, `robots.txt` and `sitemap.xml` — every place that
+ * tells a crawler which hostname is authoritative. It is a DEFAULT rather than a required
+ * env var deliberately: the site is still reachable at `monzonautomation-glassbox.netlify.app`,
+ * so a build that forgot to set `VITE_SITE_URL` would succeed while quietly declaring the
+ * wrong host canonical, and nothing downstream would fail.
+ */
+const SITE_URL_DEFAULT = 'https://glassbox.danielmonzonautomation.com'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -119,5 +128,25 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     include: ['test/**/*.test.tsx', 'test/**/*.test.ts'],
     css: false,
+    /**
+     * Headroom for `findBy*` queries, not a fix for a known bug.
+     *
+     * One isolation run in G4 reported a single failure that has not reproduced in any run
+     * since, and the failing test was never identified — the output scrolled past the filter
+     * in use and the run has been green ever since. The one measurement that pointed
+     * anywhere: that run was cold (36s collect vs ~14s warm), and a `findBy*` query under a
+     * cold, parallel, jsdom start can plausibly exceed the 1000ms default while the code
+     * under test is perfectly correct.
+     *
+     * So this is a hypothesis with slack added, honestly labelled. Raising the timeout
+     * cannot fix a real race — it can only stop a slow-but-correct render from being
+     * reported as a failure. If a failure recurs *with* this headroom, the cold-start theory
+     * is wrong and the cause is real; that would be the signal to actually chase it.
+     *
+     * The cost of the slack is bounded: these apply per assertion, and only a test that
+     * would otherwise FAIL waits longer. Passing tests are unaffected.
+     */
+    testTimeout: 15_000,
+    hookTimeout: 15_000,
   },
 }))
