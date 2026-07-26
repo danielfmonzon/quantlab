@@ -6,6 +6,54 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-26 — The marketing site was already live, and the CTA pointed at nothing
+
+**Three findings, none of them what the batch was scoped around.** G4 was written to deploy
+the MonzonAutomation marketing site to a new Netlify project and to park the Story CTA on a
+placeholder link until an apex went live. Measuring first changed all three items.
+
+**The site is already in production.** `github.com/danielfmonzon/dma-website` builds clean
+(Astro, `npm run build`, 8 pages, no placeholder markers) and is already deployed at
+`https://danielmonzonautomation.com` — Netlify project `danielmonzon`, custom domain
+attached, live HTML byte-identical in its headline and title to a fresh local build, plus a
+`dmonzon-staging` site on the same repo. Creating a third deployment named
+`monzonautomation` would have published a competing copy of a live business site: two URLs
+to keep in sync, and two hostnames competing for the same search ranking. **The site was
+not unfinished, so the instruction's own guard — assess before forcing a deploy — resolved
+to "do not deploy."** No new site was created. What ITEM 2 actually wanted, a
+production-hosted marketing site, already existed.
+
+**"Security headers matching the Glass Box standard" would have broken it.** Glass Box runs
+`default-src 'self'` because it is self-contained: no third-party script, no inline script,
+no embed. The marketing site is the opposite — 22 inline `<script>` blocks, zero external JS
+bundles, and functional dependencies on Calendly, Stripe, Tally, Chatbase and Microsoft
+Clarity. Copying that CSP across would have silently disabled booking, checkout and chat on
+a live lead-generation site. **A security standard is a property of a threat model, not a
+file to copy between projects.** The headers it can safely take, and the report-only CSP
+path to a real policy, are recorded in the G4 report; none were applied, because pushing an
+untested CSP to a live revenue path is not a change to make without its owner watching.
+
+**The CTA pointed at an unregistered domain.** `monzonautomation.com` returns `NXDOMAIN` —
+not an empty site, an unowned name. The most important link on the landing page, the one
+asking a reader to become a client, produced a browser error, and two more references in
+the footer did the same. The brief anticipated substituting a personal profile URL; the
+better answer was the live marketing site, which returns 200 and *is* MonzonAutomation, so
+the link is now correct rather than merely non-broken. `MONZONAUTOMATION_URL` in
+`src/content/copy.ts` is the single point of change, and a test asserts the string appears
+exactly once in that file so the three call sites cannot drift apart again.
+
+**The DNS warning was aimed at a risk already taken.** The brief asked for a loud warning
+never to move the nameservers, because the domain carries live email. The nameservers have
+already been moved — the zone is on Netlify DNS (`dns1–dns4.p08.nsone.net`) and the Google
+Workspace `MX` record survived the migration intact. The warning that still applies is a
+different one, so the runbook states that one instead: the mail records now live in the same
+Netlify panel as the web records, so bulk edits there are what breaks mail. And the premise
+turned out to overstate the protection in place — the domain publishes **no SPF, no DMARC
+and no DKIM**, so it is currently unauthenticated and spoofable. Documented as a mail task
+rather than fixed, because it is outside this project and its own change window.
+
+---
+
 ## 2026-07-26 — A gate that checks for presence, and a page readable without JavaScript
 
 **The completeness gate.** `verify-dist` only ever asserted the ABSENCE of forbidden

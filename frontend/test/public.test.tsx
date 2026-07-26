@@ -17,6 +17,7 @@ import { Story, equityClockDays } from '../src/screens/Story'
 import { canonicalKey, getJson, resetManifestCache } from '../src/lib/transport'
 import {
   DISCLAIMER,
+  MONZONAUTOMATION_URL,
   NAV_COPY,
   STORY_CTA,
   STORY_HERO,
@@ -283,9 +284,12 @@ describe('Story', () => {
     mount(<Story />)
     const cta = await screen.findByTestId('story-cta')
     expect(cta).toHaveTextContent('Glass Box is a MonzonAutomation project.')
+    // Asserted against the constant, not a literal: the destination apex is expected to
+    // change once `monzonautomation.com` is registered, and a test that hardcodes today's
+    // URL would fail on a correct one-line config change.
     expect(
       within(cta).getByRole('link', { name: /Work with MonzonAutomation/ }),
-    ).toHaveAttribute('href', 'https://monzonautomation.com')
+    ).toHaveAttribute('href', MONZONAUTOMATION_URL)
     expect(within(cta).getByRole('link', { name: /Read the build log/ })).toHaveAttribute(
       'href',
       '/ledger',
@@ -489,7 +493,7 @@ describe('footer', () => {
     expect(within(footer).getByTestId('built-by-github')).toBeInTheDocument()
     expect(within(footer).getByTestId('built-by-monzonautomation')).toHaveAttribute(
       'href',
-      'https://monzonautomation.com',
+      MONZONAUTOMATION_URL,
     )
     expect(within(footer).getByTestId('footer-version')).toHaveTextContent('live mode')
   })

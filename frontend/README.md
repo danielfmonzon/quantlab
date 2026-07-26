@@ -129,44 +129,120 @@ Netlify project `monzonautomation-glassbox` (site id `be63f48c-4949-4603-b8dd-a6
 HTTPS, HSTS, and the `netlify.toml` security headers are active; asset compression and
 immutable caching of `/assets/*` are handled by Netlify's CDN.
 
-### Custom domain — DNS records Daniel needs to add
-
-**Not configured by this batch, deliberately.** DNS belongs to the domain owner. To serve
-Glass Box at `glassbox.monzonautomation.com`, add ONE of the following at whichever
-provider hosts `monzonautomation.com`:
-
-**Option A — CNAME (recommended for a subdomain)**
-
-| Type | Name | Value | TTL |
-| --- | --- | --- | --- |
-| `CNAME` | `glassbox` | `monzonautomation-glassbox.netlify.app.` | 3600 |
-
-**Option B — Netlify DNS** (only if you want Netlify to run the whole zone): point the
-apex nameservers at Netlify and add the subdomain in the Netlify UI. This moves *all* DNS
-for the domain, including the marketing site's records, so Option A is the smaller change.
-
-After the record resolves:
-
-```bash
-netlify domains:add glassbox.monzonautomation.com          # or add it in the UI
-```
-
-Netlify then provisions a Let's Encrypt certificate automatically (usually minutes; it
-needs the CNAME to resolve first). Two follow-ups once the domain is live:
-
-1. Set `VITE_SITE_URL=https://glassbox.monzonautomation.com` and rebuild, so
-   `<link rel="canonical">`, `og:image`, `robots.txt` and `sitemap.xml` all carry the real
-   host instead of the `.netlify.app` one.
-2. Decide which apex is canonical — the marketing repo's canonical tag currently says
-   `danielmonzonautomation.com` while this project links to `monzonautomation.com`. Two
-   apexes for one brand split SEO authority. See `docs/brand.md` §6.1.
-
 ### Refreshing
 
 Repeat all three steps. The banner's timestamp comes from `manifest.json`, so a stale
 snapshot is visible on every screen rather than silently out of date. There is no
 automatic refresh, by design: each publication is a deliberate act with a human
 reading the sanitization report first.
+
+## DNS runbook — both sites
+
+**Not configured by this batch, deliberately.** DNS belongs to the domain owner. This
+section is the complete set of steps; nothing here has been applied.
+
+### ⚠️ READ THIS BEFORE TOUCHING THE ZONE — THE DOMAIN CARRIES LIVE EMAIL
+
+`danielmonzonautomation.com` receives real mail through Google Workspace
+(`MX 1 smtp.google.com`). **Mail delivery and web hosting share one zone.** A DNS change
+made carelessly does not produce a broken page you notice in a browser — it produces mail
+that silently stops arriving, and you find out when a client says they never heard back.
+
+Two specific rules:
+
+1. **Do not move the nameservers.** They are already `dns1–dns4.p08.nsone.net` (Netlify
+   DNS), and the MX record has been migrated into that zone correctly. Repointing them at
+   another provider — a registrar's default set, a new host's "we'll manage DNS for you"
+   offer — hands the zone to a nameserver that has never heard of the MX record, and mail
+   stops at the moment of the switch. **Add records; never re-delegate.**
+2. **Because the zone lives at Netlify, every record edit happens in the Netlify UI**
+   (Domains → `danielmonzonautomation.com` → DNS panel), alongside the mail records. Do not
+   use a "replace all records" or bulk-import flow. Change one record at a time and leave
+   `MX`, `TXT` and anything named `_dmarc` or `*._domainkey` untouched.
+
+Verify mail records are intact **before and after** any change — same output both times:
+
+```bash
+nslookup -type=MX  danielmonzonautomation.com 8.8.8.8   # expect: 1 smtp.google.com
+nslookup -type=TXT danielmonzonautomation.com 8.8.8.8   # expect: the google-site-verification string
+```
+
+> **Separate finding, worth acting on independently of any DNS work below.** As of
+> 2026-07-26 this domain publishes **no SPF record, no DMARC record and no DKIM key**
+> (`_dmarc` and `google._domainkey` both resolve to nothing). Mail is being *delivered*,
+> so nothing looks broken, but the domain is currently unauthenticated: anyone can send
+> mail that appears to come from it, and Gmail/Outlook may increasingly send legitimate
+> mail from it to spam. Adding SPF, then DKIM from the Workspace admin console, then a
+> `p=none` DMARC record to observe before enforcing, is the fix. That is a mail task, not
+> a hosting task, and it is out of scope for this batch — but it is the reason the warning
+> above says "MX/TXT" rather than the fuller record set you would expect to protect.
+
+### Site 1 — Glass Box (this project) at `glassbox.<apex>`
+
+Netlify project `monzonautomation-glassbox`. A subdomain, so a plain `CNAME` is all it
+needs:
+
+| Type | Name | Value | TTL |
+| --- | --- | --- | --- |
+| `CNAME` | `glassbox` | `monzonautomation-glassbox.netlify.app.` | 3600 |
+
+Then, in the Netlify UI: **Site configuration → Domain management → Add a domain** →
+`glassbox.danielmonzonautomation.com` → Verify. Or:
+
+```bash
+netlify domains:add glassbox.danielmonzonautomation.com
+```
+
+Netlify issues a Let's Encrypt certificate automatically once the CNAME resolves (usually
+minutes). Because the zone is already on Netlify DNS, adding the domain in the UI may
+create the record for you — check the DNS panel first and do not add a duplicate.
+
+**One follow-up, required for correctness rather than cosmetics:** set
+`VITE_SITE_URL=https://glassbox.danielmonzonautomation.com` and rebuild, so
+`<link rel="canonical">`, `og:image`, `robots.txt` and `sitemap.xml` carry the real host.
+Until that rebuild, the deployed pages declare the `.netlify.app` host as canonical, which
+tells search engines to index the wrong hostname.
+
+### Site 2 — the marketing site
+
+**Already live and needs nothing.** `https://danielmonzonautomation.com` is served by
+Netlify project `danielmonzon` from `github.com/danielfmonzon/dma-website`, with the apex
+and `www` both resolving and `www` 301-ing to the apex. There is also a
+`dmonzon-staging` site building from the same repo.
+
+The records are in place already, recorded here so a future reader can recognise them
+rather than "fix" them:
+
+| Type | Name | Value | Note |
+| --- | --- | --- | --- |
+| `A` | `@` | `18.208.88.157`, `98.84.224.111` | Netlify load balancers, managed by Netlify DNS |
+| `A` | `www` | same pair | 301s to the apex |
+| `MX` | `@` | `1 smtp.google.com` | **live mail — do not touch** |
+
+Netlify DNS handles the apex itself, which is why there are `A` records and no `ALIAS`.
+**If the zone is ever moved to a provider that is not Netlify**, an apex cannot be a
+`CNAME` (DNS forbids `CNAME` at a zone apex), so it would need that provider's
+`ALIAS`/`ANAME`/flattened-`CNAME` record type pointed at `<site>.netlify.app` — and if the
+provider offers none, Netlify's documented apex `A` target. Do not hardcode the two IPs
+above into a new provider: they are Netlify infrastructure and can change.
+
+### Moving to the `monzonautomation.com` apex
+
+The shorter apex the copy used to link to **is not registered** — `monzonautomation.com`
+returns `NXDOMAIN`, so it is not a configuration gap but an unowned name. Two apexes for
+one brand also split SEO authority (`docs/brand.md` §6.1). If Daniel wants it, in order:
+
+1. Register `monzonautomation.com`.
+2. Add it to the **existing** `danielmonzon` Netlify site as a domain alias — not a new
+   site. Two sites serving identical content from one repo compete with each other for
+   search ranking and give two URLs to keep in sync.
+3. Decide which apex is canonical and 301 the other to it. The repo's `<link
+   rel="canonical">` currently names `danielmonzonautomation.com`; whichever apex loses
+   must redirect, not merely coexist.
+4. Flip `MONZONAUTOMATION_URL` in `src/content/copy.ts` — one line, and the CTA, the
+   footer link and the attribution all follow.
+5. Repeat step 1's mail check. Registering a second domain does not affect the first
+   domain's mail, but step 2 involves the live site, so verify anyway.
 
 ---
 

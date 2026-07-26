@@ -1,6 +1,22 @@
 {
-  "count": 298,
+  "count": 300,
   "events": [
+    {
+      "at": "2026-07-26T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "The marketing site was already live, and the CTA pointed at nothing",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-07-26T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "A gate that checks for presence, and a page readable without JavaScript",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
     {
       "at": "2026-07-26T00:00:00Z",
       "kind": "decision",

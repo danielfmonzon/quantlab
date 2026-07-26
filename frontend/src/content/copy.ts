@@ -19,6 +19,27 @@
 /** Token replaced with the paper-tracking day count from the equity clock. */
 export const DAY_COUNT_TOKEN = '{N}'
 
+/**
+ * Where every "MonzonAutomation" link on this site points. One constant, three uses.
+ *
+ * SWITCH TO `https://monzonautomation.com` ONCE THAT APEX IS LIVE. As of 2026-07-26 it is
+ * not registered at all (`monzonautomation.com` returns NXDOMAIN, not merely an empty
+ * site), so it cannot be pointed anywhere yet — registration comes first, then the DNS
+ * records in `frontend/README.md`, then this line.
+ *
+ * WHY THIS VALUE. Until G4 this read `https://monzonautomation.com`, which meant the
+ * primary call to action on the landing page — the one link asking a reader to become a
+ * client — led to a browser error. `danielmonzonautomation.com` is the live
+ * MonzonAutomation marketing site (Netlify project `danielmonzon`, HTTP 200, content
+ * current as of this batch), so it is not a placeholder standing in for the real
+ * destination; it *is* the real destination under the brand's current apex.
+ *
+ * The two apexes are a known brand discrepancy, tracked in `docs/brand.md` §6.1. This
+ * constant is where that gets resolved when Daniel picks a winner: one edit, and the CTA,
+ * the footer link and the "built by" attribution all move together.
+ */
+export const MONZONAUTOMATION_URL = 'https://danielmonzonautomation.com'
+
 // --------------------------------------------------------------------------- //
 // Story — hero                                                                //
 // --------------------------------------------------------------------------- //
@@ -155,7 +176,7 @@ export const STORY_CTA = {
   ctas: [
     {
       label: 'Work with MonzonAutomation →',
-      href: 'https://monzonautomation.com',
+      href: MONZONAUTOMATION_URL,
       external: true,
       primary: true,
     },
@@ -233,10 +254,10 @@ export const BUILT_BY = {
   name: 'Daniel Monzon',
   prefix: 'Built by',
   org: 'MonzonAutomation',
-  orgHref: 'https://monzonautomation.com',
+  orgHref: MONZONAUTOMATION_URL,
   links: [
     { label: 'GitHub', href: 'https://github.com/danielfmonzon' },
-    { label: 'MonzonAutomation', href: 'https://monzonautomation.com' },
+    { label: 'MonzonAutomation', href: MONZONAUTOMATION_URL },
   ],
 } as const
 
