@@ -6,6 +6,32 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-07-27 — DKIM key published, and why that is not the same as DKIM working
+
+The G5 entry recorded DKIM as out of reach because it needs Google Workspace Admin. Half of
+that was right. Generating the key is an Admin action and activating it is an Admin action,
+but **publishing it is a DNS action**, and the zone is ours — so Part B was executable after
+all. `TXT google._domainkey` is live: additive create, `MX` verified before and after, zone
+diffed to prove exactly one record was added and nothing pre-existing moved.
+
+**The verification is the part worth recording.** A DKIM value is 410 characters of base64
+that no human can proofread, and DNS splits it across two 255-byte character-strings, so the
+published form does not even look like the input. Eyeballing it would be theatre. Instead the
+record was reassembled from its chunks and compared to the source by SHA-256, then decoded to
+confirm it is a 294-byte SPKI carrying a 2048-bit RSA key with exponent 65537 — checked
+against what the authoritative nameservers actually serve, and against what a public resolver
+reassembles, not against what was sent. **For a value this shape, "identical" has to be an
+assertion, not an impression.**
+
+**DKIM is published and still not on.** Until *Start authentication* is clicked, outbound mail
+carries no signature, and the only symptom is an absence — the same failure mode that let this
+domain run unauthenticated for as long as it did. So the README now names four parts with
+owners rather than one checklist: a published key reads as "done" to anyone skimming, and that
+misreading is the whole risk. It also warns against re-clicking *Generate new record*, which
+would silently invalidate the key just published.
+
+---
+
 ## 2026-07-26 — One apex, a real domain, and mail that can finally be authenticated
 
 **The two-apex question is closed.** Quant Lead ruling: `monzonautomation.com` is not owned and

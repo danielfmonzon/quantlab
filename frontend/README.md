@@ -164,11 +164,12 @@ change and never differed. Current state:
 | Glass Box subdomain | `NETLIFY glassbox → monzonautomation-glassbox.netlify.app` | live, HTTPS forced |
 | SPF | `TXT @ v=spf1 include:_spf.google.com ~all` | live |
 | DMARC | `TXT _dmarc v=DMARC1; p=none; …` | live, **observe mode** |
-| DKIM | `TXT google._domainkey` | **still outstanding — Daniel's step, see below** |
+| DKIM | `TXT google._domainkey` | **record published 2026-07-27; not yet activated — see below** |
 | Mail | `MX 1 smtp.google.com` | **unchanged throughout** |
 
-The one remaining task is DKIM, which cannot be done from here — it requires Google
-Workspace Admin. Click-by-click instructions are below.
+The DKIM **record is published**; DKIM is not yet **active**. Publishing the key and
+switching authentication on are two different actions in two different systems, and only the
+first is a DNS task. See the DKIM section below for the one remaining step.
 
 ### ⚠️ READ THIS BEFORE TOUCHING THE ZONE — THE DOMAIN CARRIES LIVE EMAIL
 
@@ -231,31 +232,54 @@ the reports have arrived and been read: enforcement before observation is how a 
 blackholes its own newsletters, invoicing, or form notifications. Reports begin arriving
 within ~24–72 hours as XML attachments.
 
-#### DKIM — Daniel's step, requires Google Workspace Admin
+#### DKIM — four parts, two done
 
-This cannot be done from the Netlify side: the key is generated inside Workspace, and only
-the resulting `TXT` record is a DNS action. Click by click:
+DKIM spans two systems, and it is worth naming the parts so nobody assumes a published key
+means a working signature:
+
+| Part | What | Who | Status |
+| --- | --- | --- | --- |
+| A | Generate the 2048-bit key in Workspace Admin | Daniel | done |
+| B | Publish the `TXT` at `google._domainkey` in Netlify DNS | this repo | **done 2026-07-27** |
+| C | Click **Start authentication** in Workspace Admin | **Daniel** | **outstanding** |
+| D | Confirm signatures appear on outbound mail | Daniel | after C |
+
+**Part B, for the record.** `TXT google._domainkey.danielmonzonautomation.com`, TTL 3600,
+created additively via `createDnsRecord`. The published value was verified
+character-for-character against the key from Workspace — reassembled from its two DNS
+character-strings and compared by SHA-256, not by eye — and parsed to confirm it decodes to a
+294-byte SPKI holding a 2048-bit RSA key with exponent 65537. All four authoritative
+nameservers serve it and it has propagated to public resolvers. `MX` was verified before and
+after and did not change.
+
+**Part C is the step that actually turns DKIM on, and it is still not done.**
 
 1. Sign in to **https://admin.google.com** as a Workspace **super administrator**.
 2. Left menu → **Apps** → **Google Workspace** → **Gmail**.
 3. Open **Authenticate email** (on some versions: *Settings* → *Authenticate email*).
 4. In the domain selector, choose **danielmonzonautomation.com**.
-5. Click **Generate new record**. Choose **2048-bit** key length and leave the prefix as
-   **`google`**. (2048-bit is the current recommendation; select 1024 only if the DNS
-   provider rejects the longer value — Netlify DNS does not.)
-6. Google shows a **DNS host name** (`google._domainkey`) and a long **TXT record value**
-   beginning `v=DKIM1; k=rsa; p=…`. Copy the value exactly — no added quotes, no line breaks.
-7. In Netlify: **Domains → danielmonzonautomation.com → DNS records → Add new record.**
-   Type `TXT`, name `google._domainkey`, value = the string from step 6. Save.
-8. Wait for propagation — usually minutes, up to 48 hours. Confirm with:
-   ```bash
-   nslookup -type=TXT google._domainkey.danielmonzonautomation.com 8.8.8.8
-   ```
-9. Return to the **Authenticate email** page and click **Start authentication**. The status
-   must read *Authenticating email*.
+5. Click **Start authentication**. The status must then read *Authenticating email*.
 
-Do not skip step 9 — generating the key and publishing the record does nothing until
-authentication is started, and the failure mode is silent: DKIM simply stays absent.
+Do **not** click *Generate new record* again. A second generation replaces the key Google
+will sign with, and the record published in Part B would instantly become the wrong one —
+silently, since mail keeps flowing unsigned. If the page offers only *Generate new record*
+and no *Start authentication*, stop and re-read the DNS record first rather than regenerating.
+
+Why this ordering matters: publishing a key does nothing on its own. Until Part C, outbound
+mail carries no DKIM signature at all, and the only visible symptom is an absence — which is
+exactly the failure mode that let this domain run without SPF, DKIM or DMARC for as long as
+it did.
+
+**Verify after Part C** — DNS says the key is published; only a real message proves it signs:
+
+```bash
+# The published key (should already pass — this is Part B, done):
+nslookup -type=TXT google._domainkey.danielmonzonautomation.com 8.8.8.8
+```
+
+Then send a message to a Gmail address, open it, **Show original**, and confirm
+`DKIM: 'PASS' with domain danielmonzonautomation.com`. That line, not the DNS lookup, is
+what closes Part D.
 
 Once DKIM has been live and passing for a couple of weeks and the DMARC reports show only
 expected senders, `p=none` can be raised to `p=quarantine`. That is a separate, deliberate
