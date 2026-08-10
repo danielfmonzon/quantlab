@@ -1147,6 +1147,25 @@ def cmd_glassbox_verify_dist(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_glassbox_refresh(args: argparse.Namespace) -> int:
+    """Run the whole publish chain fail-closed: snapshot -> build -> gate -> deploy.
+
+    Exit 0 when the chain completed its intent (deployed, or a dry run whose gates all
+    passed); 3 when it aborted. Either way the full sanitization report is emailed --
+    INFO on a deploy, WARNING on an abort.
+    """
+    from quantlab.glassbox.refresh import refresh
+
+    print("quantlab glassbox refresh: snapshot -> build -> verify-dist -> deploy")
+    if args.dry_run:
+        print("  --dry-run: the chain will stop before deploying.\n")
+    result = refresh(dry_run=args.dry_run, max_age_days=args.max_age_days)
+    print(result.render())
+    if not result.ok:
+        return 3
+    return 0
+
+
 def cmd_weekly(args: argparse.Namespace) -> int:
     store = ParquetStore()
     calendar = TradingCalendar()
@@ -1683,6 +1702,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_gb_verify.set_defaults(func=cmd_glassbox_verify_dist)
+    p_gb_refresh = gb_sub.add_parser(
+        "refresh",
+        help="snapshot, build, gate and deploy the public site (fail-closed chain)",
+    )
+    p_gb_refresh.add_argument(
+        "--dry-run", action="store_true",
+        help="run every gate but stop before deploying",
+    )
+    p_gb_refresh.add_argument(
+        "--max-age-days", type=int, default=GLASSBOX_MAX_SNAPSHOT_AGE_DAYS,
+        help=(
+            "fail the gate if the snapshot manifest is older than this "
+            f"(default {GLASSBOX_MAX_SNAPSHOT_AGE_DAYS})"
+        ),
+    )
+    p_gb_refresh.set_defaults(func=cmd_glassbox_refresh)
 
     return parser
 

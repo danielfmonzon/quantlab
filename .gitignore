@@ -22,5 +22,10 @@ htmlcov/
 *.parquet
 *.duckdb
 
+# Netlify CLI link/deploy state. Machine-specific, and `npm run build:public`
+# recreates it on every build -- which is exactly why the site ID is pinned on the
+# deploy command line instead of being read from here (see frontend/README.md).
+frontend/.netlify/
+
 # OS / editor
 .DS_Store

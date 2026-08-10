@@ -6,6 +6,146 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-10 — Automated Glass Box refresh, and the doctrine that lets a machine deploy
+
+**The failure being fixed.** The deploy ritual was four commands across two directories, run
+by hand. So it was not run: the published site sat at its **2026-07-26** snapshot for
+**fifteen days** while the trading record moved underneath it, and the completeness gate's
+own 14-day freshness limit had been breached for a day before anyone noticed. A site whose
+entire argument is "you can check this" was showing figures two weeks stale. Manual is the
+defect; the ritual is now `quantlab glassbox refresh`, scheduled.
+
+**The chain is fail-closed.** `snapshot -> build:public -> verify-dist -> netlify deploy
+--prod`, each step running only if every earlier one passed, and the report naming where it
+stopped. The site ID is **pinned in code** (`be63f48c-…`) for the reason
+`frontend/README.md` already pinned it on the command line: `build:public` recreates
+`frontend/.netlify/`, dropping the link, and an unlinked `netlify deploy` opens an
+interactive "Link this directory?" prompt — inside an unattended chain that is worse than an
+error, because it blocks forever or exits having deployed nothing while looking like it ran.
+
+**DOCTRINE AMENDMENT (Quant Lead ruling).** The standing rule was that a human reads the
+sanitization report before any deploy. That rule is preserved where it matters and relaxed
+only where the machine's judgement is total:
+
+* automated deploy proceeds **only** on gate PASS with **zero forbidden matches AND zero
+  redactions** — nothing found, and nothing that had to be scrubbed;
+* **any** redaction aborts before deploy with a WARNING for human pre-review, even though
+  the writer has already scrubbed it. The scrub working is not the question; a redaction
+  means the capture *contained* something unpublishable, and that is precisely what a human
+  should see before those bytes go out;
+* **every** run emails the full report, deployed or not — INFO on deploy, WARNING on abort.
+  A gate whose output is only read after a failure trains its operator to ignore it.
+
+The asymmetry is the whole ruling: automation may publish a clean build, and may never
+publish one that needed cleaning.
+
+**Scheduled** as `quantlab-glassbox-refresh`, Fridays **17:30** local, via the existing
+install machinery — `install`/`uninstall`/`show` now cover four tasks, and the
+`StartWhenAvailable` post-step gives it the same missed-start catch-up as the others. 17:30
+puts it half an hour after the weekly review so it publishes the review just written rather
+than last week's. The scheduled invocation is deliberately **not** `--dry-run`.
+
+**Three defects found by running it.** Worth recording because each was invisible until the
+chain was real:
+
+1. **`verify_dist` had no injectable clock.** Its freshness check fell through to
+   `datetime.now(UTC)`, so its verdict depended on when it was called. That is what turned
+   the suite red on **2026-08-09** with no code change: a test fixture manifest stamped with
+   the absolute date `2026-07-26` silently aged past the 14-day limit, and the only failing
+   assertion was a clock. `now` is now a parameter, threaded to `check_content`, and both
+   directions are pinned by test. **`DEFAULT_MAX_AGE_DAYS` stays 14** — the limit was never
+   wrong, only unmeasurable. Note this failure had **nothing to do with the stale deployed
+   snapshot**, despite looking exactly like it would have: the fixture lives in `tmp_path`.
+2. **`npm` and `npx` could not be launched.** They are `.cmd` shims on Windows, which
+   `CreateProcess` cannot execute by bare name under `shell=False`, so the first live run
+   died with a `FileNotFoundError` before it could report or alert. The runner now resolves
+   `argv[0]` through `shutil.which` — keeping `shell=False`, so the pinned argv stays exactly
+   what was pinned — and an unlaunchable tool is a reportable abort rather than a traceback.
+3. **The chain poisoned its own next run.** Alerts are *published*: `glassbox.app` copies an
+   alert `body` verbatim into `/api/timeline`. The chain report embeds the gate reports,
+   which render the absolute directory they scanned, so run N's alert became run N+1's
+   `windows_user_path` redaction — and under the amendment above a redaction aborts, so the
+   chain would have deployed exactly once and then blocked forever. Observed precisely that
+   way: the second live run aborted at `deploy` on `1 redaction in api-timeline.json`. Alert
+   bodies are now relativized against `PROJECT_ROOT`. The two alert records already written
+   by the runs that found this were **rewritten in place** to relativize their bodies —
+   records preserved, count preserved, backup left at
+   `reports/alerts/alerts.jsonl.bak` — because otherwise the automation being enabled here
+   could never have deployed again. Verified afterwards by capturing again *with* the deploy
+   alert present: 0 redactions.
+
+**Live.** `quantlab glassbox refresh` deployed at 2026-08-10T22:55:34Z: 135 endpoints, 136
+files, 0 redactions, 160 published files scanned, 0 forbidden, 0 redactable — published to
+https://glassbox.danielmonzonautomation.com. The live manifest reads `generated_at
+2026-08-10T22:55:35Z` at commit `8a7f6ed`, against the 15.2-day-old `2026-07-26T18:02:16Z`
+it replaced. The previously-failing completeness test passes again.
+
+---
+
+## 2026-08-10 — The share card could not spell "quantlab"
+
+**Finding.** `og-image.png` was drawn with a pixel font whose glyph set was incomplete. In a
+real iMessage preview it read **"Simu ated money on y."** and **" uant ab · autonomous
+tradin  research"** — every `l` and `q` dropped, every descender (`g`, `y`) clipped — and the
+wordmark **overlapped** the headline. For a site whose whole claim is that its figures can be
+checked, a share card that cannot spell its own product name discredits it before a reader
+arrives.
+
+**Decision.** Regenerated at 1200×630 from the **brand faces** in `docs/brand.md` — Fraunces
+Variable for display, Hanken Grotesk Variable for body — rendered by
+`frontend/scripts/og-image.mjs` through headless Chrome (`puppeteer-core` against the system
+browser, so no browser download). The fonts are the ones already vendored under
+`node_modules/@fontsource-variable` and are **inlined as base64**: the render touches no
+network, and the faces carry complete Latin coverage, which is the actual fix. Colours are
+the brand tokens verbatim, honey for the decorative fills and clay for warm-accent text, per
+the honey/clay split in `docs/brand.md` §1.
+
+**The generator verifies its own output.** A missing glyph is invisible to any DOM check —
+the text node is present whether or not the face can draw it. So the script measures each
+character in the same font at the same size and requires a non-zero advance width *and* a
+non-zero inked bounding box, requires `g y q p j` to actually descend below the baseline, and
+requires that nothing overflows the card or collides with the rail. It exits non-zero and
+writes no PNG if any check fails.
+
+That last check earned its place immediately: the first regeneration fixed every glyph and
+introduced a **new** overflow of the same class — "AUTOMATION" ran past the honey border and
+was clipped mid-word. The checker caught it, the rail was widened to fit its longest line,
+and the assertion now stands guard. Every glyph was confirmed a second time by reading the
+finished PNG back.
+
+---
+
+## 2026-08-10 — Local scheduling is a reliability floor, and a VPS is the real fix
+
+**The exposure.** Every scheduled task — the four installed here plus the crypto run — fires
+from **Windows Task Scheduler on a single workstation**. `StartWhenAvailable` recovers a
+missed start once the machine is awake, and that is genuinely useful: it is why several
+catch-up runs exist in the record. What it cannot do is run anything while the machine is
+**off**. That is not hypothetical — it is the documented cause of the **2026-08-01** miss,
+where no crypto run fired at all, leaving a 70.40h mark interval, a 6.92h one, and a shadow
+session with no paper counterpart. Divergence diagnosis #2 traced `crypto_voltarget`'s
+remaining above-threshold residual for week 2026-08-07 to exactly that gap.
+
+So the failure mode is known, has already cost a data point, and will recur. Adding the Glass
+Box refresh to the same host extends the same exposure to publishing: a Friday with the
+machine off means the site silently keeps last week's snapshot, and the only signal is the
+absence of an email — the same shape of silent failure that let the site go fifteen days
+stale in the first place.
+
+**Decision: deferred to the post-day-90 review, deliberately.** Migrating the schedule to a
+VPS is the real fix, and it is not a scheduling change — it means relocating the `.env`
+secrets, the parquet store, and the alert path to a host that is always on, which touches the
+trading path's environment during a freeze and mid-track. The 90-day paper clock is measuring
+this system *as configured*; changing where it runs partway through would fork the record it
+is accumulating. Not worth it to recover an occasional missed day.
+
+**Recorded so the day-90 review inherits it** rather than rediscovering it, alongside the
+turnover and 5 bps-spread questions from the same date. Until then the mitigation is what it
+already is: `StartWhenAvailable` on every task, and a missed run being visible in the run
+audit rather than silent.
+
+---
+
 ## 2026-08-10 — Divergence diagnosis #2, and six re-rulings
 
 **Scope.** The two weekly reviews on file since 2026-07-31: `week_20260802` (generated

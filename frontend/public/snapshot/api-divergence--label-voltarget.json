@@ -60,6 +60,40 @@
       "window_start": "2026-07-20",
       "window_end": "2026-07-24",
       "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-08-02",
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "paper_week_return": 0.006353252753288574,
+      "shadow_week_return": 0.005081003930958561,
+      "divergence_bps": 12.722488223300132,
+      "cumulative_divergence_bps": 31.00049550977979,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-07-31"
+      ],
+      "window_start": "2026-07-24",
+      "window_end": "2026-07-30",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-08-07",
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "paper_week_return": 0.030891073254525336,
+      "shadow_week_return": 0.023105140310682115,
+      "divergence_bps": 77.85932943843221,
+      "cumulative_divergence_bps": 38.3304282476371,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-08-07"
+      ],
+      "window_start": "2026-07-31",
+      "window_end": "2026-08-06",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
     }
   ],
   "corrections": [],

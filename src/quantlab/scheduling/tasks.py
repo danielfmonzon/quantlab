@@ -1,6 +1,6 @@
 """Windows Task Scheduler wiring for the daily paper run, digest, and weekly review.
 
-Three tasks are installed:
+Four tasks are installed:
 
 * ``quantlab-paper-run`` at 10:00 (Mon-Fri) - runs ``quantlab paper run-all
   --asset-class us_equity --submit`` (each approved *equity* strategy in its own
@@ -12,6 +12,11 @@ Three tasks are installed:
 * ``quantlab-digest`` at 16:45 (Mon-Fri) - runs ``quantlab digest``.
 * ``quantlab-weekly`` at 17:00 (Fri only) - runs ``quantlab weekly`` (the Phase-9
   paper-vs-shadow review; report-only).
+* ``quantlab-glassbox-refresh`` at 17:30 (Fri only) - runs ``quantlab glassbox
+  refresh``, republishing the public site from a fresh snapshot. 30 minutes after
+  the weekly so the week's review is on disk and gets captured by the same
+  refresh; the chain is fail-closed and will not deploy anything the gate has not
+  passed (see ``glassbox.refresh``).
 
 Why 10:00 (local, intended as ET): starting 30 minutes after the 09:30 open
 sidesteps the opening-auction noise and the first-print gaps; a monthly-signal
@@ -19,7 +24,9 @@ strategy is insensitive to intraday timing, so any post-open minute is fine; and
 a DAY order placed at 10:00 still has the entire session to fill. 16:45 for the
 digest runs it shortly after the 16:00 close so end-of-day marks are settled.
 17:00 Friday for the weekly review runs it after that day's digest so the week's
-final equity snapshot is already recorded.
+final equity snapshot is already recorded. 17:30 Friday for the Glass Box refresh
+puts it after the weekly, so the public site publishes the review generated
+half an hour earlier rather than the previous week's.
 
 schtasks uses the host's LOCAL clock; the times above assume the machine runs on
 Eastern time. Adjust ``_RUN_TIME`` / ``_DIGEST_TIME`` if the host is elsewhere.
@@ -50,8 +57,11 @@ log = get_logger("quantlab.scheduling")
 TASK_PAPER_RUN = "quantlab-paper-run"
 TASK_DIGEST = "quantlab-digest"
 TASK_WEEKLY = "quantlab-weekly"
+# The public-site refresh. Friday-only, after the weekly, so the review it publishes
+# is the one just generated.
+TASK_GLASSBOX_REFRESH = "quantlab-glassbox-refresh"
 # Crypto is 24/7; its paper run is a separate DAILY (all 7 days) task at 20:30
-# local, kept wholly distinct from the three equity task definitions above.
+# local, kept wholly distinct from the four task definitions above.
 TASK_CRYPTO_PAPER_RUN = "quantlab-crypto-paper-run"
 
 _WEEKDAYS = "MON,TUE,WED,THU,FRI"
@@ -59,6 +69,7 @@ _FRIDAY = "FRI"
 _RUN_TIME = "10:00"
 _DIGEST_TIME = "16:45"
 _WEEKLY_TIME = "17:00"
+_GLASSBOX_REFRESH_TIME = "17:30"
 _CRYPTO_RUN_TIME = "20:30"
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
@@ -83,7 +94,7 @@ def _tr(exe: str, cli_args: str) -> str:
 
 
 def build_install_commands(exe: str) -> list[list[str]]:
-    """The three ``schtasks /Create`` argv lists (pure; nothing is executed)."""
+    """The four ``schtasks /Create`` argv lists (pure; nothing is executed)."""
     return [
         [
             "schtasks", "/Create", "/TN", TASK_PAPER_RUN, "/SC", "WEEKLY",
@@ -100,6 +111,13 @@ def build_install_commands(exe: str) -> list[list[str]]:
             "/D", _FRIDAY, "/ST", _WEEKLY_TIME,
             "/TR", _tr(exe, "weekly"), "/F",
         ],
+        [
+            "schtasks", "/Create", "/TN", TASK_GLASSBOX_REFRESH, "/SC", "WEEKLY",
+            "/D", _FRIDAY, "/ST", _GLASSBOX_REFRESH_TIME,
+            # Not --dry-run: the scheduled run is expected to publish. It still cannot
+            # deploy anything the fail-closed chain has not gated.
+            "/TR", _tr(exe, "glassbox refresh"), "/F",
+        ],
     ]
 
 
@@ -108,6 +126,7 @@ def build_uninstall_commands() -> list[list[str]]:
         ["schtasks", "/Delete", "/TN", TASK_PAPER_RUN, "/F"],
         ["schtasks", "/Delete", "/TN", TASK_DIGEST, "/F"],
         ["schtasks", "/Delete", "/TN", TASK_WEEKLY, "/F"],
+        ["schtasks", "/Delete", "/TN", TASK_GLASSBOX_REFRESH, "/F"],
     ]
 
 
@@ -116,10 +135,11 @@ def build_show_commands() -> list[list[str]]:
         ["schtasks", "/Query", "/TN", TASK_PAPER_RUN, "/V", "/FO", "LIST"],
         ["schtasks", "/Query", "/TN", TASK_DIGEST, "/V", "/FO", "LIST"],
         ["schtasks", "/Query", "/TN", TASK_WEEKLY, "/V", "/FO", "LIST"],
+        ["schtasks", "/Query", "/TN", TASK_GLASSBOX_REFRESH, "/V", "/FO", "LIST"],
     ]
 
 
-# -- Crypto task (separate; the three equity builders above are never touched) --
+# -- Crypto task (separate; the four builders above are never touched) --
 
 def build_crypto_install_commands(exe: str) -> list[list[str]]:
     """The crypto ``schtasks /Create`` argv (pure; nothing is executed).

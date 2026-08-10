@@ -51,7 +51,22 @@ npm run dev                        # terminal 2 — Vite on :5173, /api proxied 
 
 ## Public site — the deploy ritual
 
-Three steps, in this order. **Step 2 is a human gate, not a formality.**
+> **Automated since 2026-08-10.** `quantlab glassbox refresh` runs the whole chain below
+> fail-closed — snapshot → `build:public` → `verify-dist` → `netlify deploy --prod` — and is
+> scheduled as `quantlab-glassbox-refresh` on Fridays at 17:30 local, half an hour after the
+> weekly review. `--dry-run` runs every gate and stops before deploying.
+>
+> **The human gate did not disappear; it was narrowed by ruling** (see `docs/decisions.md`,
+> 2026-08-10). Automated deploy proceeds **only** on gate PASS with **zero forbidden matches
+> and zero redactions**. Any redaction aborts before deploy with a WARNING for human
+> pre-review — the scrub working is not the question, the fact that something needed
+> scrubbing is. Every run emails the full report either way: INFO on deploy, WARNING on
+> abort.
+>
+> The manual sequence below remains correct and supported; it is what the command automates,
+> and it is still the right tool for an off-cycle or post-abort deploy.
+
+Three steps, in this order. **Step 2 is a human gate whenever the chain aborts.**
 
 ### 1. Capture a snapshot
 
@@ -96,8 +111,21 @@ vacuous pass.
 
 > **Deploy is gated on the Quant Lead reading this report.** A PASS from the tool is
 > necessary, not sufficient — the tool only knows the patterns it was told about.
+>
+> As of 2026-08-10 the automated chain may publish **without** that read, but only in the one
+> case where the tool's judgement is total: PASS, zero forbidden matches, **zero
+> redactions**. The moment anything had to be scrubbed, the deploy aborts and this read
+> becomes mandatory again. The report is emailed on every run regardless, so the review
+> habit survives the automation.
 
 ### 3. Build, verify the published bytes, deploy
+
+```bash
+# All of the below, fail-closed, with the doctrine gate and the report email:
+quantlab glassbox refresh            # add --dry-run to stop before deploying
+```
+
+Or by hand:
 
 ```bash
 cd frontend
@@ -121,6 +149,14 @@ sets the same variable, so a Netlify-triggered build cannot accidentally ship li
 
 `public/snapshot/` is copied verbatim into `dist/` by Vite, so the captured JSON ships
 with the bundle.
+
+**The share card.** `npm run og-image` regenerates `public/og-image.png` (1200×630) from the
+brand faces via headless Chrome, and refuses to write anything unless every glyph in the copy
+renders with real ink, every descender descends, and nothing overflows the card or the
+wordmark rail. It exists because the previous card — drawn with an incomplete pixel font —
+published as "Simu ated money on y." and " uant ab · autonomous tradin  research". Run it
+only when the card's copy or the brand tokens change; the PNG is committed, and the refresh
+chain just copies it.
 
 **Why `--site` is pinned.** `.netlify/state.json` holds the site link, and the build
 recreates that directory — so the link disappears, and `netlify deploy` responds by opening

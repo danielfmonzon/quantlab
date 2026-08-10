@@ -1,0 +1,34 @@
+{
+  "run_id": "run_crypto_trend_20260804T003007Z",
+  "strategy": "crypto_trend",
+  "narration": "Run run_crypto_trend_20260804T003007Z: account crypto_trend executed at 2026-08-04T00:30:07.163801Z as a LIVE SUBMIT against the paper broker. The gated pipeline completed 9 stages without aborting. Account equity was read as $100,000.00. Rule: crypto_trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise. That rule produced a target of 100% cash (no positions). No orders were planned: every holding was already inside the minimum-trade band, so the run left the account untouched. Estimated turnover for the plan was 0.0000 of equity.",
+  "rule_sentences": [
+    "Rule: crypto_trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise."
+  ],
+  "counterfactuals": [],
+  "facts": [
+    {
+      "rendered": "9",
+      "value": 9,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$100,000.00",
+      "value": 100000.0,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "rule_constant.crypto_trend.n_months"
+    },
+    {
+      "rendered": "0.0000",
+      "value": 0.0,
+      "source": "report.plan.est_turnover"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}

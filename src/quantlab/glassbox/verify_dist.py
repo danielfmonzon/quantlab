@@ -17,6 +17,7 @@ surfaced as a finding to fix at source, and any forbidden match exits non-zero.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -113,10 +114,21 @@ def verify_dist(
     *,
     env_path: Path | None = None,
     max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    now: datetime | None = None,
 ) -> DistVerifyResult:
     """Scan every text file under ``dist_dir`` and assert it contains real data.
 
     Never modifies anything.
+
+    ``now`` is the instant the freshness check measures the snapshot's age against,
+    defaulting to the wall clock. It exists because without it this function's verdict
+    depends on when it is called, which is untestable and was a live defect: the four
+    tests that went through ``verify_dist`` rather than ``check_content`` could not pin a
+    clock, so a fixture manifest stamped with an absolute date silently expired
+    ``max_age_days`` after that date and turned a passing suite red with no code change
+    (2026-08-09, fixture dated 2026-07-26, limit 14 days). Callers that care about
+    reproducibility should pass the instant they are reasoning about; the refresh chain
+    passes the moment it started, so its gate and its report agree.
     """
     if not dist_dir.exists():
         raise FileNotFoundError(f"no such directory: {dist_dir}")
@@ -200,7 +212,7 @@ def verify_dist(
 
     return DistVerifyResult(
         report=report,
-        content=check_content(dist_dir, max_age_days=max_age_days),
+        content=check_content(dist_dir, max_age_days=max_age_days, now=now),
         dir=str(dist_dir), files_text=text_count,
         files_binary_skipped=len(binary_names), binary_names=binary_names,
         redactable_findings=redactable,

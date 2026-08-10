@@ -47,6 +47,16 @@ def test_build_install_commands_are_exact() -> None:
             "/D", "FRI", "/ST", "17:00",
             "/TR", f'"{EXE}" weekly', "/F",
         ],
+        # Added 2026-08-10: the public site had gone 15 days stale because the
+        # deploy ritual was manual. Friday 17:30, half an hour after the weekly,
+        # so the review it publishes is the one just written. Deliberately NOT
+        # --dry-run: the scheduled run is meant to publish, and the chain itself
+        # is fail-closed (see glassbox.refresh).
+        [
+            "schtasks", "/Create", "/TN", "quantlab-glassbox-refresh", "/SC", "WEEKLY",
+            "/D", "FRI", "/ST", "17:30",
+            "/TR", f'"{EXE}" glassbox refresh', "/F",
+        ],
     ]
 
 
@@ -80,16 +90,17 @@ def test_install_with_confirm_runs_all_creates() -> None:
     # PowerShell StartWhenAvailable post-step (catch-up persistence), so the
     # executed sequence interleaves create -> post-step per task.
     assert runner.commands == _interleave_with_post_steps(tasks.build_install_commands(EXE))
-    # the three /Create commands themselves, in order
+    # the four /Create commands themselves, in order
     assert [c[3] for c in runner.commands if c[0] == "schtasks"] == [
-        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly",
+        "quantlab-glassbox-refresh",
     ]
-    assert len(runner.commands) == 6  # three creates + three post-steps
+    assert len(runner.commands) == 8  # four creates + four post-steps
 
 
 def test_start_when_available_command_is_exact() -> None:
     for name in ("quantlab-paper-run", "quantlab-digest", "quantlab-weekly",
-                 "quantlab-crypto-paper-run"):
+                 "quantlab-glassbox-refresh", "quantlab-crypto-paper-run"):
         cmd = tasks.build_start_when_available_command(name)
         assert cmd == [
             "powershell", "-NoProfile", "-Command",
@@ -104,7 +115,7 @@ def test_install_preview_includes_post_steps() -> None:
     rc = tasks.install(confirm=None, exe=EXE, runner=FakeRunner(), printer=messages.append)
     assert rc == 2  # preview only, nothing executed
     # one powershell post-step preview line per task, so what prints is what runs
-    assert sum("powershell" in m and "StartWhenAvailable" in m for m in messages) == 3
+    assert sum("powershell" in m and "StartWhenAvailable" in m for m in messages) == 4
 
 
 def test_failing_post_step_warns_but_install_succeeds() -> None:
@@ -127,7 +138,8 @@ def test_failing_post_step_warns_but_install_succeeds() -> None:
     assert any("WARNING" in m and "StartWhenAvailable" in m for m in messages)
     # every task was still created despite the warnings
     assert [c[3] for c in runner.commands if c[0] == "schtasks"] == [
-        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly",
+        "quantlab-glassbox-refresh",
     ]
 
 
@@ -139,7 +151,8 @@ def test_uninstall_is_idempotent_even_when_absent() -> None:
     assert rc == 0
     assert runner.commands == tasks.build_uninstall_commands()
     assert [c[3] for c in runner.commands] == [
-        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly",
+        "quantlab-glassbox-refresh",
     ]
 
 
@@ -147,6 +160,7 @@ def test_show_queries_all_tasks() -> None:
     runner = FakeRunner()
     tasks.show(runner=runner, printer=lambda _m: None)
     assert [c[3] for c in runner.commands] == [
-        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly"
+        "quantlab-paper-run", "quantlab-digest", "quantlab-weekly",
+        "quantlab-glassbox-refresh",
     ]
     assert all(c[1] == "/Query" for c in runner.commands)

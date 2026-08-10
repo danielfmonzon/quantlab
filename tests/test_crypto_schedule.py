@@ -57,27 +57,40 @@ def test_equity_task_definitions_are_byte_identical() -> None:
     # deliberately rescoped so the 10:00 weekday task no longer leaks the crypto
     # strategies (run-all's default `all` iterated every APPROVED_STRATEGIES
     # entry). Digest and weekly definitions are unchanged.
-    assert tasks.build_install_commands(EXE) == [
-        [
+    #
+    # Scope narrowed 2026-08-10: `quantlab-glassbox-refresh` was added to the default
+    # install set, so this can no longer assert the whole list. It asserts what it was
+    # always about — that the three TRADING/REPORTING task definitions are byte-identical
+    # and that nothing else redefines them. Adding a task is allowed; editing one of these
+    # three is what this guard exists to catch.
+    frozen = {
+        "quantlab-paper-run": [
             "schtasks", "/Create", "/TN", "quantlab-paper-run", "/SC", "WEEKLY",
             "/D", "MON,TUE,WED,THU,FRI", "/ST", "10:00",
             "/TR", f'"{EXE}" paper run-all --asset-class us_equity --submit', "/F",
         ],
-        [
+        "quantlab-digest": [
             "schtasks", "/Create", "/TN", "quantlab-digest", "/SC", "WEEKLY",
             "/D", "MON,TUE,WED,THU,FRI", "/ST", "16:45",
             "/TR", f'"{EXE}" digest', "/F",
         ],
-        [
+        "quantlab-weekly": [
             "schtasks", "/Create", "/TN", "quantlab-weekly", "/SC", "WEEKLY",
             "/D", "FRI", "/ST", "17:00",
             "/TR", f'"{EXE}" weekly', "/F",
         ],
-    ]
-    # The crypto task is NOT among the equity task set.
+    }
+    built = {c[3]: c for c in tasks.build_install_commands(EXE)}
+    for name, expected in frozen.items():
+        assert built[name] == expected, f"{name} definition changed"
+    # Each frozen task appears exactly once — no duplicate redefinition.
     names = [c[3] for c in tasks.build_install_commands(EXE)]
-    assert names == ["quantlab-paper-run", "quantlab-digest", "quantlab-weekly"]
+    for name in frozen:
+        assert names.count(name) == 1
+    # The crypto task is still NOT among the default task set.
     assert "quantlab-crypto-paper-run" not in names
+    # The three frozen tasks lead the set, in their original order.
+    assert names[:3] == ["quantlab-paper-run", "quantlab-digest", "quantlab-weekly"]
 
 
 def test_install_crypto_via_builder_runs_only_the_crypto_task() -> None:

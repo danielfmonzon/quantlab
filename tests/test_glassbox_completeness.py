@@ -142,7 +142,7 @@ def test_a_dist_with_no_snapshot_fails(tmp_path: Path) -> None:
 def test_the_whole_gate_fails_on_a_data_less_dist(tmp_path: Path) -> None:
     """End-to-end: verify_dist must now refuse it, not just the content sub-report."""
     dist = _build_dist(tmp_path, manifest=None, endpoint_files=0)
-    result = verify_dist(dist, env_path=tmp_path / "absent.env")
+    result = verify_dist(dist, env_path=tmp_path / "absent.env", now=NOW)
 
     # No forbidden content — an empty build has nothing to find. That is the point.
     assert result.report.passed is True
@@ -290,7 +290,7 @@ def test_content_and_pattern_failures_are_reported_separately(tmp_path: Path) ->
     dist = _build_dist(tmp_path, accounts=[])
     (dist / "assets" / "leak.js").write_text('const a="PA3XKLM99Q1";', encoding="utf-8")
 
-    result = verify_dist(dist, env_path=tmp_path / "absent.env")
+    result = verify_dist(dist, env_path=tmp_path / "absent.env", now=NOW)
     assert result.content.passed is False
     assert result.report.passed is False
     rendered = result.render()
@@ -301,10 +301,33 @@ def test_content_and_pattern_failures_are_reported_separately(tmp_path: Path) ->
 
 
 def test_a_complete_and_clean_dist_passes_the_whole_gate(tmp_path: Path) -> None:
-    result = verify_dist(_build_dist(tmp_path), env_path=tmp_path / "absent.env")
+    result = verify_dist(_build_dist(tmp_path), env_path=tmp_path / "absent.env", now=NOW)
     assert result.passed
     assert "DIST PASS" in result.render()
     assert "CONTENT PASS" in result.render()
+
+
+def test_verify_dist_freshness_follows_the_injected_clock(tmp_path: Path) -> None:
+    """``verify_dist`` must gate freshness against the instant it is GIVEN, not the wall clock.
+
+    Regression for a defect that turned the suite red with no code change on 2026-08-09:
+    ``verify_dist`` had no ``now``, so the fixture manifest below (stamped two hours before
+    the hardcoded ``NOW`` of 2026-07-26) silently aged past ``DEFAULT_MAX_AGE_DAYS`` and the
+    only failing assertion was a clock. Both directions are pinned here, so neither an
+    unplumbed clock nor a disabled freshness gate can pass.
+    """
+    dist = _build_dist(tmp_path)
+    fresh = verify_dist(dist, env_path=tmp_path / "absent.env", now=NOW)
+    assert fresh.content.passed is True
+    assert fresh.passed is True
+
+    # One second past the limit, the same bytes must fail -- and fail on freshness alone.
+    stale_at = NOW + timedelta(days=DEFAULT_MAX_AGE_DAYS, seconds=1)
+    stale = verify_dist(dist, env_path=tmp_path / "absent.env", now=stale_at)
+    assert stale.passed is False
+    assert stale.report.passed is True  # nothing forbidden; only the age changed
+    failed = [c.name for c in stale.content.checks if not c.passed]
+    assert failed == ["manifest_freshness"]
 
 
 def test_the_gate_still_writes_nothing(tmp_path: Path) -> None:
@@ -313,7 +336,7 @@ def test_the_gate_still_writes_nothing(tmp_path: Path) -> None:
         p.relative_to(dist).as_posix(): (p.stat().st_size, p.stat().st_mtime_ns)
         for p in sorted(dist.rglob("*")) if p.is_file()
     }
-    verify_dist(dist, env_path=tmp_path / "absent.env")
+    verify_dist(dist, env_path=tmp_path / "absent.env", now=NOW)
     after = {
         p.relative_to(dist).as_posix(): (p.stat().st_size, p.stat().st_mtime_ns)
         for p in sorted(dist.rglob("*")) if p.is_file()

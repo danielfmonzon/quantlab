@@ -11,6 +11,8 @@
     "test:watch": "vitest",
     "lint": "tsc -b --noEmit",
     "build:public": "tsc -b && vite build --mode public && node scripts/prerender.mjs",
+    "og-image": "node scripts/og-image.mjs",
+    "og-image:check": "node scripts/og-image.mjs --check",
     "snapshot": "cd .. && uv run quantlab glassbox snapshot --out frontend/public/snapshot/"
   },
   "dependencies": {
