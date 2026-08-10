@@ -5,8 +5,10 @@ The guard is the safety pair to StartWhenAvailable catch-up on
 comes back, and this cutoff stops that recovery from converging a
 morning-intended signal minutes before the close.
 
-Nothing here touches a broker: the clock is injected and ``_trading_client_for``
-is replaced by a sentinel that proves whether the guard let execution through.
+Nothing here touches a broker, the vendor, or the data store: the gated pipeline
+itself is replaced by a sentinel that proves whether the guard let execution
+through (see the ``no_broker`` fixture for why that, and not the broker factory,
+is the observable).
 """
 
 from __future__ import annotations
@@ -32,30 +34,43 @@ def _et(hour: int, minute: int) -> datetime:
 
 
 class _BrokerReached(Exception):
-    """Raised by the stub broker factory to prove the guard let the run through."""
+    """Raised by the stub pipeline to prove the guard let the run through."""
 
 
 @pytest.fixture
 def no_broker(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Replace the broker factory; calling it at all is observable.
+    """Replace the whole gated pipeline; invoking it at all is the observable.
 
-    ``_clock_for`` is stubbed too, and must be: since the retry wrapper landed
-    (2026-08-10) the broker is built lazily at pipeline stage (e), so the clock read at
-    stage (d) now happens FIRST. Both need credentials, so without this stub these tests
-    would fail on a keyless machine — CI caught exactly that — and they would be asserting
-    that the guard let the run reach the *clock* rather than the broker.
+    What these tests are really about is whether the cutoff guard let execution THROUGH,
+    so the honest observable is the pipeline entry point, and stubbing it makes the tests
+    independent of credentials, of the network, and of the data store.
+
+    They used to stub ``_trading_client_for`` instead and rely on the broker being built at
+    the top of ``_run_one_paper``, which made "reached the broker" a usable proxy for
+    "passed the guard". That proxy died when the retry wrapper (2026-08-10) moved broker
+    construction to pipeline stage (e) — deliberately, so a halted account never builds a
+    client. Stages (b)–(d) then really ran, with two consequences CI found and one it
+    could not:
+
+    * ``_clock_for`` became the first credentialed call, so the tests failed on a keyless
+      runner;
+    * with the clock stubbed, ``validate`` then failed because a CI checkout has no
+      ``data/eod`` store at all, and the run never reached stage (e);
+    * and on a machine that HAS both, the ingest ran for real and upserted into the
+      production store — a partial same-day SPY bar with no matching IEF bar, whose
+      internal gap broke ``build_price_panel`` for the digest and for every later
+      ``trend`` run. A guard test must never write to the production store.
+
+    Stubbing the pipeline removes all three at once.
     """
-    factory = MagicMock(side_effect=_BrokerReached())
-    monkeypatch.setattr(cli, "_trading_client_for", factory)
+    pipeline = MagicMock(side_effect=_BrokerReached())
+    monkeypatch.setattr(cli, "run_paper_with_retry", pipeline)
+    # Belt and braces: neither should be reachable now, and if a refactor makes one
+    # reachable again the test must still not touch credentials, the vendor, or the store.
+    monkeypatch.setattr(cli, "_trading_client_for", MagicMock(side_effect=_BrokerReached()))
     monkeypatch.setattr(cli, "_clock_for", lambda _label: None)
-    # The INGEST must be stubbed for the same reason, and this one is not cosmetic: with
-    # the broker now built at stage (e), stages (b)-(d) really execute, so an unstubbed
-    # run reaches the vendor and UPSERTS INTO THE REAL data/eod STORE. It did, once:
-    # a partial same-day SPY bar landed while IEF had none, and the resulting internal
-    # gap broke build_price_panel for every later `trend` run and for the digest.
-    # A guard test must never write to the production store.
     monkeypatch.setattr(cli, "_ingest_fn_for", lambda _strategy: None)
-    return factory
+    return pipeline
 
 
 # -- the pure predicate -----------------------------------------------------
@@ -85,13 +100,13 @@ def test_cutoff_does_not_apply_off_session() -> None:
 # -- the guard inside _run_one_paper ----------------------------------------
 
 
-def test_guarded_run_aborts_and_never_touches_the_broker(no_broker: MagicMock) -> None:
+def test_guarded_run_aborts_and_never_enters_the_pipeline(no_broker: MagicMock) -> None:
     sent: list[Alert] = []
     rc = cli._run_one_paper(
         "voltarget", submit=True, now_utc=_et(15, 31), alert_fn=sent.append
     )
     assert rc == 1
-    no_broker.assert_not_called()  # aborted BEFORE any broker/network call
+    no_broker.assert_not_called()  # the pipeline was never entered at all
 
     assert len(sent) == 1
     alert = sent[0]
@@ -101,7 +116,7 @@ def test_guarded_run_aborts_and_never_touches_the_broker(no_broker: MagicMock) -
     assert alert.source == "cli.paper_run"
 
 
-def test_before_cutoff_proceeds_to_the_broker(no_broker: MagicMock) -> None:
+def test_before_cutoff_proceeds_to_the_pipeline(no_broker: MagicMock) -> None:
     sent: list[Alert] = []
     with pytest.raises(_BrokerReached):
         cli._run_one_paper(
