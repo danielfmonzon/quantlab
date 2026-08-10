@@ -70,6 +70,11 @@ def _build(tmp_path, brokers, seed=True):
     return build_digest(
         brokers, _store(), TradingCalendar(), NOW,
         data_dir=data_dir, paper_reports_dir=tmp_path / "paper",
+        # Every path the watchdog reads is pinned into tmp_path, and no alert sink is the
+        # real one. Without this the digest tests would silently start asserting against
+        # the repository's own reports/ tree and drift with it.
+        weekly_dir=tmp_path / "weekly", alerts_path=tmp_path / "alerts.jsonl",
+        digests_dir=tmp_path / "digests", alert_fn=lambda _a: None,
     )
 
 

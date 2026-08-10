@@ -72,6 +72,7 @@ from quantlab.paper.runner import (
     migrate_legacy_state,
     run_all_strategies,
     run_paper,
+    run_paper_with_retry,
 )
 from quantlab.reporting.alerts import Alert, dispatch, send_test_alert
 from quantlab.reporting.digest import build_digest, render_markdown, write_digest
@@ -1155,10 +1156,15 @@ def cmd_glassbox_refresh(args: argparse.Namespace) -> int:
     INFO on a deploy, WARNING on an abort.
     """
     from quantlab.glassbox.refresh import refresh
+    from quantlab.repo_state import check_repo_state, warn_if_unclean
 
     print("quantlab glassbox refresh: snapshot -> build -> verify-dist -> deploy")
     if args.dry_run:
         print("  --dry-run: the chain will stop before deploying.\n")
+    # Printed up front as well as recorded in the report: an operator watching a live run
+    # should see a dirty-tree warning before the chain starts, not after it has deployed.
+    # Report-only -- it never blocks (see repo_state).
+    warn_if_unclean(check_repo_state())
     result = refresh(dry_run=args.dry_run, max_age_days=args.max_age_days)
     print(result.render())
     if not result.ok:
@@ -1411,13 +1417,16 @@ def _run_one_paper(
     if plan_only:
         report = _plan_only_run(strategy)
     else:
-        broker, label = _trading_client_for(strategy)
+        # A broker FACTORY, not a client: run_paper_with_retry builds one per attempt so
+        # the retry ten minutes later gets a fresh session rather than reusing the one
+        # whose connection may be what failed.
+        label = account_label(strategy)
         clock = _clock_for(strategy)
-        report = run_paper(
+        report = run_paper_with_retry(
             strategy,
             dry_run=not submit,
             store=ParquetStore(),
-            broker=broker,
+            broker_factory=lambda: _trading_client_for(strategy)[0],
             ingest_fn=_ingest_fn_for(strategy),
             clock=clock,  # type: ignore[arg-type]
             risk_state_path=risk_state_path_for(label),

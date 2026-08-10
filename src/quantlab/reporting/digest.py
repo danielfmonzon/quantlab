@@ -11,6 +11,7 @@ it; ``write_digest`` writes ``.md`` + ``.json`` under ``reports/digests/``
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import date, datetime
 from pathlib import Path
 
@@ -32,6 +33,9 @@ from quantlab.paper.runner import (
     equity_history_path_for,
     make_paper_strategy,
 )
+from quantlab.reporting.alerts import ALERTS_JSONL, Alert, dispatch
+from quantlab.reporting.watchdog import WatchdogReport, check_schedule
+from quantlab.reporting.weekly import WEEKLY_DIR
 from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
 from quantlab.version import version_string
 
@@ -96,6 +100,10 @@ class Digest(BaseModel):
     accounts: list[AccountDigest]
     combined_equity: float
     combined_cash: float
+    # Which scheduled firings since the last digest left no artifact. None when the
+    # caller did not ask for the check (kept optional so existing callers and the
+    # published snapshots of older digests still parse).
+    watchdog: WatchdogReport | None = None
 
 
 def _equity_history(path: Path) -> pd.DataFrame:
@@ -214,8 +222,19 @@ def build_digest(
     clock: ClockInfo | None = None,
     data_dir: Path = DATA_DIR,
     paper_reports_dir: Path = PAPER_REPORTS_DIR,
+    weekly_dir: Path = WEEKLY_DIR,
+    alerts_path: Path = ALERTS_JSONL,
+    digests_dir: Path = DIGESTS_DIR,
+    alert_fn: Callable[[Alert], object] | None = None,
+    run_watchdog: bool = True,
 ) -> Digest:
-    """Assemble the digest across every approved account (missing keys -> skipped)."""
+    """Assemble the digest across every approved account (missing keys -> skipped).
+
+    Also runs the scheduled-task watchdog (``reporting.watchdog``) and fires exactly ONE
+    WARNING naming every missed firing. One alert rather than one per miss: a machine that
+    was off for a weekend misses a dozen firings for a single reason, and a dozen alerts
+    would bury the reason in the noise.
+    """
     accounts: list[AccountDigest] = []
     combined_equity = 0.0
     combined_cash = 0.0
@@ -227,9 +246,35 @@ def build_digest(
         if acct.available and acct.account is not None:
             combined_equity += acct.account.equity
             combined_cash += acct.account.cash
+    watchdog: WatchdogReport | None = None
+    if run_watchdog:
+        watchdog = check_schedule(
+            now, calendar, paper_reports_dir=paper_reports_dir,
+            weekly_dir=weekly_dir, alerts_path=alerts_path, digests_dir=digests_dir,
+        )
+        if watchdog.missed:
+            emit = alert_fn if alert_fn is not None else dispatch
+            named = sorted({
+                m.task + (f"[{m.label}]" if m.label else "") for m in watchdog.missed
+            })
+            detail = "\n".join(m.render() for m in watchdog.missed)
+            emit(Alert(
+                level="WARNING",
+                title=f"scheduled tasks: {len(watchdog.missed)} missed firing(s)",
+                body=(
+                    f"No artifact found for {len(watchdog.missed)} expected firing(s) "
+                    f"between {watchdog.window_start} and {watchdog.window_end}.\n"
+                    f"tasks: {', '.join(named)}\n\n"
+                    f"{detail}\n\n"
+                    "A missed firing means the task never ran (most often the host was "
+                    "off), not that it failed -- a failure alerts on its own."
+                ),
+                source="reporting.watchdog",
+            ))
     return Digest(
         generated_at=now, accounts=accounts,
         combined_equity=combined_equity, combined_cash=combined_cash,
+        watchdog=watchdog,
     )
 
 
@@ -300,6 +345,9 @@ def render_markdown(digest: Digest) -> str:
     ]
     for acct in digest.accounts:
         lines.extend(_render_account(acct))
+
+    if digest.watchdog is not None:
+        lines.extend(digest.watchdog.render())
 
     lines.append("## Combined")
     lines.append(f"- total equity across accounts: **{digest.combined_equity:,.2f}**")

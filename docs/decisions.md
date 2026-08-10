@@ -6,6 +6,144 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-10 — One bounded retry, and the list of things that must never get one
+
+**The gap.** Any abort ended the attempt until the next scheduled day. A vendor publishing a
+bar three minutes after 10:00 cost a whole session of paper record — and those gaps are
+precisely what the divergence work kept tripping over, because a missed run turns two clean
+24h mark windows into a 70h one and a 6.92h one and leaves a shadow session with no paper
+counterpart.
+
+**Decision.** `run_paper_with_retry` runs the full gated pipeline again, **once**, ten
+minutes later, if and only if the first abort's cause was transient. Bounded deliberately:
+the point is to survive a late bar or a blipped read, not to keep hammering. If ten minutes
+does not cure it, the condition is real and the next scheduled run is soon enough.
+
+**Retryability is decided AT THE ABORT SITE**, not pattern-matched from the reason string
+afterwards. Each `_abort` call passes `retryable=`, so the judgement is made where the
+exception and the stage are both in hand, and `PaperRunReport` carries `abort_retryable`
+alongside `attempt=1|2`.
+
+**Retried:**
+
+| stage | why |
+|---|---|
+| `ingest` | transient network/API failure; the ingest is an upsert, so repeating it is idempotent |
+| `health` | `FREEZE_STALE_DATA` — the canonical case: the bar had not been published yet |
+| `account` | only a sustained transport/5xx on the READ path; the client has already exhausted its own tenacity policy by the time this surfaces |
+
+**Never retried, each for its own reason:**
+
+| stage | why not |
+|---|---|
+| `risk_state` halted | a decision, not a hiccup; only `risk reset` clears it |
+| `validate` | a data-CONTENT error — a re-run reads the same bars and reaches the same verdict |
+| `account` blocked / non-positive equity | a real account state, not a blip |
+| `account` permanent fault | `DataError`/`TradingError` means the API answered and the answer was bad — auth, permissions, malformed body |
+| `ingest` `ConfigError` | a missing key is not cured by waiting |
+| `target_weights` | no usable history is a content condition |
+| `evaluate_portfolio` | a HALT/KILL was just **written**; a retry must never look like a second chance at trading |
+| `submit` | submission has **begun** and orders may be live. A partial submission alerts, always |
+
+The classification leans on the client's public exception types rather than its internals:
+`TradingError` subclasses `DataError`, and `_RetryableError` does not, so `not
+isinstance(exc, DataError)` cleanly separates "sustained transport failure" from "the API
+said no". **The client's tenacity policy is untouched** — this wraps at the runner level, as
+scoped.
+
+**Two properties worth pinning.** Alerting: attempt 1's abort alert is buffered and
+*discarded* if the retry supersedes it, so one logical failure raises exactly one WARNING —
+the final outcome's — and a recovered run raises none at all. Equity snapshots: every
+retryable abort occurs at stages (b)–(e), strictly before the snapshot is appended at (h),
+so a retry can never double-write a mark.
+
+**A guarantee strengthened along the way.** The retry needs a fresh broker per attempt, so
+`broker_factory` was threaded through — and passing it into `run_paper` (rather than calling
+it in the wrapper) turned out to matter: the runner builds the client at stage (e), so a
+halted account still aborts with **no broker constructed and no credentials read at all**.
+The first draft called the factory eagerly and quietly broke that documented property; the
+tests now assert `factory_calls == 0` for every pre-broker abort, which is a stronger
+statement than the pipeline previously made anywhere.
+
+---
+
+## 2026-08-10 — The watchdog: making silence audible
+
+**The failure mode.** Everything runs from Task Scheduler on one workstation, and
+`StartWhenAvailable` cannot run anything while that machine is **off**. On 2026-08-01 no
+crypto run fired. Nothing alerted — because nothing failed. The pipeline was simply never
+invoked, and a system that only reports on the runs it performs is structurally blind to the
+runs it did not.
+
+**Decision.** The daily digest now asks the opposite question: which firings *should* have
+happened since the last digest, and is there an artifact for each? Missing ones render a
+**MISSED RUNS** section and fire **exactly one** WARNING naming them all. One alert rather
+than one per miss: a machine off for a weekend misses a dozen firings for a single reason,
+and a dozen alerts would bury the reason in the noise.
+
+Evidence per task — a run report (aborted counts: the task *fired*, and its abort already
+alerted on its own), a `week_*.json`, or a `glassbox.refresh` alert record, which the chain
+writes on success and abort alike.
+
+**Two design points that decide whether it is useful or ignored.** `scheduling.tasks.SCHEDULE`
+is the single source of truth for when each task fires, so a schedule change cannot leave the
+expectation behind. And **not-yet-due is not missing**: the digest runs at 16:45 ET, before
+the crypto run (20:30), the weekly (17:00) and the refresh (17:30), so every expectation is
+gated on its scheduled instant having passed. Without that gate it would report three missed
+firings every weekday, and a watchdog that cries wolf on schedule is worse than none. Market
+holidays and weekends are excluded for equities via the calendar, never a weekday count.
+
+**It found four real gaps on its first run against the repository's own history** (12-day
+lookback): the 2026-08-01 crypto pair, and — unprompted — the **2026-07-31 weekly review**,
+which was never generated on its Friday at all (the published `week_20260802` was a Sunday
+catch-up), plus the 07-31 and 08-07 refreshes, which predate the task existing. The 07-31
+weekly is the same host-off weekend as the crypto miss, and nothing had previously noticed it.
+
+---
+
+## 2026-08-10 — CI is healthy, and a provenance warning that does not block
+
+**CI verification.** All 12 CI runs in the workflow's life are accounted for; the last 10
+pushes each ran it. **11 success, 1 failure.** The failure — run `31437620995`, commit
+`8a7f6ed` — was the freshness time-bomb in
+`test_a_complete_and_clean_dist_passes_the_whole_gate`, which was knowingly left failing at
+that commit and fixed in `5861a72`; the next run is green. **CI was never failing silently
+and no push skipped it.** Two commits (`ac4d27a`, `b59bb8d`, both 2026-07-22) show no run of
+their own because they were pushed together with `15db817` — GitHub runs the workflow once
+per push, at its head, which is expected rather than a gap. Local runs report 570 passed
+where CI reports 565 passed + 5 skipped: the five `live`-marked tests need `TIINGO_API_KEY`,
+which exists locally and not in CI.
+
+**Decision: a dirty-tree check on the two commands that act outward**, `glassbox refresh` and
+`schedule install`. Both are otherwise happy to act from uncommitted edits, and the artifacts
+they leave record a commit — the snapshot manifest carries `git_commit`, every report carries
+`version_string()`. From a dirty tree that recorded commit is a claim the repository cannot
+substantiate: the published figures came from code that exists nowhere but one laptop.
+`schedule install` is the sharper case, because the tasks it writes will run *that checkout*
+unattended for months.
+
+**Report-only, and that is the considered choice, not a shortcut.** A hard block would be
+the wrong trade for a transparency site whose staleness is the bigger risk — refusing to
+publish a fresh snapshot because a README line is unstaged would reintroduce the
+fifteen-day-stale failure in order to protect a provenance detail. So it warns, records the
+warning in the run report (`RefreshResult.repo`, rendered under `PROVENANCE`), prints it
+before the chain starts, and proceeds. Everything is best-effort: no git, a detached HEAD or
+no upstream produces a note rather than an error, because none of those should stop a
+scheduled task.
+
+**Two unrelated things this session surfaced, recorded so they are not lost.** (1) The
+`data/eod` store had drifted out of alignment — SPY carried a 2026-08-10 bar while IEF did
+not, which makes `build_price_panel` raise on IEF's internal gap and would have aborted
+`trend`'s next run at stage (c) as well as the digest. Cured by re-ingesting IEF, which the
+vendor had by then published; worth noting that the *runner* would have classified that same
+condition as a `validate` abort and correctly refused to retry it. (2) The test suite writes
+into the real `reports/logs/quantlab.jsonl` rather than a tmp path. Harmless today (the log
+is append-only and nothing reads it for decisions) but it is a genuine isolation leak and the
+reason forensics on that store drift was slower than it should have been. Neither is in this
+batch's scope; both are cheap and should be picked up next.
+
+---
+
 ## 2026-08-10 — Automated Glass Box refresh, and the doctrine that lets a machine deploy
 
 **The failure being fixed.** The deploy ritual was four commands across two directories, run

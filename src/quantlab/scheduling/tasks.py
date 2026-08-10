@@ -47,10 +47,12 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from quantlab.config import ConfigError
 from quantlab.logging_setup import get_logger
+from quantlab.repo_state import RepoState, check_repo_state
 
 log = get_logger("quantlab.scheduling")
 
@@ -73,6 +75,56 @@ _GLASSBOX_REFRESH_TIME = "17:30"
 _CRYPTO_RUN_TIME = "20:30"
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
+
+
+# --------------------------------------------------------------------------- #
+# Public schedule description (consumed by the digest's watchdog)             #
+# --------------------------------------------------------------------------- #
+# The watchdog has to know when each task was SUPPOSED to fire, and that knowledge
+# must not be duplicated: a schedule change here has to move the expectation too, or
+# the watchdog starts either crying wolf or going quiet. So the times above are
+# re-expressed once, in UTC, alongside which days each task runs.
+#
+# DOCUMENTED LIMITATION, identical in kind to the one in ``glassbox.constants``: these
+# are the EDT-era offsets (schtasks fires on the host's LOCAL clock, and the host is
+# Eastern). Under EST every task lands an hour later in UTC. That shifts only *when the
+# watchdog starts expecting* a run on the current day, never whether a past day's run is
+# found, so a standard-time month makes the watchdog slightly early rather than wrong.
+# A real tz-aware schedule model is a later decision, not a silent guess here.
+
+DAYS_WEEKDAYS = "weekdays"   # Mon-Fri, and for equities further narrowed to NYSE sessions
+DAYS_FRIDAY = "friday"
+DAYS_DAILY = "daily"
+
+
+@dataclass(frozen=True)
+class ScheduledTask:
+    """One installed task, and the artifact that proves it ran."""
+
+    name: str
+    utc_minute_of_day: int
+    days: str
+    # Which artifact a completed firing leaves behind. Read by the watchdog.
+    produces: str
+    # For paper-run tasks: the asset class whose accounts should each have a report.
+    asset_class: str | None = None
+
+
+PRODUCES_RUN_REPORT = "run_report"
+PRODUCES_WEEKLY_REVIEW = "weekly_review"
+PRODUCES_REFRESH_ALERT = "refresh_alert"
+
+SCHEDULE: tuple[ScheduledTask, ...] = (
+    ScheduledTask(TASK_PAPER_RUN, 14 * 60, DAYS_WEEKDAYS,
+                  PRODUCES_RUN_REPORT, asset_class="us_equity"),
+    # 20:30 ET is 00:30 UTC on the FOLLOWING calendar day, which is the day its mark and
+    # its report are stamped with -- so the expectation is keyed to that day at 00:30.
+    ScheduledTask(TASK_CRYPTO_PAPER_RUN, 30, DAYS_DAILY,
+                  PRODUCES_RUN_REPORT, asset_class="crypto"),
+    ScheduledTask(TASK_WEEKLY, 21 * 60, DAYS_FRIDAY, PRODUCES_WEEKLY_REVIEW),
+    ScheduledTask(TASK_GLASSBOX_REFRESH, 21 * 60 + 30, DAYS_FRIDAY,
+                  PRODUCES_REFRESH_ALERT),
+)
 
 
 def resolve_quantlab_exe() -> str:
@@ -193,6 +245,7 @@ def install(
     runner: Runner = _default_runner,
     printer: Callable[[str], None] = print,
     builder: Callable[[str], list[list[str]]] = build_install_commands,
+    repo_state: RepoState | None = None,
 ) -> int:
     """Print the exact commands, then (only with ``confirm == 'YES'``) run them.
 
@@ -205,6 +258,13 @@ def install(
     """
     resolved = exe if exe is not None else resolve_quantlab_exe()
     commands = builder(resolved)
+
+    # Provenance warning, report-only. These tasks will run THIS checkout unattended for
+    # months, so installing from a dirty or unpushed tree means the code that trades is not
+    # the code the repository can show anyone. Not a hard block: see repo_state.
+    for warning in (repo_state if repo_state is not None else check_repo_state()).warnings:
+        printer(f"WARNING: {warning}")
+        log.warning("schedule_install_repo_unclean", detail=warning)
 
     # Each task is created, then a post-step enables StartWhenAvailable (catch-up).
     # The preview lists both so what is printed is exactly what runs.

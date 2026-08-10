@@ -45,6 +45,7 @@ from pydantic import BaseModel
 from quantlab.constants import PROJECT_ROOT
 from quantlab.glassbox.completeness import DEFAULT_MAX_AGE_DAYS
 from quantlab.logging_setup import get_logger
+from quantlab.repo_state import RepoState, check_repo_state
 from quantlab.reporting.alerts import Alert, DeliveryResult, dispatch
 
 log = get_logger("quantlab.glassbox.refresh")
@@ -116,6 +117,10 @@ class RefreshResult(BaseModel):
     deploy_url: str | None = None
     aborted_at: str | None = None
     abort_reason: str | None = None
+    # Git provenance of the checkout that produced these bytes. Report-only: a dirty tree
+    # warns and the chain proceeds (see repo_state for why blocking would be the wrong
+    # trade), but the warning travels with the report so the claim is never silent.
+    repo: RepoState | None = None
 
     @property
     def ok(self) -> bool:
@@ -144,6 +149,11 @@ class RefreshResult(BaseModel):
             s = self.step(name)
             lines.append(f"  {name:<12} {s.status:<8} {s.detail}")
         lines.append("")
+        if self.repo is not None:
+            lines.append("PROVENANCE")
+            lines.append("-" * 72)
+            lines.extend(self.repo.render())
+            lines.append("")
         lines.append("DEPLOY DECISION")
         lines.append("-" * 72)
         lines.append(f"  forbidden matches : {len(self.forbidden_matches)} "
@@ -278,6 +288,7 @@ def refresh(
     dist_dir: Path = DIST_DIR,
     env_path: Path | None = None,
     max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    repo_state: RepoState | None = None,
     # Test seams. Typed loosely on purpose: the real callables return concrete
     # SnapshotResult / DistVerifyResult, while the suite injects structural doubles.
     snapshot_fn: Callable[..., Any] | None = None,
@@ -295,6 +306,12 @@ def refresh(
 
     started = now if now is not None else datetime.now(UTC)
     result = RefreshResult(started_at=started, dry_run=dry_run)
+
+    # Provenance first, so it is on the report even if the chain aborts at step one.
+    # Report-only: a dirty tree never blocks a publish.
+    result.repo = repo_state if repo_state is not None else check_repo_state()
+    for warning in result.repo.warnings:
+        log.warning("glassbox_refresh_repo_unclean", detail=warning)
     take_snapshot = snapshot_fn if snapshot_fn is not None else write_snapshot
     run_gate = verify_fn if verify_fn is not None else verify_dist
 

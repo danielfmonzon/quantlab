@@ -54,6 +54,7 @@ from quantlab.broker.alpaca_trading import (
 )
 from quantlab.config import ConfigError, account_asset_class
 from quantlab.constants import CRYPTO_RISK_YAML, PROJECT_ROOT
+from quantlab.data import DataError
 from quantlab.data.alpaca_client import ClockInfo
 from quantlab.data.calendar import CryptoCalendar, MarketCalendar, TradingCalendar
 from quantlab.data.health import HealthReport, preflight
@@ -129,9 +130,17 @@ class PaperRunReport(BaseModel):
     strategy: str
     dry_run: bool
     timestamp: datetime
+    # Which attempt of the day produced this report: 1 for the scheduled run, 2 for the
+    # single bounded retry (see run_paper_with_retry). A run audit that counts reports
+    # without this cannot tell one clean run from a recovery.
+    attempt: int = 1
     aborted: bool = False
     abort_stage: str | None = None
     abort_reason: str | None = None
+    # Whether this abort's CAUSE could plausibly be cured by simply running again.
+    # Decided at the abort site, where the exception and the stage are both in hand,
+    # rather than inferred later from the reason string.
+    abort_retryable: bool = False
     equity: float | None = None
     target_weights: dict[str, float] = {}
     plan: RebalancePlan | None = None
@@ -198,6 +207,10 @@ def run_paper(
     *,
     store: ParquetStore | None = None,
     broker: AlpacaTradingClient | None = None,
+    # Built lazily at stage (e), never before. Stage (a) exists so a halted account
+    # aborts without touching the broker at all -- and "touching" includes reading
+    # credentials and constructing a client, so the factory must not be called earlier.
+    broker_factory: Callable[[], AlpacaTradingClient] | None = None,
     calendar: MarketCalendar | None = None,
     now: datetime | None = None,
     do_ingest: bool = True,
@@ -247,11 +260,13 @@ def run_paper(
         except Exception as exc:  # noqa: BLE001
             log.warning("alert_dispatch_failed", error=str(exc))
 
-    def _abort(stage: str, reason: str, level: str = "WARNING") -> PaperRunReport:
+    def _abort(stage: str, reason: str, level: str = "WARNING",
+               retryable: bool = False) -> PaperRunReport:
         _stage(stage, False, reason)
         report.aborted = True
         report.abort_stage = stage
         report.abort_reason = reason
+        report.abort_retryable = retryable
         _finish(report, reports_dir, write_report)  # state written first ...
         _emit(Alert(  # ... then alert (never before the write)
             level=level, title=f"paper {strategy_name} aborted at '{stage}'",
@@ -266,7 +281,8 @@ def run_paper(
             reason = f"halted: {state.reason}; quantlab risk reset required"
         else:
             reason = f"halted (auto): {state.reason}"
-        return _abort("risk_state", reason)
+        # A halt is a decision, not a hiccup. Only `quantlab risk reset` clears it.
+        return _abort("risk_state", reason, retryable=False)
     _stage("risk_state", True, "not halted")
 
     symbols = strategy.all_symbols
@@ -277,8 +293,13 @@ def run_paper(
         try:
             ingest_fn(symbols, the_store)
             _stage("ingest", True, f"ingested {', '.join(symbols)}")
+        except ConfigError as exc:
+            # A missing key or bad endpoint is not cured by waiting; do not retry.
+            return _abort("ingest", f"ingest failed: {exc}", retryable=False)
         except Exception as exc:  # noqa: BLE001 - surfaced as a clean abort
-            return _abort("ingest", f"ingest failed: {exc}")
+            # Network/API transient. The ingest is idempotent (upsert), so re-running
+            # it is safe as well as useful.
+            return _abort("ingest", f"ingest failed: {exc}", retryable=True)
     else:
         _stage("ingest", True, "skipped (no ingest function)")
 
@@ -301,7 +322,10 @@ def run_paper(
             ))
     failed = [r.symbol for r in reports if not r.passed]
     if failed:
-        return _abort("validate", f"validation failed for: {', '.join(failed)}")
+        # Data-CONTENT errors. A re-run reads the same bars and reaches the same
+        # verdict, so retrying would only delay the same abort by ten minutes.
+        return _abort("validate", f"validation failed for: {', '.join(failed)}",
+                      retryable=False)
     _stage("validate", True, f"validated {', '.join(symbols)}")
 
     # -- (d) health preflight ------------------------------------------------
@@ -311,18 +335,34 @@ def run_paper(
         health = preflight(symbols, the_store, the_cal, clock, run_now)
     if not health.data_fresh:
         why = "; ".join(health.blocking_reasons) or "data not fresh"
-        return _abort("health", f"FREEZE_STALE_DATA: {why}")
+        # Staleness is the one gate a later re-ingest genuinely cures: the vendor may
+        # simply not have published the bar yet when the scheduled run fired.
+        return _abort("health", f"FREEZE_STALE_DATA: {why}", retryable=True)
     _stage("health", True, "data fresh")
 
     # -- (e) account ---------------------------------------------------------
-    the_broker = broker if broker is not None else _require_broker()
+    if broker is not None:
+        the_broker = broker
+    elif broker_factory is not None:
+        the_broker = broker_factory()
+    else:
+        the_broker = _require_broker()
     try:
         account = the_broker.get_account()
     except Exception as exc:  # noqa: BLE001
-        return _abort("account", f"account unverifiable: {exc}", level="CRITICAL")
+        # The client has its own tenacity policy for 429/5xx/network and only reraises
+        # once it has exhausted it, so reaching here means the condition persisted.
+        # DataError (and its subclass TradingError, which carries a permanent 4xx) means
+        # the API answered and the answer was bad -- auth, permissions, malformed body --
+        # none of which a tenth-minute retry fixes. Anything else is a sustained
+        # transport/5xx failure on a READ, which is worth one more attempt.
+        transient = not isinstance(exc, DataError)
+        return _abort("account", f"account unverifiable: {exc}",
+                      level="CRITICAL", retryable=transient)
     bad = _account_problem(account)
     if bad is not None:
-        return _abort("account", bad, level="CRITICAL")
+        # Blocked account or non-positive equity: a real account state, not a blip.
+        return _abort("account", bad, level="CRITICAL", retryable=False)
     report.equity = account.equity
     _stage("account", True, f"equity={account.equity:.2f} cash={account.cash:.2f}")
 
@@ -335,7 +375,8 @@ def run_paper(
     panel = completed_sessions_only(panel, the_cal, run_now)
     usable = panel[strategy.required_symbols].dropna()
     if usable.empty:
-        return _abort("target_weights", "no sessions where required symbols have prices")
+        return _abort("target_weights", "no sessions where required symbols have prices",
+                      retryable=False)
     panel = panel.loc[usable.index.min():]
     targets, signal_date = current_target_weights(
         strategy, panel, calendar=the_cal, now=run_now
@@ -366,7 +407,8 @@ def run_paper(
                 rs_path,
             )
             return _abort(
-                "evaluate_portfolio", f"{pdec.action}: {pdec.reason}", level="CRITICAL"
+                "evaluate_portfolio", f"{pdec.action}: {pdec.reason}",
+                level="CRITICAL", retryable=False,
             )
         _stage("evaluate_portfolio", True, f"{pdec.action} (dd={pdec.drawdown})")
     else:
@@ -395,7 +437,10 @@ def run_paper(
                 poll_timeout, poll_interval, sleep_fn, monotonic_fn,
             )
         except Exception as exc:  # noqa: BLE001
-            return _abort("submit", f"order submission failed: {exc}", level="CRITICAL")
+            # Submission has BEGUN: some orders may be live at the broker. Re-running
+            # the pipeline could double up on them. This alerts and stops, always.
+            return _abort("submit", f"order submission failed: {exc}",
+                          level="CRITICAL", retryable=False)
         report.submitted_orders = submitted
         dupes = sum(1 for o in submitted if o.was_duplicate)
         _stage("submit", True, f"submitted {len(submitted)} order(s), {dupes} duplicate(s)")
@@ -412,6 +457,121 @@ def run_paper(
             source="paper.runner", strategy=strategy_name,
         ))
     return report
+
+
+# --------------------------------------------------------------------------- #
+# Bounded retry                                                               #
+# --------------------------------------------------------------------------- #
+
+# One retry, ten minutes later. Bounded on purpose: the point is to survive a vendor
+# publishing a bar late or a broker read blipping, not to keep hammering. If ten minutes
+# does not cure it, the condition is real and the next scheduled run is soon enough.
+RETRY_DELAY_SECONDS = 600.0
+
+
+def run_paper_with_retry(
+    strategy_name: str,
+    dry_run: bool = True,
+    *,
+    retry_delay_seconds: float = RETRY_DELAY_SECONDS,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    alert_fn: Callable[[Alert], None] | None = None,
+    broker_factory: Callable[[], AlpacaTradingClient] | None = None,
+    **kwargs: object,
+) -> PaperRunReport:
+    """Run the gated pipeline, retrying ONCE if the abort's cause was transient.
+
+    Before this, any abort ended the attempt until the next scheduled day: a bar published
+    three minutes late cost a whole session of paper record, and those gaps are exactly what
+    the divergence diagnoses kept tripping over (a missed run turns two clean 24h mark
+    windows into a 70h one and a 7h one).
+
+    WHAT IS RETRIED is decided at each abort site rather than pattern-matched here, so the
+    decision is made where the exception and the stage are both in hand:
+
+    * ``ingest``   -- transient network/API failure. The ingest is an upsert, so repeating
+                      it is idempotent. A ``ConfigError`` is NOT retried: a missing key is
+                      not cured by waiting.
+    * ``health``   -- ``FREEZE_STALE_DATA``. The canonical case: the vendor had not
+                      published the session's bar when the scheduled run fired.
+    * ``account``  -- only a sustained transport/5xx failure on the READ. The client has
+                      already exhausted its own tenacity policy by the time this surfaces.
+
+    NEVER RETRIED, each for its own reason:
+
+    * ``risk_state`` halted -- a decision, not a hiccup; only ``risk reset`` clears it.
+    * ``validate``          -- a data-CONTENT error; a re-run reads the same bars.
+    * ``account`` blocked / non-positive equity -- a real account state.
+    * ``account`` permanent API fault (``DataError``/``TradingError``, i.e. 4xx, auth,
+      malformed body) -- the API answered and the answer was bad.
+    * ``target_weights``    -- no usable history is a content condition.
+    * ``evaluate_portfolio``-- a HALT/KILL was just WRITTEN. Retrying must never look like
+      a second chance at trading.
+    * ``submit``            -- submission has BEGUN and orders may be live at the broker.
+      A partial submission must alert, never re-run a pipeline that could double it.
+
+    ALERTING. Attempt 1's abort alert is withheld while a retry is pending and discarded if
+    the retry happens, so one logical failure raises exactly one WARNING — the final
+    outcome's. A non-retryable abort alerts immediately, unbuffered.
+
+    No equity snapshot can be double-written: every retryable abort occurs at stage (b)-(e),
+    strictly before the snapshot is appended at stage (h).
+
+    ``broker_factory`` is called once PER ATTEMPT rather than a client being passed in, so
+    the retry gets a fresh session ten minutes later instead of reusing one whose connection
+    or token may be exactly what failed. It is also the observable that proves a
+    non-retryable abort really stopped: the factory is called once, never twice.
+    """
+    buffered: list[Alert] = []
+    emit = alert_fn if alert_fn is not None else _default_runner_alert
+
+    def _attempt(sink: Callable[[Alert], None]) -> PaperRunReport:
+        # The factory is handed through, NOT called here: run_paper builds the client at
+        # stage (e), so a halted account still aborts without a broker ever existing.
+        return run_paper(
+            strategy_name, dry_run,
+            alert_fn=sink, sleep_fn=sleep_fn,
+            broker_factory=broker_factory, **kwargs,  # type: ignore[arg-type]
+        )
+
+    first = _attempt(buffered.append)  # held until we know if a retry supersedes it
+    first.attempt = 1
+
+    if not (first.aborted and first.abort_retryable):
+        for alert in buffered:  # nothing supersedes these
+            emit(alert)
+        return first
+
+    log.warning(
+        "paper_retry_scheduled", strategy=strategy_name, stage=first.abort_stage,
+        reason=first.abort_reason, delay_seconds=retry_delay_seconds,
+    )
+    sleep_fn(retry_delay_seconds)
+
+    second = _attempt(emit)  # attempt 2 speaks for itself, whatever it decides
+    second.attempt = 2
+    # Rewrite the report so the persisted record carries attempt=2. `run_paper` wrote it
+    # before this function could set the field, and the file is what the audit reads.
+    _rewrite_attempt(second, kwargs)
+    log.info(
+        "paper_retry_outcome", strategy=strategy_name,
+        first_stage=first.abort_stage, retried=True,
+        recovered=not second.aborted,
+        second_stage=second.abort_stage,
+    )
+    return second
+
+
+def _rewrite_attempt(report: PaperRunReport, kwargs: dict[str, object]) -> None:
+    """Re-persist ``report`` so its file records the attempt number it actually was."""
+    if kwargs.get("write_report") is False:
+        return
+    reports_dir = kwargs.get("reports_dir")
+    _finish(
+        report,
+        reports_dir if isinstance(reports_dir, Path) else PAPER_REPORTS_DIR,
+        True,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -553,6 +713,8 @@ def run_all_strategies(
 __all__ = [
     "calendar_for_account",
     "run_paper",
+    "run_paper_with_retry",
+    "RETRY_DELAY_SECONDS",
     "run_all_strategies",
     "PaperRunReport",
     "StageOutcome",
