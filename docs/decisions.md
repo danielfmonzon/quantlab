@@ -6,6 +6,225 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-10 — Divergence diagnosis #2, and six re-rulings
+
+**Scope.** The two weekly reviews on file since 2026-07-31: `week_20260802` (generated
+2026-08-02T22:53:50.959572Z) and `week_20260807` (generated 2026-08-07T21:00:04.381541Z).
+Read-only. Unlike the 2026-07-24 study, **every published figure reproduced exactly**
+through the aligned code path — all six divergences to the tenth of a basis point — so
+nothing here is a non-reproducible artifact of the kind that voided the earlier headline.
+
+**Finding 1 — `trend` is measurement geometry, provably and completely.** `trend` held a
+constant **133.028241898** SPY across 2026-07-24..2026-08-10 with zero orders, zero
+`est_turnover`, and cash inside ±$12 on a ~$100k book, so `(equity − cash) / qty` *is* the
+SPY price at the mark instant; every implied price lands inside its session's low-high
+range. For a position held without trading, paper interval `[10:00 t−1, 10:00 t]` minus
+shadow session `t` telescopes to `rem[t−1] − rem[t]` where `rem[t] = close[t]/implied[t] −
+1`, so a week depends **only on its two endpoint remainders** and every interior mark
+cancels. Week 2026-08-07: `rem[07-31]` **+68.20** less `rem[08-06]` **−31.52** predicts
+**+99.71 bps** against the published **+101.39** — residual **+1.68 bps (1.7%)**. Week
+2026-08-02 predicts **+21.31** against **+21.10**, residual **−0.21 bps**. Per-day
+predictions match observed gaps to **0.1–2.8 bps** across eight sessions. No SPY dividend
+ex-date falls in either window (last 2026-06-18, quarterly).
+
+A corollary worth keeping: the 2026-08-05 mark was a catch-up **3h01m late** and drove the
+week's largest single-day gap (**+130.3 bps**), yet contributed **exactly zero** to the week
+aggregate, because it is interior to the window and cancels. Off-schedule marks move days,
+not weeks, whenever the window's two edges are on schedule.
+
+**Finding 2 — the crypto gap was a comparator dating defect, not mark-window length.** A
+crypto mark fires at 00:30 UTC, **thirty minutes into** UTC day `d`, so the interval ending
+there covers day `d−1` for 23.5 of its 24 hours. The review paired it with session `d`,
+shifting every crypto comparison by a full session. Tested against BTC's own bars over
+twelve intervals, mean absolute error was **81.0 bps** pairing with `d` and **33.0 bps**
+pairing with `d−1`; across the clean 24.00h on-schedule stretch of 2026-08-05..09 the `d`
+pairing missed by up to **116 bps** while `d−1` matched to **0.1–9.1 bps**. Re-pairing cut
+week 2026-08-02's **+208.08 bps** to **−1.03 bps** (that week's cadence was intact — all
+seven UTC days marked — which is why it isolates the defect so cleanly) and week
+2026-08-07's **+132.05 bps** to **+10.67 bps**.
+
+This **supersedes the mechanism named in `_CRYPTO_STRUCTURAL_NOTE`** for these weeks.
+Variable mark-window length and mark-phase straddle were the right story for week
+2026-07-24, when three *leaked* 14:00Z marks genuinely scrambled the spacing to 10.49–32.72h.
+With the leak fixed and marks landing at 00:30Z, that noise cleared and exposed a constant
+one-session shift underneath it — larger than the mechanism it was hiding behind.
+
+**Finding 3 — a missed run, and what it does to the arithmetic.** No crypto run fired on
+**2026-08-01** (no run report, no equity mark, no alert, for both crypto accounts), leaving a
+**70.40h** interval followed by a **6.92h** one. In week 2026-08-07 the compared window then
+holds seven shadow sessions against six paper intervals: session **2026-07-31**
+(**−185.91 bps**) has no paper counterpart at all. Paired daily gaps sum to **−176.0 bps**
+and that orphan session contributes **+185.91**, netting the **+10.67**. The small net is
+arithmetic coincidence, not structure — a different BTC path across 07-31/08-01 leaves a
+large residual with identical cadence.
+
+**Finding 4 — the store was stale at both generation instants.** At the 2026-08-02 review
+the last stored SPY/IEF bar was **2026-07-30** while the NYSE calendar had completed
+**2026-07-31**; `digest_20260802`, generated in the same second, records
+`staleness_sessions: 1`, so the health check saw it. At the 2026-08-07 review the calendar
+had completed **2026-08-07** — the review ran at 21:00:04.381Z, **4.4 seconds past** the
+21:00:00Z session-completion cutoff — while the store still held **2026-08-06**, with no
+ingest in the intervening fifteen minutes. Both reviews therefore measured a week ending one
+session earlier than the calendar allowed. The alignment fix behaved correctly in all six
+cases (no orphan day landed whole in a divergence, the 2026-07-24 defect); the exclusions
+were **store staleness**, not calendar truncation.
+
+**Run audit, 2026-07-28..2026-08-07.** `voltarget` 9/9 attempted/completed, 0 aborted, 0
+missed. `trend` 9/9, 0 aborted, 0 missed, 9 in-band no-trade. `crypto_voltarget` and
+`crypto_trend` 10 of 11 expected days, 0 aborted, **2026-08-01 missed**. **`voltarget` DID
+run on 2026-08-06**: `run_voltarget_20260806T140006Z.json`, all nine stages `ok`, plan
+detail `in-band, no trades`, `current_w` 0.6876 vs `target_w` 0.6898 → `diff` 0.0022 below
+`min_trade_frac` 0.01, and its equity 102,490.84 was written to the history. An
+**in-band-no-trade completion, not a missed run** — the distinction the run audit now states
+explicitly, because the two look identical in a run count.
+
+**Six re-rulings. All six account-weeks are MARK-TIMING-STRUCTURAL.** No account-week shows
+tracking error, execution slippage beyond one day's fill effect, risk-path interference (0
+of 38 runs aborted, no halts), or strategy misbehaviour. Unexplained residual never exceeds
+**+4.24 bps** anywhere.
+
+| account | week | published | verdict as published | re-ruling |
+|---|---|---|---|---|
+| voltarget | 2026-08-02 | +12.72 | TRACKING | TRACKING — stands |
+| trend | 2026-08-02 | +21.10 | TRACKING | TRACKING — stands |
+| crypto_voltarget | 2026-08-02 | +208.08 | DIVERGING | **VOIDED** — comparator dating |
+| voltarget | 2026-08-07 | +77.86 | DIVERGING | **TRACKING** — mark phase |
+| trend | 2026-08-07 | +101.39 | DIVERGING | **TRACKING** — mark phase |
+| crypto_voltarget | 2026-08-07 | +132.05 | DIVERGING | **VOIDED** — comparator dating |
+
+**Both crypto blockers are VOIDED as a comparator dating defect**, not as a partial-bar
+artifact — the inputs were complete and the computation reproducible; the *pairing* was
+wrong. The two equity DIVERGING blockers from week 2026-08-07 are **withdrawn**: their
+residuals after decomposition are **+2.63** and **+1.88 bps**.
+
+**The published reports stand unmodified.** `week_20260802.*` and `week_20260807.*` are the
+record of what was reported and are not rewritten; this entry is the correction, and the
+demonstration that produced these figures wrote nothing. Precedent: the 2026-07-25 entry.
+
+---
+
+## 2026-08-10 — Residual thresholding: fix the instrument, not the threshold
+
+**Decision.** Three measurement-correctness fixes on the reporting path, and a change in
+what the 50 bps threshold is applied *to*. **The threshold value is unchanged at 50 bps.**
+
+**(A) Per-asset-class mark-to-session dating.** `weekly.session_for_mark` maps a paper mark's
+date to the shadow session whose period the interval ending at that mark actually covers:
+offset **0** for `us_equity` (a 14:00Z mark sits mid-session, and pairing with its own
+session is exact up to the endpoint remainders the decomposition prices) and **−1** for
+`crypto` (a 00:30Z mark closes the previous UTC day). The offset is applied in three places
+that must agree or the comparison is incoherent: the weekly pairing, the cumulative pairing,
+and the **coverage-exclusion test** — a mark is comparable when its *paired* session is
+covered, not when its own date is. Equity behaviour is unchanged, pinned by regression.
+
+*Documented limitation.* The offset is per asset class, **not per mark**. A `leaked` crypto
+mark from the pre-2026-07-22 14:00Z equity task sits mid-day and is mis-paired by one session
+under this rule; so is an off-schedule crypto catch-up such as the 2026-08-02 **22:54Z** mark,
+which sits at the *end* of its UTC day. Those marks predate the crypto readiness clock's
+restart or are flagged `catch_up`, and a clock-time-aware rule is a later decision rather
+than a silent guess here — the same posture `glassbox.constants` takes on its EDT-era
+provenance windows.
+
+**(B) Mark-phase decomposition, and the verdict moves onto the residual.** `AccountWeekly`
+now carries `raw_divergence_bps`, `predicted_mark_phase_bps`, `residual_bps` and a
+`decomposition_note`, all three numbers rendered in the markdown with one line saying which
+one decides. `reporting.markphase` sums per-session contributions
+`w_post × (r_mark − r_session)`, which is the telescoped form of finding 1's endpoint
+remainders. It is implemented in the summed form deliberately: it needs **no share count**
+(only price ratios, recovered from `equity − cash` and the signed order notional), and it
+carries a **distinct `w_post` per session**, so `voltarget`'s daily weight changes decompose
+correctly instead of assuming one weight for the week. The two forms agree to **0.11 bps** on
+`trend`'s static week; a test pins <0.5 bps.
+
+**Verdict is `|residual| ≤ threshold`.** When inputs are incomplete — a missing run report,
+an aborted run, or a holding that is not exactly one symbol, in which case `equity − cash` is
+a basket and no implied price exists — the prediction is `None`, the verdict falls back to
+the raw divergence, and the note says `decomposition unavailable` so a fallback pass can
+never be mistaken for an explained one. The DIVERGING alert and the readiness blocker both
+quote the figure that actually decided, labelled `residual` or `raw`.
+
+**(C) Unpaired sessions.** `unpaired_sessions` lists sessions inside the compared window that
+no paper interval closes on, rendered in the markdown. The 2026-08-01 miss surfaces as
+session **2026-07-31** for both crypto accounts in both weeks, instead of being folded
+silently into a 70.40h interval's comparison.
+
+**Rationale.** The 50 bps threshold is a policy statement about how far an account may drift
+from its own model before a human looks. It was being applied to a number that was mostly
+arithmetic: `trend` tripped it at +101 bps in a week it did not place a single order.
+Loosening the threshold would have hidden real drift along with the geometry; leaving it
+meant four false blockers in two weeks and a gate that cries wolf. The defect was never the
+number — it was that the instrument measured mark timing and the threshold was being read as
+though it measured behaviour. So the instrument was fixed and the threshold left alone.
+
+**Freeze compliance.** Report-only. No strategy parameter, risk limit, threshold value, alert
+threshold, run cadence, `broker/` module, order-submission path, or sanitizer pattern is
+touched. (A) changes which shadow session a paper interval is compared against; (B) and (C)
+add fields and rendering. `divergence_bps` is retained alongside `raw_divergence_bps` because
+the published week files and the Glass Box reader key on it. Precedent: the 2026-07-25 aligned
+windows and completed-session bars, and the 2026-07-22 scheduler-leak fix.
+
+**Demonstration.** Both weeks recomputed read-only at their published generation instants,
+with the store frontier pinned to what it held at publication so the equity windows reproduce
+exactly. Nothing written.
+
+| account | week | raw | predicted | residual | verdict |
+|---|---|---|---|---|---|
+| voltarget | 08-02 | +12.72 | +9.80 | **+2.92** | TRACKING |
+| trend | 08-02 | +21.10 | +19.18 | **+1.92** | TRACKING |
+| crypto_voltarget | 08-02 | +55.44 | +38.01 | **+17.43** | TRACKING |
+| voltarget | 08-07 | +77.86 | +75.23 | **+2.63** | TRACKING |
+| trend | 08-07 | +101.39 | +99.51 | **+1.88** | TRACKING |
+| crypto_voltarget | 08-07 | +15.50 | −38.97 | **+54.47** | DIVERGING |
+
+Five of six clear the threshold. **`crypto_voltarget` week 2026-08-07 does not, at +54.47
+bps, and that is reported rather than tuned away.** Its cause is localised: on the subset of
+that same week where every mark is `on_schedule` and every interval is exactly 24.00h
+(2026-08-05..08-07) the residual is **−0.54 bps**, and it degrades monotonically as
+off-cadence intervals are added back — +43.98 including the 18.68h window, +49.73 including
+the 6.92h and 70.40h windows, +54.47 including the orphan session. A **6.92h mark window
+straddling midnight has no single-session counterpart at daily resolution**, so this is the
+limitation named in (A) and the irreducible cost of the 2026-08-01 miss, not account
+behaviour. The crypto windows also slide one mark forward of the published ones, because
+under (A) a mark whose paired session is covered is no longer excluded — which is the fix
+working, and why these raw figures are not the published ones.
+
+---
+
+## 2026-08-10 — Turnover: 33.79% in one week, and what it actually costs
+
+**Finding.** `voltarget`'s realized turnover was **33.79%** over 2026-07-28..2026-08-01 —
+**2.3× the top of the 10–15%/week heuristic** — and **13.50%** over 2026-08-03..08-07, inside
+it at the upper end. Realized equals planned: every intent was submitted, and order notional
+÷ equity reproduces `plan.est_turnover` on every run. The breach is concentrated in two
+single-day rebalances, **11.61%** on 07-29 pushing to `target_w = 1.0` and **13.18%** on
+07-31 reversing to 0.8048 — a whipsaw, against the following week's monotonic de-risking
+glide (0.8048 → 0.6878).
+
+**Modeled cost quantified.** At the shadow's 5 bps one-way rate the drag is **1.690 bps** for
+the 33.79% week and **0.675 bps** for the 13.50% week (**1.031** and **0.618 bps** over the
+review windows themselves). **This is the converge-vs-backtest cost, and it is not paid
+symmetrically.** The shadow models it; Alpaca paper charges no commission, so paper keeps
+what the shadow spends and the modeled drag shows up as *positive* divergence. Against
+divergences of 78–101 bps it is **under 2%** of the gap — which is the point worth recording:
+turnover was investigated as a divergence suspect and **exonerated**. It cannot account for
+these weeks, and the decomposition above shows what does.
+
+**No action now, and why.** The 5 bps assumption is the live exposure, not the turnover
+figure: it is a *modeled* rate, never validated against a fill. On SPY at this size real
+one-way cost is plausibly below 5 bps, in which case the shadow over-charges and the
+divergence is flattered; the sign of that error is unknown until fills are examined. Two
+weeks is also too short to call 33.79% a regime rather than one whipsaw — the strategy
+parameters that produced it are frozen, and re-tuning them to hit a turnover heuristic would
+be a strategy change dressed as a measurement fix.
+
+**Revisit at day 90**, alongside the live-readiness decision, with (a) realized turnover
+distribution over the full track rather than two weeks, (b) the 5 bps assumption tested
+against actual paper fill prices versus the marks, and (c) whether the heuristic itself is
+the right band for a daily-converge vol-target account. Recorded here so the day-90 review
+inherits the question instead of rediscovering it.
+
+---
+
 ## 2026-07-27 — DKIM key published, and why that is not the same as DKIM working
 
 The G5 entry recorded DKIM as out of reach because it needs Google Workspace Admin. Half of

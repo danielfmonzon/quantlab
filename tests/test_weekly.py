@@ -15,12 +15,16 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
+from quantlab.config import account_asset_class
+from quantlab.data import CANONICAL_COLUMNS
 from quantlab.data.calendar import TradingCalendar
+from quantlab.data.store import ParquetStore
 from quantlab.reporting.alerts import Alert
 from quantlab.reporting.weekly import (
     TARGET_DAYS,
     build_weekly_review,
     render_markdown,
+    session_for_mark,
     write_weekly_review,
 )
 from quantlab.reporting.weekly import (
@@ -65,13 +69,17 @@ def _seed_alert(path: Path, ts: str, level: str, title: str) -> None:
 def _stub_shadow(values_by_label: dict[str, float]):
     """A shadow fn whose compounded return over any window is a fixed per-label value.
 
-    Implemented as a single dated return on the window's end date, so both the
-    weekly and cumulative compounding pick up exactly that value. Labels absent
-    from the mapping shadow flat (0.0).
+    Implemented as a single dated return on the session the account's LAST mark pairs
+    with, so both the weekly and cumulative compounding pick up exactly that value.
+    The pairing offset is per asset class (``session_for_mark``): a crypto mark dated
+    ``end`` closes session ``end - 1``, so a stub return dated ``end`` would fall
+    outside the compared window and shadow flat. Labels absent from the mapping
+    shadow flat (0.0).
     """
     def _fn(label: str, store: object, start: date, end: date) -> pd.Series:
+        paired = session_for_mark(end, account_asset_class(label))
         return pd.Series([values_by_label.get(label, 0.0)],
-                         index=pd.DatetimeIndex([pd.Timestamp(end)]))
+                         index=pd.DatetimeIndex([pd.Timestamp(paired)]))
     return _fn
 
 
@@ -86,6 +94,15 @@ def _stub_shadow_series(series_by_label: dict[str, pd.Series]):
             label, pd.Series(dtype="float64", index=pd.DatetimeIndex([]))
         )
     return _fn
+
+
+def _seed_bars(store: ParquetStore, symbol: str, closes: dict[str, float]) -> None:
+    """Seed ``symbol`` with bars whose every price column is the given close."""
+    frame = pd.DataFrame({
+        "date": pd.to_datetime(list(closes)),
+        **{c: list(closes.values()) for c in CANONICAL_COLUMNS if c != "date"},
+    })
+    store.upsert(symbol, frame[list(CANONICAL_COLUMNS)])
 
 
 def _dated(returns: dict[str, float]) -> pd.Series:
@@ -691,7 +708,13 @@ def test_empty_shadow_leaves_the_paper_window_untouched(tmp_path) -> None:
 
 
 def test_crypto_alignment_uses_utc_day_marks(tmp_path) -> None:
-    """Crypto collapses to one mark per UTC day BEFORE alignment, then truncates."""
+    """Crypto collapses to one mark per UTC day BEFORE alignment, then truncates.
+
+    The exclusion boundary is the mark's PAIRED session, not the mark's own date. A
+    crypto mark dated 07-10 closes session 07-09, so a shadow covering through 07-09
+    can speak to it and it stays in — the pre-DEFECT-A code excluded it, comparing one
+    fewer paper interval than the shadow could actually price.
+    """
     data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
     # Two marks on the final day (the double-run shape); shadow stops a day earlier.
     _seed_equity(
@@ -711,11 +734,327 @@ def test_crypto_alignment_uses_utc_day_marks(tmp_path) -> None:
         paper_reports_dir=reports_dir, alerts_path=alerts_path,
     )
     cv = next(a for a in review.accounts if a.label == "crypto_voltarget")
-    # 07-10 appears ONCE in the exclusions despite carrying two raw marks.
-    assert cv.excluded_tail_days == [date(2026, 7, 10)]
+    # 07-10 pairs with covered session 07-09, so nothing is excluded...
+    assert cv.excluded_tail_days == []
     assert cv.window is not None
-    assert cv.window.end == date(2026, 7, 9)
-    assert cv.paper_week_return == pytest.approx(201_600 / 200_000 - 1.0)
+    assert cv.window.start == date(2026, 7, 4)
+    assert cv.window.end == date(2026, 7, 10)
+    assert cv.window.n_snapshots == 7
+    # ...and the day's LAST mark (202_100, not 202_000) closes the week, despite two
+    # raw marks landing on 07-10.
+    assert cv.paper_week_return == pytest.approx(202_100 / 200_000 - 1.0)
+
+
+# --------------------------------------------------------------------------
+# Measurement batch #3: per-class interval dating, decomposition, unpaired
+# --------------------------------------------------------------------------
+
+
+def _seed_priced_run(reports_dir: Path, label: str, ts: str, *, equity: float,
+                     cash: float, symbol: str) -> None:
+    """A run report rich enough for the mark-phase decomposition to read it."""
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "strategy": label, "timestamp": ts, "aborted": False, "equity": equity,
+        "plan": {"cash": cash, "current_weights": {symbol: (equity - cash) / equity}},
+        "submitted_orders": [],
+    }
+    stamp = ts.replace(":", "").replace("-", "").replace("T", "")
+    (reports_dir / f"run_{label}_{stamp}.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def test_session_for_mark_offsets_by_asset_class() -> None:
+    """A 14:00Z equity mark belongs to its own session; a 00:30Z crypto mark to d-1."""
+    d = date(2026, 8, 6)
+    assert session_for_mark(d, "us_equity") == d
+    assert session_for_mark(d, "crypto") == date(2026, 8, 5)
+    # An unknown class must not silently shift anything.
+    assert session_for_mark(d, "something_else") == d
+
+
+def test_equity_pairing_is_unchanged_by_the_crypto_fix(tmp_path) -> None:
+    """Regression: an equity fixture week pairs mark date d with session d, as before.
+
+    The figures below are what the pre-DEFECT-A code produced for this fixture. Paper
+    runs +1.00% across 07-06..07-10; the shadow carries +0.10% on each of the four
+    sessions the four paper intervals close on, so shadow_week compounds to 1.001**4
+    over exactly (07-06, 07-10] -- no offset, nothing excluded.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", WEEK_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    shadow = _dated({d: 0.001 for d in
+                     ["2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09",
+                      "2026-07-10"]})
+    review = build_weekly_review(
+        {"voltarget": object()}, MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow_series({"voltarget": shadow}), alert_fn=lambda _a: [],
+        data_dir=data_dir, paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    assert vt.window is not None
+    assert (vt.window.start, vt.window.end) == (date(2026, 7, 6), date(2026, 7, 10))
+    assert vt.excluded_tail_days == []
+    assert vt.unpaired_sessions == []
+    # (07-06, 07-10] -> four sessions, NOT the five the series carries.
+    assert vt.shadow_week_return == pytest.approx(1.001 ** 4 - 1.0)
+    assert vt.divergence_bps == pytest.approx(
+        (101_000 / 100_000 - 1.0 - (1.001 ** 4 - 1.0)) * 1e4
+    )
+
+
+def test_crypto_week_pairs_each_mark_with_the_previous_session(tmp_path) -> None:
+    """DEFECT A: a crypto week reproduces the diagnosis's LAG-1 pairing.
+
+    Seven marks on 07-04..07-10 close six intervals. Under the fix those pair with
+    sessions 07-04..07-09; under the old dating they paired with 07-05..07-10. The
+    shadow below is deliberately lopsided -- +5.00% on 07-10 alone, +0.10% elsewhere --
+    so the two pairings cannot produce the same number.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_crypto_voltarget.parquet",
+                 CRYPTO_WEEK_DATES,
+                 [200_000, 200_200, 200_600, 200_800, 201_200, 201_600, 202_000])
+    shadow = _dated({"2026-07-03": 0.001, "2026-07-04": 0.001, "2026-07-05": 0.001,
+                     "2026-07-06": 0.001, "2026-07-07": 0.001, "2026-07-08": 0.001,
+                     "2026-07-09": 0.001, "2026-07-10": 0.05})
+    review = build_weekly_review(
+        {"crypto_voltarget": object()}, MagicMock(), TradingCalendar(),
+        NOW, WEEK_ENDING, shadow_fn=_stub_shadow_series({"crypto_voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    cv = next(a for a in review.accounts if a.label == "crypto_voltarget")
+    assert cv.window is not None
+    assert (cv.window.start, cv.window.end) == (date(2026, 7, 4), date(2026, 7, 10))
+    # LAG-1: sessions (07-03, 07-09] -- six 0.10% days, and NOT the 5% on 07-10.
+    assert cv.shadow_week_return == pytest.approx(1.001 ** 6 - 1.0)
+    # The old pairing would have swept the 5% session in; prove it did not.
+    old_pairing = 1.001 ** 5 * 1.05 - 1.0
+    assert cv.shadow_week_return != pytest.approx(old_pairing)
+    assert cv.unpaired_sessions == []
+
+
+def test_crypto_cumulative_is_paired_the_same_way(tmp_path) -> None:
+    """The LAG-1 offset applies to the cumulative figure too, not just the week.
+
+    A cumulative divergence paired one way and a weekly paired the other would
+    disagree about what the account did over the overlapping sessions.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_crypto_voltarget.parquet",
+                 CRYPTO_WEEK_DATES,
+                 [200_000, 200_200, 200_600, 200_800, 201_200, 201_600, 202_000])
+    shadow = _dated({d: 0.001 for d in
+                     ["2026-07-04", "2026-07-05", "2026-07-06", "2026-07-07",
+                      "2026-07-08", "2026-07-09", "2026-07-10"]})
+    review = build_weekly_review(
+        {"crypto_voltarget": object()}, MagicMock(), TradingCalendar(),
+        NOW, WEEK_ENDING, shadow_fn=_stub_shadow_series({"crypto_voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    cv = next(a for a in review.accounts if a.label == "crypto_voltarget")
+    assert cv.cumulative is not None
+    # Inception mark 07-04 pairs with session 07-03; final mark 07-10 with 07-09.
+    # (07-03, 07-09] intersected with the seeded series = 07-04..07-09 = six days.
+    assert cv.cumulative.shadow_total_return == pytest.approx(1.001 ** 6 - 1.0)
+
+
+def test_missed_run_is_reported_as_an_unpaired_session(tmp_path) -> None:
+    """DEFECT C: the real 2026-08-01 shape -- a missing crypto mark leaves a hole.
+
+    Marks land on 07-30, 07-31 and 08-02..08-06 (no 08-01 run), so the 07-31 00:30Z
+    -> 08-02 interval spans two UTC days. Session 07-31 is inside the compared window
+    but no mark closes on it, and that must be named rather than folded in silently.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    marks = ["2026-07-30 00:30:00", "2026-07-31 00:30:00", "2026-08-02 22:54:00",
+             "2026-08-03 05:49:00", "2026-08-04 00:30:00", "2026-08-05 00:30:00",
+             "2026-08-06 00:30:00"]
+    _seed_equity(data_dir / "equity_history_crypto_voltarget.parquet", marks,
+                 [99_485, 100_242, 98_962, 98_309, 98_950, 99_602, 100_357])
+    shadow = _dated({d: 0.001 for d in
+                     ["2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01",
+                      "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05"]})
+    review = build_weekly_review(
+        {"crypto_voltarget": object()}, MagicMock(), TradingCalendar(),
+        datetime(2026, 8, 7, 21, 0, tzinfo=UTC), date(2026, 8, 7),
+        shadow_fn=_stub_shadow_series({"crypto_voltarget": shadow}),
+        alert_fn=lambda _a: [], data_dir=data_dir,
+        paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    cv = next(a for a in review.accounts if a.label == "crypto_voltarget")
+    assert cv.window is not None
+    assert (cv.window.start, cv.window.end) == (date(2026, 7, 30), date(2026, 8, 6))
+    # Six intervals claim 07-30 and 08-01..08-05; 07-31 is left over.
+    assert cv.unpaired_sessions == [date(2026, 7, 31)]
+    md = render_markdown(review)
+    assert "unpaired sessions" in md
+    assert "2026-07-31" in md
+
+
+def test_an_intact_cadence_reports_no_unpaired_sessions(tmp_path) -> None:
+    review, *_ = _build_four(tmp_path)
+    for acct in review.accounts:
+        assert acct.unpaired_sessions == []
+    assert "unpaired sessions" not in render_markdown(review)
+
+
+def test_verdict_is_taken_on_the_residual_not_the_raw_divergence(tmp_path) -> None:
+    """DEFECT B: a week whose raw divergence is all mark-phase is TRACKING.
+
+    `trend`'s real shape: 100% SPY, never traded, marked at 14:00Z. The mark prices
+    below are the implied 10:00 marks from diagnosis #2's week 2026-08-07 and the
+    seeded closes are SPY's own, so the raw divergence is ~+101 bps -- twice the
+    threshold -- and the decomposition accounts for ~+100 of it.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    store = ParquetStore(tmp_path / "eod")
+    closes = {"2026-07-30": 741.69, "2026-07-31": 747.03, "2026-08-03": 757.67,
+              "2026-08-04": 771.33, "2026-08-05": 769.79, "2026-08-06": 768.56}
+    _seed_bars(store, "SPY", closes)
+    implied = {"2026-07-31": 741.97, "2026-08-03": 753.2344, "2026-08-04": 763.225,
+               "2026-08-05": 771.61, "2026-08-06": 770.99}
+    qty = 133.028241898
+    _seed_equity(data_dir / "equity_history_trend.parquet",
+                 [f"{d} 14:00:10" for d in implied],
+                 [qty * p for p in implied.values()])
+    for day, price in implied.items():
+        _seed_priced_run(reports_dir, "trend", f"{day}T14:00:10",
+                         equity=qty * price, cash=0.0, symbol="SPY")
+    # Shadow = SPY close-to-close on each paired session (w=1, no turnover cost).
+    sessions = list(closes)
+    shadow = _dated({
+        sessions[i]: closes[sessions[i]] / closes[sessions[i - 1]] - 1.0
+        for i in range(1, len(sessions))
+    })
+    review = build_weekly_review(
+        {"trend": object()}, store, TradingCalendar(),
+        datetime(2026, 8, 7, 21, 0, tzinfo=UTC), date(2026, 8, 7),
+        shadow_fn=_stub_shadow_series({"trend": shadow}), alert_fn=lambda _a: [],
+        data_dir=data_dir, paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    tr = next(a for a in review.accounts if a.label == "trend")
+    assert tr.raw_divergence_bps is not None
+    # +102.9 bps here rather than the published +101.39: this fixture's shadow is pure
+    # SPY close-to-close, without the real shadow's turnover cost and weight path.
+    assert tr.raw_divergence_bps == pytest.approx(102.91, abs=1.0)
+    assert tr.predicted_mark_phase_bps == pytest.approx(99.71, abs=1.0)
+    assert tr.residual_bps == pytest.approx(3.2, abs=1.0)
+    # Raw is beyond the 50 bps threshold; the residual is nowhere near it.
+    assert abs(tr.raw_divergence_bps) > review.divergence_threshold_bps
+    assert abs(tr.residual_bps) < review.divergence_threshold_bps
+    assert tr.verdict == "TRACKING"
+    assert tr.decomposition_note is None
+    assert review.readiness.blockers == []
+
+
+def test_a_residual_beyond_threshold_still_diverges(tmp_path) -> None:
+    """The instrument was fixed, not loosened: unexplained movement still trips.
+
+    Same static fixture, but the shadow is shifted so ~200 bps of the week cannot be
+    accounted for by mark phase.
+    """
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    store = ParquetStore(tmp_path / "eod")
+    closes = {"2026-07-30": 741.69, "2026-07-31": 747.03, "2026-08-03": 757.67,
+              "2026-08-04": 771.33, "2026-08-05": 769.79, "2026-08-06": 768.56}
+    _seed_bars(store, "SPY", closes)
+    implied = {"2026-07-31": 741.97, "2026-08-03": 753.2344, "2026-08-04": 763.225,
+               "2026-08-05": 771.61, "2026-08-06": 770.99}
+    qty = 133.028241898
+    _seed_equity(data_dir / "equity_history_trend.parquet",
+                 [f"{d} 14:00:10" for d in implied],
+                 [qty * p for p in implied.values()])
+    for day, price in implied.items():
+        _seed_priced_run(reports_dir, "trend", f"{day}T14:00:10",
+                         equity=qty * price, cash=0.0, symbol="SPY")
+    sessions = list(closes)
+    shadow = _dated({
+        sessions[i]: closes[sessions[i]] / closes[sessions[i - 1]] - 1.0 - 0.005
+        for i in range(1, len(sessions))
+    })
+    fired: list[Alert] = []
+    review = build_weekly_review(
+        {"trend": object()}, store, TradingCalendar(),
+        datetime(2026, 8, 7, 21, 0, tzinfo=UTC), date(2026, 8, 7),
+        shadow_fn=_stub_shadow_series({"trend": shadow}), alert_fn=fired.append,
+        data_dir=data_dir, paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    tr = next(a for a in review.accounts if a.label == "trend")
+    assert tr.residual_bps is not None
+    assert abs(tr.residual_bps) > review.divergence_threshold_bps
+    assert tr.verdict == "DIVERGING"
+    # The alert and the blocker both quote the figure that decided it.
+    assert len(fired) == 1
+    assert "residual" in fired[0].body
+    assert any("residual" in b for b in review.readiness.blockers)
+
+
+def test_missing_run_reports_fall_back_to_the_raw_verdict(tmp_path) -> None:
+    """DEFECT B fallback: no decomposition inputs -> threshold the raw figure, and say so."""
+    review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.0})
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    # No run reports were seeded, so the decomposition has nothing to read.
+    assert vt.predicted_mark_phase_bps is None
+    assert vt.residual_bps is None
+    assert vt.decomposition_note is not None
+    assert "decomposition unavailable" in vt.decomposition_note
+    assert vt.raw_divergence_bps == pytest.approx(5.0)
+    assert vt.verdict == "TRACKING"  # decided on the raw +5 bps
+
+    tr = next(a for a in review.accounts if a.label == "trend")
+    assert tr.residual_bps is None
+    assert tr.raw_divergence_bps == pytest.approx(200.0)
+    assert tr.verdict == "DIVERGING"  # raw +200 bps, still beyond threshold
+    assert any("raw" in b for b in review.readiness.blockers)
+
+
+def test_markdown_renders_raw_predicted_and_residual_with_one_explanation(tmp_path) -> None:
+    review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095})
+    md = render_markdown(review)
+    assert "- raw divergence:" in md
+    assert "- predicted mark-phase:" in md
+    assert "- residual (verdict is taken on this): " in md
+    # Exactly one explanatory line per account section, and it says what decides.
+    assert "The threshold applies to the residual." in md or \
+           "decomposition unavailable" in md
+
+
+def test_markdown_explains_the_decomposition_when_it_is_available(tmp_path) -> None:
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    store = ParquetStore(tmp_path / "eod")
+    _seed_bars(store, "SPY", {"2026-07-06": 100.0, "2026-07-07": 101.0,
+                              "2026-07-08": 102.0, "2026-07-09": 103.0,
+                              "2026-07-10": 104.0})
+    _seed_equity(data_dir / "equity_history_voltarget.parquet",
+                 [f"{d} 14:00:10" for d in WEEK_DATES],
+                 [100_000, 100_250, 100_500, 100_750, 101_000])
+    for d, eq in zip(WEEK_DATES, [100_000, 100_250, 100_500, 100_750, 101_000],
+                     strict=True):
+        _seed_priced_run(reports_dir, "voltarget", f"{d}T14:00:10",
+                         equity=float(eq), cash=0.0, symbol="SPY")
+    review = build_weekly_review(
+        {"voltarget": object()}, store, TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow({"voltarget": 0.0095}), alert_fn=lambda _a: [],
+        data_dir=data_dir, paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    assert vt.predicted_mark_phase_bps is not None
+    assert vt.decomposition_note is None
+    md = render_markdown(review)
+    assert "The threshold applies to the residual." in md
+    assert "decomposition unavailable" not in md
+
+
+def test_raw_divergence_bps_mirrors_the_published_divergence_field(tmp_path) -> None:
+    """``divergence_bps`` is kept for the Glass Box reader and the published files."""
+    review, *_ = _build_four(tmp_path, shadow_values={"voltarget": 0.005})
+    for acct in review.accounts:
+        assert acct.raw_divergence_bps == acct.divergence_bps
 
 
 # --------------------------------------------------------------------------

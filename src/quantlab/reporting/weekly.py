@@ -28,11 +28,19 @@ paper does not credit dividends, so some drift is STRUCTURAL, not tracking error
 notes exist so the review annotates that expected drift rather than alarming on
 it.
 
-The comparison is ALIGNED: paper snapshots dated after the last session the
-shadow can cover are excluded from both the weekly and cumulative divergence and
-listed in ``excluded_tail_days``. Without that, a snapshot taken before its own
-session's bar exists lands whole in the divergence against no shadow return at
-all -- the mechanism behind 32 of trend's reported -54 bps for week 2026-07-24.
+The comparison is ALIGNED: paper snapshots whose paired session the shadow cannot
+cover are excluded from both the weekly and cumulative divergence and listed in
+``excluded_tail_days``. Without that, a snapshot taken before its own session's bar
+exists lands whole in the divergence against no shadow return at all -- the
+mechanism behind 32 of trend's reported -54 bps for week 2026-07-24.
+
+Which session a mark pairs with is PER ASSET CLASS (``session_for_mark``): a 14:00Z
+equity mark sits inside its own session, while a 00:30Z crypto mark closes the
+previous UTC day. See that function for the diagnosis #2 evidence.
+
+The verdict is taken on the RESIDUAL, not the raw divergence: ``reporting.markphase``
+predicts how much of the week is mark-phase geometry, and only what it cannot explain
+is measured against the threshold. The threshold value itself is unchanged.
 """
 
 from __future__ import annotations
@@ -56,6 +64,7 @@ from quantlab.paper.runner import (
     equity_history_path_for,
 )
 from quantlab.reporting.alerts import ALERTS_JSONL, Alert, DeliveryResult, dispatch
+from quantlab.reporting.markphase import predicted_mark_phase_bps
 from quantlab.reporting.shadow import shadow_returns
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
@@ -72,6 +81,10 @@ TARGET_DAYS = 90
 # runner snapshots equity once per run.
 _WEEK_SNAPSHOTS_BY_CLASS: dict[str, int] = {"us_equity": 5, "crypto": 7}
 _DEFAULT_WEEK_SNAPSHOTS = 5
+
+# Days to add to a paper mark's DATE to get the shadow session the interval ending at
+# that mark actually covers. See ``session_for_mark`` for the derivation.
+_MARK_SESSION_OFFSET_BY_CLASS: dict[str, int] = {"us_equity": 0, "crypto": -1}
 # Minimum completed runs in a week below which readiness flags the account.
 _MIN_COMPLETED_RUNS = 4
 
@@ -160,12 +173,27 @@ class AccountWeekly(BaseModel):
     paper_week_return: float | None = None
     shadow_week_return: float | None = None
     divergence_bps: float | None = None
+    # The same figure as ``divergence_bps``, named for what it is now that the verdict
+    # is taken downstream of the decomposition. ``divergence_bps`` is retained because
+    # the published week files and the Glass Box reader both key on it.
+    raw_divergence_bps: float | None = None
+    # How much of ``raw_divergence_bps`` is mark-phase geometry (reporting.markphase),
+    # and what is left after removing it. None when the decomposition's inputs are
+    # incomplete, in which case the verdict falls back to the raw figure.
+    predicted_mark_phase_bps: float | None = None
+    residual_bps: float | None = None
+    decomposition_note: str | None = None
     cumulative: CumulativeStats | None = None
     ops: OpsStats | None = None
     verdict: str = "INSUFFICIENT"  # TRACKING / DIVERGING / INSUFFICIENT
-    # Paper snapshot days after the shadow's last coverable session. Excluded from
-    # BOTH the week and the cumulative divergence so the comparison is like-for-like.
+    # Paper snapshot days whose PAIRED session (see session_for_mark) lies beyond the
+    # shadow's coverage. Excluded from BOTH the week and the cumulative divergence so
+    # the comparison is like-for-like.
     excluded_tail_days: list[date] = []
+    # Sessions inside the compared window that no paper interval ends on -- a run was
+    # missed, so one long interval spans them (2026-08-01 for the crypto accounts).
+    # Reported rather than folded silently into the neighbouring comparison.
+    unpaired_sessions: list[date] = []
 
 
 class AssetClassClock(BaseModel):
@@ -194,6 +222,42 @@ class WeeklyReview(BaseModel):
     divergence_threshold_bps: float
     accounts: list[AccountWeekly]
     readiness: ReadinessLedger
+
+
+def session_for_mark(mark_date: date, asset_class: str) -> date:
+    """The shadow session whose period the paper interval ENDING at ``mark_date`` covers.
+
+    A paper "daily" return is the move between two consecutive marks. Pairing it with a
+    shadow session is only honest if that session is the one the interval actually
+    spans, and where the mark falls inside the trading day decides which session that
+    is. The offsets are per asset class because the two schedules sit in different
+    places relative to their own session boundary:
+
+    * ``us_equity`` -- the run fires at 14:00 UTC (10:00 ET), roughly mid-session. The
+      interval ``[10:00 d-1, 10:00 d]`` straddles the closes of ``d-1`` and ``d``, and
+      pairing it with session ``d`` is exact up to the two endpoint remainders, which
+      is what ``reporting.markphase`` prices. Offset 0.
+    * ``crypto`` -- the run fires at 00:30 UTC, THIRTY MINUTES INTO UTC day ``d``. The
+      interval ``[00:30 d-1, 00:30 d]`` therefore covers UTC day ``d-1`` almost
+      entirely (23.5 of 24 hours) and touches day ``d`` for half an hour. Offset -1.
+
+    The crypto offset repairs a defect proven in the 2026-08-10 divergence diagnosis #2
+    (docs/decisions.md). Pairing a crypto mark dated ``d`` with session ``d`` shifted
+    every crypto comparison by a full session. Tested both ways against BTC's own bars
+    over twelve intervals, mean absolute error was 81.0 bps under the old ``d`` pairing
+    and 33.0 bps under ``d-1``; across the clean 24.00h on-schedule stretch of
+    2026-08-05..09 the old pairing missed by up to 116 bps while ``d-1`` matched to
+    0.1-9.1 bps. Re-pairing week 2026-08-02 cut ``crypto_voltarget``'s reported
+    +208.08 bps to -1.03 bps, and week 2026-08-07's +132.05 bps to +10.67 bps.
+
+    DOCUMENTED LIMITATION: the offset is per asset class, not per mark. A crypto mark
+    left behind by the 14:00Z equity task before the 2026-07-22 ``--asset-class`` fix
+    (``glassbox.provenance`` classifies these ``leaked``) sits mid-day like an equity
+    mark and is mis-paired by one session under this rule. Those marks predate the
+    crypto readiness clock's restart, so no gated week contains one; making the offset
+    provenance-dependent is a later decision, not a silent guess here.
+    """
+    return mark_date + timedelta(days=_MARK_SESSION_OFFSET_BY_CLASS.get(asset_class, 0))
 
 
 def _equity_history(path: Path) -> pd.DataFrame:
@@ -389,12 +453,15 @@ def _account_weekly(
     # 3-return shadow week and the orphan day landed whole in the divergence
     # (-32 of the reported -54 bps). Truncate paper to the shadow's coverage and
     # report the excluded tail rather than comparing across a ragged edge.
+    # A mark is comparable when the session it PAIRS with is covered, which for crypto
+    # is the day before the mark (see session_for_mark).
     coverage_end = _coverage_end(shadow_series)
     excluded_tail_days: list[date] = []
     if coverage_end is not None:
         snapshot_days = history["timestamp"].dt.date
-        excluded_tail_days = sorted(set(snapshot_days[snapshot_days > coverage_end]))
-        history = history[snapshot_days <= coverage_end]
+        paired = snapshot_days.map(lambda d: session_for_mark(d, asset_class))
+        excluded_tail_days = sorted(set(snapshot_days[paired > coverage_end]))
+        history = history[paired <= coverage_end]
 
     if len(history) < 2:
         # Everything comparable was excluded; report the tail, claim no divergence.
@@ -415,8 +482,11 @@ def _account_weekly(
 
     paper_total = float(history["equity"].iloc[-1]) / float(history["equity"].iloc[0]) - 1.0
 
-    shadow_week = _compound(shadow_series, w_start, w_end)
-    shadow_total = _compound(shadow_series, incept, w_end)
+    # Compound the shadow over the sessions the paper intervals actually cover.
+    s_start = session_for_mark(w_start, asset_class)
+    s_end = session_for_mark(w_end, asset_class)
+    shadow_week = _compound(shadow_series, s_start, s_end)
+    shadow_total = _compound(shadow_series, session_for_mark(incept, asset_class), s_end)
 
     divergence_bps = (
         (paper_week - shadow_week) * 1e4 if shadow_week is not None else None
@@ -425,12 +495,39 @@ def _account_weekly(
         (paper_total - shadow_total) * 1e4 if shadow_total is not None else None
     )
 
+    # -- unpaired sessions (DEFECT C) ---------------------------------------
+    # Every mark after the first closes one interval, so it claims exactly one
+    # session. A session inside the window that no mark claims is one a missed run
+    # left folded into a longer interval; name it instead of hiding it.
+    mark_dates = [pd.Timestamp(t).date() for t in week_hist["timestamp"]]
+    claimed = {session_for_mark(d, asset_class) for d in mark_dates[1:]}
+    unpaired_sessions = sorted(
+        d for d in {pd.Timestamp(i).date() for i in shadow_series.index}
+        if s_start < d <= s_end and d not in claimed
+    )
+
+    # -- mark-phase decomposition (DEFECT B) --------------------------------
+    predicted_bps = predicted_mark_phase_bps(
+        label, asset_class, mark_dates, store, paper_reports_dir, session_for_mark,
+    )
+    residual_bps = (
+        divergence_bps - predicted_bps
+        if divergence_bps is not None and predicted_bps is not None
+        else None
+    )
+    decomposition_note: str | None = None
     if divergence_bps is None:
         verdict = "INSUFFICIENT"
-    elif abs(divergence_bps) <= threshold_bps:
-        verdict = "TRACKING"
+    elif residual_bps is None:
+        # No decomposition: threshold the raw figure, and say so, so a reader never
+        # mistakes a fallback pass for an explained one.
+        decomposition_note = (
+            "decomposition unavailable (missing run report or non-single-asset "
+            "holding); verdict taken on the raw divergence"
+        )
+        verdict = "TRACKING" if abs(divergence_bps) <= threshold_bps else "DIVERGING"
     else:
-        verdict = "DIVERGING"
+        verdict = "TRACKING" if abs(residual_bps) <= threshold_bps else "DIVERGING"
 
     window = WeekWindow(
         start=w_start, end=w_end, n_snapshots=int(len(week_hist)),
@@ -441,7 +538,9 @@ def _account_weekly(
     return AccountWeekly(
         label=label, available=True, asset_class=asset_class, window=window,
         paper_week_return=paper_week, shadow_week_return=shadow_week,
-        divergence_bps=divergence_bps,
+        divergence_bps=divergence_bps, raw_divergence_bps=divergence_bps,
+        predicted_mark_phase_bps=predicted_bps, residual_bps=residual_bps,
+        decomposition_note=decomposition_note, unpaired_sessions=unpaired_sessions,
         cumulative=CumulativeStats(
             paper_total_return=paper_total, shadow_total_return=shadow_total,
             cumulative_divergence_bps=cum_div_bps,
@@ -507,9 +606,13 @@ def _readiness_ledger(
         if rs is not None and rs.halted:
             kind = "KILL" if rs.requires_manual_reset else "HALT"
             blockers.append(f"{acct.label}: {kind} active - {rs.reason}")
-        if acct.verdict == "DIVERGING" and acct.divergence_bps is not None:
+        decision_bps = _decision_bps(acct)
+        if acct.verdict == "DIVERGING" and decision_bps is not None:
+            # Report the figure the verdict was taken on, not the raw one, so a
+            # blocker cannot be traced back to a number that did not decide it.
+            basis = "raw" if acct.residual_bps is None else "residual"
             blockers.append(
-                f"{acct.label}: DIVERGING week ({acct.divergence_bps:+.0f} bps)"
+                f"{acct.label}: DIVERGING week ({decision_bps:+.0f} bps {basis})"
             )
         if acct.ops is not None and acct.ops.runs_completed < _MIN_COMPLETED_RUNS:
             blockers.append(
@@ -539,8 +642,9 @@ def build_weekly_review(
     account fires exactly one WARNING alert via ``alert_fn``.
 
     The divergence threshold is a single portfolio-wide policy number applied to
-    every account's WEEKLY aggregate, crypto included; the asset-class differences
-    live in the window length and the structural-drift note, not the threshold.
+    every account's WEEKLY RESIDUAL, crypto included; the asset-class differences live
+    in the window length, the mark-to-session pairing, and the structural-drift note,
+    not the threshold.
     """
     week_end = week_ending if week_ending is not None else now.date()
     threshold = load_risk_limits().weekly_divergence_alert_bps
@@ -554,12 +658,16 @@ def build_weekly_review(
         )
         accounts.append(acct)
         if acct.verdict == "DIVERGING":
+            decided_on = _decision_bps(acct)
+            basis = "raw divergence" if acct.residual_bps is None else "residual"
             alert_fn(Alert(
                 level="WARNING",
                 title=f"weekly review: {label} DIVERGING",
-                body=(f"{label} paper-vs-shadow divergence "
-                      f"{acct.divergence_bps:+.0f} bps this week exceeds the "
-                      f"{threshold:.0f} bps threshold."),
+                body=(f"{label} paper-vs-shadow {basis} "
+                      f"{decided_on:+.0f} bps this week exceeds the "
+                      f"{threshold:.0f} bps threshold "
+                      f"(raw {acct.raw_divergence_bps:+.0f} bps, predicted mark-phase "
+                      f"{_bps(acct.predicted_mark_phase_bps)})."),
                 source="reporting.weekly", strategy=label,
             ))
 
@@ -576,6 +684,40 @@ def _pct(x: float | None) -> str:
 
 def _bps(x: float | None) -> str:
     return "n/a" if x is None else f"{x:+.0f} bps"
+
+
+def _decision_bps(acct: AccountWeekly) -> float | None:
+    """The figure the verdict was actually taken on: residual, else raw."""
+    return acct.residual_bps if acct.residual_bps is not None else acct.divergence_bps
+
+
+def _decomposition_lines(acct: AccountWeekly) -> list[str]:
+    """The raw / predicted / residual triple plus the one line that explains it."""
+    lines = [
+        f"- raw divergence: {_bps(acct.raw_divergence_bps)}",
+        f"- predicted mark-phase: {_bps(acct.predicted_mark_phase_bps)}",
+        f"- residual (verdict is taken on this): {_bps(acct.residual_bps)}",
+    ]
+    if acct.decomposition_note:
+        lines.append(f"- _{acct.decomposition_note}_")
+    else:
+        lines.append(
+            "- _the raw divergence is paper marked at the scheduled run time against a "
+            "close-to-close shadow; predicted mark-phase is the part that geometry "
+            "alone accounts for (per-session weight x mark-window move less "
+            "session move), so the residual is what the account did that the "
+            "measurement cannot explain. The threshold applies to the residual._"
+        )
+    return lines
+
+
+def _unpaired_session_lines(acct: AccountWeekly) -> list[str]:
+    """Sessions no paper interval closed on, or nothing when the cadence was intact."""
+    if not acct.unpaired_sessions:
+        return []
+    days = ", ".join(d.isoformat() for d in acct.unpaired_sessions)
+    return [f"- unpaired sessions (no paper mark closed these; a missed run folded "
+            f"them into a longer interval): {days}"]
 
 
 def _excluded_tail_lines(acct: AccountWeekly) -> list[str]:
@@ -610,6 +752,8 @@ def _render_account(acct: AccountWeekly) -> list[str]:
     lines.append(f"- paper week return: {_pct(acct.paper_week_return)}")
     lines.append(f"- shadow week return: {_pct(acct.shadow_week_return)}")
     lines.append(f"- week divergence: {_bps(acct.divergence_bps)}")
+    lines.extend(_decomposition_lines(acct))
+    lines.extend(_unpaired_session_lines(acct))
     lines.extend(_excluded_tail_lines(acct))
 
     c = acct.cumulative
@@ -693,6 +837,7 @@ def write_weekly_review(
 __all__ = [
     "build_weekly_review",
     "render_markdown",
+    "session_for_mark",
     "write_weekly_review",
     "WeeklyReview",
     "AccountWeekly",
