@@ -131,16 +131,33 @@ before the chain starts, and proceeds. Everything is best-effort: no git, a deta
 no upstream produces a note rather than an error, because none of those should stop a
 scheduled task.
 
-**Two unrelated things this session surfaced, recorded so they are not lost.** (1) The
-`data/eod` store had drifted out of alignment — SPY carried a 2026-08-10 bar while IEF did
-not, which makes `build_price_panel` raise on IEF's internal gap and would have aborted
-`trend`'s next run at stage (c) as well as the digest. Cured by re-ingesting IEF, which the
-vendor had by then published; worth noting that the *runner* would have classified that same
-condition as a `validate` abort and correctly refused to retry it. (2) The test suite writes
-into the real `reports/logs/quantlab.jsonl` rather than a tmp path. Harmless today (the log
-is append-only and nothing reads it for decisions) but it is a genuine isolation leak and the
-reason forensics on that store drift was slower than it should have been. Neither is in this
-batch's scope; both are cheap and should be picked up next.
+**A self-inflicted store corruption, and the isolation defect behind it.** Making the broker
+lazy had a consequence I did not anticipate. `tests/test_late_run_guard.py` proves the cutoff
+guard lets a run through by stubbing `_trading_client_for` and asserting it gets called — and
+because the broker used to be built at the *top* of `_run_one_paper`, that stub fired before
+any pipeline stage ran. With the broker built at stage (e), stages (b)–(d) now really
+execute, so those three tests began performing a **real vendor ingest that upserted into the
+production `data/eod` store**. One run wrote a partial same-day SPY bar with no matching IEF
+bar; the resulting internal gap made `build_price_panel` raise, which broke the digest and
+would have aborted every subsequent `trend` run at `validate`.
+
+I initially misread that as an environmental data condition and re-ingested IEF to clear it
+(the vendor had published by then, so the store is correct). It was not environmental — my
+own test run caused it, and the ordering change is what exposed it. The fixture now stubs
+`_clock_for` and `_ingest_fn_for` as well, the three tests no longer touch the network or the
+store (verified by hashing both parquet files across a run), and the suite went from 5.8s to
+0.7s. **A guard test must never write to the production store**, and this one silently could.
+
+CI caught the ordering change independently, as a `ConfigError` on a keyless runner: with the
+broker no longer first, `_clock_for` became the first credentialed call. The fix was verified
+against a simulated keyless environment rather than only locally, because passing on a
+machine that has `.env` proves nothing about the runner that does not.
+
+**One further isolation leak, recorded not fixed.** The suite also appends to the real
+`reports/logs/quantlab.jsonl`. Harmless today — the log is append-only and nothing reads it
+for decisions — but it is the reason forensics on the store corruption above took longer than
+it should have, since the log was full of test-generated `paper_run` events. Out of scope
+here; cheap, and worth picking up next.
 
 ---
 
