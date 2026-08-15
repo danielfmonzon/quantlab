@@ -94,6 +94,8 @@ class ImplementResult:
     commit_sha: str = ""
     pushed: bool = False
     push_detail: str = ""
+    pr_url: str = ""
+    pr_detail: str = ""
     aborted: str = ""
     # False while the report is being written INTO the proposal, true once the run has
     # finished. The report has to be written before the commit — it is part of what gets
@@ -142,6 +144,7 @@ class ImplementResult:
             if self.commit_sha:
                 lines.append(f"- commit: `{self.commit_sha}`")
             lines.append(f"- pushed: **{self.pushed}** — {self.push_detail or 'n/a'}")
+            lines.append(f"- pull request: {self.pr_detail or 'n/a'}")
         else:
             lines.append(
                 "- commit and push: performed immediately after this report was written "
@@ -220,7 +223,15 @@ def implement(
     # -- 1. branch ---------------------------------------------------------
     # `checkout -B` is deliberate: re-running `implement` for the same proposal resets
     # the branch rather than failing or stacking a second attempt on the first.
-    made = _git(run, repo, "checkout", "-B", branch)
+    # JOIN the branch if it exists rather than resetting it. `propose` now seeds
+    # `prop/{n}` with the proposal commit and pushes it, so the old `checkout -B` would
+    # have thrown that commit away and then failed to push as a non-fast-forward — which
+    # is exactly what happened by hand during the PROP-1 rebuild.
+    exists = _git(run, repo, "rev-parse", "--verify", f"refs/heads/{branch}").returncode == 0
+    made = (
+        _git(run, repo, "checkout", branch) if exists
+        else _git(run, repo, "checkout", "-b", branch)
+    )
     if made.returncode != 0:
         return abort(f"could not create branch {branch}: {made.stderr.strip()}")
 
@@ -299,10 +310,60 @@ def implement(
     else:
         result.push_detail = "push suppressed (--no-push)"
 
+    # -- 9. open the PR, but ONLY once every gate passed --------------------
+    #
+    # This is the first moment "please merge this" is a meaningful thing to say. `propose`
+    # deliberately does not open one: a proposal is an observation, not a request, and
+    # most should be readable without entering a review queue. Opening a PR is also the
+    # closest this pipeline comes to the merge gate, so it is conditioned on the gates
+    # rather than on the push — a red branch stays a branch, visible but not queued.
+    if result.pushed and result.gates_ok:
+        result.pr_url, result.pr_detail = _open_pull_request(run, repo, branch, number)
+    elif result.pushed:
+        result.pr_detail = "no PR opened — gates did not all pass; branch pushed as evidence"
+    else:
+        result.pr_detail = "no PR opened — nothing was pushed"
+
     # Only the console rendering may claim the commit and push, and only now that both
     # have actually happened. There is deliberately nothing after this point.
     result.finalised = True
     return result
+
+
+def _open_pull_request(
+    run: Runner, repo: Path, branch: str, number: int
+) -> tuple[str, str]:
+    """Open a PR from ``branch`` into the protected trunk. Never merges it.
+
+    `gh pr create` and nothing else. There is no `gh pr merge` here, no `--auto`, and no
+    admin override — the source-level test that forbids merge verbs covers those spellings
+    too, so a future "just enable auto-merge" would fail the suite rather than ship.
+    """
+    # The same bounded-namespace guard `propose` pushes through. A PR is opened from a
+    # branch, so the branch had better be one of ours.
+    propose_mod.assert_prop_ref(branch)
+
+    existing = run(["gh", "pr", "list", "--head", branch, "--json", "url"], repo)
+    if existing.returncode == 0 and existing.stdout.strip() not in ("", "[]"):
+        return "", f"PR already open for {branch}; left as is"
+
+    created = run([
+        "gh", "pr", "create",
+        "--base", PROTECTED_BRANCH,
+        "--head", branch,
+        "--title", f"PROP-{number}: implemented, gates green",
+        "--body",
+        f"Implemented by `quantlab implement` on `{branch}`. The proposal and its full "
+        f"implementation report are in `docs/proposals/PROP-{number}-*.md` on this branch.\n\n"
+        f"Every gate passed before this PR was opened. **Merge is human-only:** Daniel "
+        f"merges after Quant Lead review, and the required status check must be green. "
+        f"`quantlab implement` has no merge path.",
+    ], repo)
+    if created.returncode != 0:
+        detail = (created.stderr or created.stdout).strip().splitlines()
+        return "", f"PR not opened: {detail[-1] if detail else 'unknown error'}"
+    url = created.stdout.strip().splitlines()[-1] if created.stdout.strip() else ""
+    return url, f"opened {url}" if url else "opened"
 
 
 def _run_gates(run: Runner, repo: Path, changed: Sequence[str]) -> list[Gate]:

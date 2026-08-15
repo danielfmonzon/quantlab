@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,10 +29,60 @@ from quantlab.improve import firewall, sources
 
 PROPOSALS_DIR = PROJECT_ROOT / "docs" / "proposals"
 
-# The two states a proposal file can be in. `propose` writes AWAITING and commits it
-# where it was run; `implement` flips it to IMPLEMENTED on the prop branch only, so the
-# trunk keeps saying AWAITING until a human merges. The status therefore answers "has
-# this been done?" honestly from whichever branch you are reading.
+# THE ONLY NAMESPACE THIS COMMAND MAY EVER PUSH.
+# `propose` publishes the analysis so it survives the loss of this checkout. That means it
+# needs the network, and a command that can push is a command that can push to the wrong
+# place. The blast radius is therefore bounded in code rather than by care: `assert_prop_ref`
+# is the single chokepoint every push goes through, and it raises BEFORE any subprocess is
+# constructed, so a bad target never reaches the network even transiently.
+PROP_REF_PREFIX = "prop/"
+
+# Characters that turn a ref into something other than a plain branch name — refspec
+# separators, globs, and the reflog/ancestry operators. None of them belong in a name this
+# command generates, so their presence means the value did not come from where we think.
+_REF_FORBIDDEN = frozenset(':+~^?*[]\\ \t\n')
+
+
+class UnsafePushTarget(RuntimeError):
+    """A push was attempted at something outside the `prop/*` namespace."""
+
+
+def assert_prop_ref(ref: str) -> str:
+    """Validate a push target. Raises :class:`UnsafePushTarget` before any git runs.
+
+    Fails closed on everything that is not obviously a `prop/<something>` branch name.
+    `main` and `origin/main` are the targets that matter, but the traversal case
+    (`prop/../main`) is why a prefix check alone is not enough: it satisfies
+    `startswith("prop/")` and still names the trunk.
+    """
+    if not isinstance(ref, str) or not ref:
+        raise UnsafePushTarget(f"refusing to push: empty or non-string ref {ref!r}")
+    if not ref.startswith(PROP_REF_PREFIX):
+        raise UnsafePushTarget(
+            f"refusing to push {ref!r}: `propose` may only push refs under "
+            f"{PROP_REF_PREFIX!r}. This is enforced in code, not by convention — there is "
+            f"no flag that widens it."
+        )
+    remainder = ref[len(PROP_REF_PREFIX):]
+    if not remainder:
+        raise UnsafePushTarget(f"refusing to push bare prefix {ref!r}")
+    if ".." in ref or ref.endswith("/") or "//" in ref:
+        raise UnsafePushTarget(
+            f"refusing to push {ref!r}: path traversal or empty segment. A prefix check "
+            f"alone would accept 'prop/../main', which names the trunk."
+        )
+    bad = sorted(set(ref) & _REF_FORBIDDEN)
+    if bad:
+        raise UnsafePushTarget(
+            f"refusing to push {ref!r}: illegal character(s) {''.join(bad)!r} in a ref name"
+        )
+    return ref
+
+
+# The two states a proposal file can be in. `propose` writes AWAITING; `implement` flips
+# it to IMPLEMENTED on the prop branch only, so the trunk keeps saying AWAITING until a
+# human merges. The status therefore answers "has this been done?" honestly from
+# whichever branch you are reading.
 STATUS_AWAITING = "AWAITING IMPLEMENTATION"
 STATUS_IMPLEMENTED = "IMPLEMENTED — awaiting human merge"
 
@@ -209,6 +260,82 @@ def commit_proposal(path: Path, number: int, *, root: Path | None = None) -> str
     return f"committed {sha} on {branch}"
 
 
+def push_prop_ref(
+    ref: str,
+    *,
+    root: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+) -> str:
+    """Push ``ref`` to origin. THE GUARD RUNS FIRST, before any subprocess exists.
+
+    That ordering is the point, and it is asserted as an observable rather than claimed:
+    the test injects a recording runner, calls this with ``main``, and requires both that
+    :class:`UnsafePushTarget` is raised and that the recorder captured **zero** git
+    invocations. A guard that ran after the argv was assembled would still be a guard, but
+    it would not be one you could prove had never reached the network.
+    """
+    assert_prop_ref(ref)  # <- first statement. Nothing above it may touch git.
+
+    repo = root if root is not None else PROJECT_ROOT
+    run = runner if runner is not None else _subprocess_runner
+    pushed = run(["git", "push", "--set-upstream", "origin", ref], repo)
+    if pushed.returncode != 0:
+        detail = (pushed.stderr or pushed.stdout).strip().splitlines()
+        return f"NOT PUSHED ({detail[-1] if detail else 'unknown error'})"
+    return f"pushed origin/{ref}"
+
+
+def _subprocess_runner(
+    cmd: list[str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        list(cmd), cwd=str(cwd), capture_output=True, text=True, shell=False,
+    )
+
+
+def publish_proposal(
+    path: Path,
+    number: int,
+    *,
+    root: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+) -> str:
+    """Seed ``prop/{number}`` with the proposal and push it, then return to where we were.
+
+    NO PULL REQUEST IS OPENED HERE. A proposal is not a request to merge anything — it is
+    an observation with evidence, and most of them should be readable without ever
+    entering a review queue. `implement` opens the PR once the gates pass, which is the
+    first moment "please merge this" is a meaningful thing to say.
+
+    Returning to the original branch matters: `propose` is an analysis command and must
+    not leave the operator somewhere they did not ask to be.
+    """
+    repo = root if root is not None else PROJECT_ROOT
+    run = runner if runner is not None else _subprocess_runner
+    ref = f"{PROP_REF_PREFIX}{number}"
+    assert_prop_ref(ref)
+
+    # Commit WHERE WE ARE first — PROP-2's local durability, unchanged. The proposal has
+    # to stay in the working tree: an earlier draft of this function checked out `prop/n`
+    # to commit there and then returned, which made the file vanish from the operator's
+    # tree and left `implement` unable to find it. That is the PROP-1 failure in a new
+    # costume, and it is why the branch is created by POINTER here rather than by
+    # checkout — no HEAD movement, nothing to restore, nothing to lose if it fails.
+    committed = commit_proposal(path, number, root=repo)
+    if committed.startswith("NOT COMMITTED"):
+        return committed
+
+    # `prop/n` is just a name for the commit we already made. Force is safe: it names a
+    # ref this command owns, and the guard has already refused anything outside `prop/*`.
+    pointed = run(["git", "branch", "--force", ref, "HEAD"], repo)
+    if pointed.returncode != 0:
+        detail = (pointed.stderr or pointed.stdout).strip().splitlines()
+        return f"{committed}; NOT PUBLISHED ({detail[-1] if detail else 'branch failed'})"
+
+    pushed = push_prop_ref(ref, root=repo, runner=run)
+    return f"{committed}; {pushed}"
+
+
 def write_proposal(
     proposal: Proposal,
     *,
@@ -239,7 +366,7 @@ def write_proposal(
     out = directory / proposal.filename
     out.write_text(render(proposal, generated_at=generated_at) + "\n", encoding="utf-8")
     proposal.commit_status = (
-        commit_proposal(out, proposal.number, root=root) if commit
+        publish_proposal(out, proposal.number, root=root) if commit
         else "not committed (--no-commit)"
     )
     return out
@@ -274,4 +401,12 @@ __all__ = [
     "render",
     "write_proposal",
     "find_proposal",
+    "PROP_REF_PREFIX",
+    "UnsafePushTarget",
+    "assert_prop_ref",
+    "push_prop_ref",
+    "publish_proposal",
+    "commit_proposal",
+    "STATUS_AWAITING",
+    "STATUS_IMPLEMENTED",
 ]

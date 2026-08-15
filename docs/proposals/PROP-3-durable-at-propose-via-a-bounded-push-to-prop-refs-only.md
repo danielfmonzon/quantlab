@@ -1,6 +1,6 @@
 # PROP-3 — Durable-at-propose via a bounded push to prop refs only
 
-_proposed 2026-08-15T20:05:22.575750Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-08-15T20:05:22.575750Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -43,3 +43,40 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-08-15T20:15:27.865319Z  |  branch `prop/3`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+```
+src/quantlab/improve/implement.py |  63 ++++++++++++++++-
+ src/quantlab/improve/propose.py   | 145 ++++++++++++++++++++++++++++++++++++--
+ tests/test_improve_pipeline.py    | 132 ++++++++++++++++++++++++++++++++--
+ 3 files changed, 328 insertions(+), 12 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 71 source files |
+| `pytest` | PASS | 691 passed, 1 warning in 84.84s (0:01:24) |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/3`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/3` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.
