@@ -13,6 +13,7 @@ The two structural claims this file exists to prove:
 
 from __future__ import annotations
 
+import ast
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -275,12 +276,31 @@ def test_no_auto_merge_path_exists_in_the_source() -> None:
     from quantlab.improve import implement as module
 
     source = Path(module.__file__).read_text(encoding="utf-8")
-    # Strip the prose, which legitimately discusses merging at length.
-    code = "\n".join(
-        line for line in source.splitlines()
-        if not line.lstrip().startswith("#")
-    )
-    code = code.split('"""')[0] + '"""'.join(code.split('"""')[2:])
+    # Strip PROSE only — comments and docstrings — and keep every other string literal,
+    # because the thing being hunted (`_git(..., "merge", ...)`) IS a string literal.
+    # The previous line-and-split approach removed only the module docstring, so the
+    # sentence "there is no `gh pr merge` here" inside a FUNCTION docstring tripped the
+    # test against code that contained no such call. A test that fires on its own
+    # subject's documentation is the same false-positive failure the sanitizer's
+    # `apca_api_header` pattern was narrowed to avoid (2026-07-26).
+    tree = ast.parse(source)
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and isinstance(node.body[0].value.value, str)
+    }
+
+    class _StripProse(ast.NodeTransformer):
+        def visit_Constant(self, node: ast.Constant) -> ast.Constant:
+            if id(node) in docstrings:
+                return ast.Constant(value="")
+            return node
+
+    code = ast.unparse(_StripProse().visit(tree))
 
     forbidden = [
         '"merge"', "'merge'", '"rebase"', "'rebase'", '"cherry-pick"',
@@ -357,3 +377,103 @@ def test_status_is_awaiting_on_the_trunk_and_implemented_on_the_branch(repo: Pat
     ).stdout
     assert STATUS_AWAITING in on_main
     assert STATUS_IMPLEMENTED not in on_main
+
+
+# ------------------------------------------- bounded push guard (PROP-3)
+
+
+class RecordingRunner:
+    """Captures every git invocation and executes NONE of them.
+
+    The point of this double is negative: it lets a test assert that a code path never
+    reached git at all, which is stronger than asserting it reached git and was rejected.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    def __call__(self, cmd, cwd):  # noqa: ANN001, ANN204
+        self.calls.append(list(cmd))
+        return subprocess.CompletedProcess(list(cmd), 0, stdout="", stderr="")
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "main",
+        "origin/main",
+        "",
+        "prop/",
+        "prop/../main",
+        "refs/heads/main",
+        "prop/3:main",
+        "prop/3 --force",
+        "propose/3",
+    ],
+)
+def test_unsafe_push_target_raises_before_any_git_invocation(ref: str) -> None:
+    """THE guard test. Not "git refused it" — git was never asked.
+
+    A guard that ran after the argv was assembled would still reject the push, but it
+    could not prove the target never reached the network. Asserting zero recorded
+    invocations makes "before any git call" an observable property rather than a claim
+    about statement ordering that a later refactor could silently invert.
+    """
+    from quantlab.improve.propose import UnsafePushTarget, push_prop_ref
+
+    recorder = RecordingRunner()
+    with pytest.raises(UnsafePushTarget):
+        push_prop_ref(ref, root=Path("."), runner=recorder)
+
+    assert recorder.calls == [], (
+        f"git was invoked {len(recorder.calls)} time(s) before the guard rejected {ref!r}: "
+        f"{recorder.calls}"
+    )
+
+
+@pytest.mark.parametrize("ref", ["prop/1", "prop/42", "prop/3-retry"])
+def test_prop_refs_are_accepted_and_pushed(ref: str) -> None:
+    from quantlab.improve.propose import push_prop_ref
+
+    recorder = RecordingRunner()
+    push_prop_ref(ref, root=Path("."), runner=recorder)
+    assert recorder.calls == [["git", "push", "--set-upstream", "origin", ref]]
+
+
+def test_assert_prop_ref_returns_the_ref_unchanged() -> None:
+    from quantlab.improve.propose import assert_prop_ref
+
+    assert assert_prop_ref("prop/7") == "prop/7"
+
+
+def test_propose_pushes_only_its_own_ref_and_opens_no_pull_request(repo: Path) -> None:
+    """`propose` publishes; it does not queue anything for review."""
+    from quantlab.improve.propose import publish_proposal
+
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP,
+                          root=repo, commit=False)
+
+    recorder = RecordingRunner()
+    publish_proposal(path, 9, root=repo, runner=recorder)
+
+    pushes = [c for c in recorder.calls if "push" in c]
+    assert pushes == [["git", "push", "--set-upstream", "origin", "prop/9"]]
+    assert not any(c[:1] == ["gh"] for c in recorder.calls), (
+        "propose opened a pull request; a proposal is not a request to merge"
+    )
+
+
+def test_implement_opens_no_pull_request_when_a_gate_fails(repo: Path) -> None:
+    """A red branch stays a branch — visible as evidence, not queued for review."""
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+    (repo / "frontend" / "src" / "copy.ts").write_text("changed\n", encoding="utf-8")
+
+    result = implement(proposal.number, root=repo, proposals_dir=proposals, push=False,
+                       now=STAMP, runner=lambda cmd, cwd: _run(list(cmd), cwd))
+    assert not result.pushed
+    assert result.pr_url == ""
+    assert "no PR opened" in result.pr_detail
