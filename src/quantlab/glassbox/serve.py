@@ -21,13 +21,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from quantlab.constants import PROJECT_ROOT
+
 # Hardcoded. See the module docstring before considering a change.
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8600
 
 # Where `quantlab glassbox snapshot` writes by default. Inside the frontend's
 # `public/` tree so `vite build` copies it into `dist/` untouched.
-DEFAULT_SNAPSHOT_DIR = Path("frontend") / "public" / "snapshot"
+# Anchored to the repo root — see `snapshot.DEFAULT_REPORT_DIR`. This one is only
+# reachable through an interactive `glassbox serve` / `glassbox snapshot --out`, so it
+# never ran unattended, but it is the same defect and is fixed with its siblings rather
+# than left as the one that got away.
+DEFAULT_SNAPSHOT_DIR = PROJECT_ROOT / "frontend" / "public" / "snapshot"
 
 
 def serve(

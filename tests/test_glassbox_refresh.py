@@ -87,9 +87,17 @@ class FakeContent:
 
 
 class FakeVerified:
+    # `env_checked` defaults to True here because the double stands in for a NORMAL run,
+    # in which the secret search did execute. It is False on the model by default, which
+    # is the right default for the model (absence of evidence is not a passing check) but
+    # the wrong one for a fixture claiming to represent a clean gate.
     def __init__(self, *, passed: bool = True, redactable: list[str] | None = None,
-                 forbidden: list[ForbiddenRecord] | None = None):
-        self.report = SanitizationReport(passed=not forbidden, forbidden=forbidden or [])
+                 forbidden: list[ForbiddenRecord] | None = None,
+                 env_checked: bool = True, env_note: str | None = None):
+        self.report = SanitizationReport(
+            passed=not forbidden, forbidden=forbidden or [],
+            env_checked=env_checked, env_note=env_note,
+        )
         self.content = FakeContent(passed)
         self.passed = passed and not forbidden
         self.redactable_findings = redactable or []
@@ -100,7 +108,8 @@ class FakeVerified:
         return "VERIFY REPORT BODY"
 
 
-def _clean_report(redactions: int = 0) -> SanitizationReport:
+def _clean_report(redactions: int = 0, *, env_checked: bool = True,
+                  env_note: str | None = None) -> SanitizationReport:
     records = (
         [RedactionRecord(pattern="windows_user_path", location="assets/index.js",
                          count=redactions, replacement="<path>")]
@@ -109,11 +118,13 @@ def _clean_report(redactions: int = 0) -> SanitizationReport:
     return SanitizationReport(
         passed=True, files_scanned=22, bytes_scanned=27_321, redactions=records,
         forbidden=[ForbiddenRecord(pattern="alpaca_account_id", count=0)],
+        env_checked=env_checked, env_note=env_note,
     )
 
 
 def _run(*, runner: FakeRunner | None = None, report: SanitizationReport | None = None,
          verified: FakeVerified | None = None, dry_run: bool = False,
+         automated: bool = True,
          snapshot_raises: SanitizationError | None = None, alerts: list[Alert] | None = None,
          tmp: Path | None = None):
     used_runner = runner or FakeRunner()
@@ -131,7 +142,8 @@ def _run(*, runner: FakeRunner | None = None, report: SanitizationReport | None 
         return verified or FakeVerified()
 
     result = refresh(
-        dry_run=dry_run, runner=used_runner, alert_fn=lambda a: sink.append(a) or [],
+        dry_run=dry_run, automated=automated,
+        runner=used_runner, alert_fn=lambda a: sink.append(a) or [],
         now=NOW, snapshot_fn=snapshot_fn, verify_fn=verify_fn,
         frontend_dir=tmp or Path("frontend"), dist_dir=(tmp or Path("frontend")) / "dist",
     )
@@ -412,3 +424,83 @@ def test_an_aborted_report_says_where_and_why() -> None:
     assert "aborted at 'deploy'" in rendered
     assert "redactions        : 2" in rendered
     assert "SKIPPED" in rendered  # the deploy step is visibly not run
+
+
+# --------------------------------------------------------------------------- #
+# The env-secret gate (2026-08-15, consequence of Defect #2)                   #
+# --------------------------------------------------------------------------- #
+#
+# `load_env_secret_prefixes` treats a missing `.env` as a note, not an error: it returns
+# an empty prefix set and the surrounding gate still reports PASS. Combined with the
+# CWD-relative `.env` fallback that Defect #2 fixed, an unattended chain could have
+# published bytes whose env-secret half searched for nothing while the report said PASS.
+# The path bug is fixed; these tests close the class.
+
+
+_NO_ENV = "no .env at .env; secret-prefix check skipped"
+
+
+def test_automated_run_aborts_when_the_env_secret_check_did_not_run() -> None:
+    """The ruling: NOT CHECKED holds the bytes exactly as a redaction does."""
+    result, runner, alerts, _c = _run(
+        verified=FakeVerified(env_checked=False, env_note=_NO_ENV),
+    )
+    assert not result.ok
+    assert result.aborted_at == "deploy"
+    assert "env-secret check did NOT run" in (result.abort_reason or "")
+    assert "held for human pre-review" in (result.abort_reason or "")
+    # Held, not published: the deploy command never ran.
+    assert "deploy" not in runner.ran
+    assert not result.deployed
+    # And a human is told, at WARNING, exactly as a redaction abort does.
+    assert len(alerts) == 1
+    assert alerts[0].level == "WARNING"
+
+
+def test_automated_run_aborts_when_the_snapshot_half_did_not_check() -> None:
+    """Either half being unchecked is enough; the gate is the conjunction of both."""
+    result, runner, _a, _c = _run(
+        report=_clean_report(env_checked=False, env_note=_NO_ENV),
+    )
+    assert not result.ok
+    assert result.aborted_at == "deploy"
+    assert "deploy" not in runner.ran
+
+
+def test_interactive_run_keeps_the_note_and_deploys() -> None:
+    """A human is reading the report, so the note is enough and nothing is held."""
+    result, runner, _a, _c = _run(
+        automated=False, verified=FakeVerified(env_checked=False, env_note=_NO_ENV),
+    )
+    assert result.ok, result.abort_reason
+    assert result.deployed
+    assert "deploy" in runner.ran
+    assert not result.env_checked
+    rendered = result.render()
+    assert "NOT CHECKED (note only" in rendered
+    assert _NO_ENV in rendered
+
+
+def test_dry_run_keeps_the_note_and_does_not_abort() -> None:
+    """`--dry-run` publishes nothing, so the stricter gate has nothing to protect."""
+    result, runner, _a, _c = _run(
+        dry_run=True, verified=FakeVerified(env_checked=False, env_note=_NO_ENV),
+    )
+    assert result.ok, result.abort_reason
+    assert not result.deployed
+    assert "deploy" not in runner.ran
+    assert _NO_ENV in result.render()
+
+
+def test_a_checked_env_gate_deploys_normally_and_says_so() -> None:
+    """The gate must not fire on the happy path, or it is just an off switch."""
+    result, runner, _a, _c = _run()
+    assert result.ok and result.deployed
+    assert result.env_checked
+    assert "env-secret check  : ran" in result.render()
+
+
+def test_the_env_gate_is_reported_on_every_run_not_only_on_failure() -> None:
+    """"The check ran" should be confirmable, not inferred from the absence of a note."""
+    assert "env-secret check" in _run()[0].render()
+    assert "env-secret check" in _run(dry_run=True)[0].render()

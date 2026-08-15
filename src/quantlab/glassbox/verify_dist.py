@@ -22,6 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from quantlab.constants import PROJECT_ROOT
 from quantlab.glassbox.completeness import (
     DEFAULT_MAX_AGE_DAYS,
     ContentReport,
@@ -33,6 +34,17 @@ from quantlab.glassbox.sanitize import (
     redact,
     scan_forbidden,
 )
+
+# Where the env-secret half of the gate reads its needles from when the caller names no
+# path. ANCHORED TO THE REPO ROOT — see `snapshot.DEFAULT_REPORT_DIR` for the incident.
+# This one would have failed WORSE than that crash: a missing `.env` is not an error
+# here, `load_env_secret_prefixes` returns an empty prefix set with a note and the gate
+# PASSES having searched for no secrets at all. Under the scheduler (no working
+# directory, so CWD is `C:\Windows\System32`) a relative `.env` never resolves, so this
+# half of the published-bytes gate would have silently become a no-op the moment the
+# snapshot step stopped aborting ahead of it. A gate that quietly checks nothing is worse
+# than one that fails loudly.
+DEFAULT_ENV_PATH = PROJECT_ROOT / ".env"
 
 # Extensions worth scanning as text. Binary assets (png/ico/woff2) cannot carry a
 # greppable secret in any form this gate could detect, and decoding them as text would
@@ -133,7 +145,7 @@ def verify_dist(
     if not dist_dir.exists():
         raise FileNotFoundError(f"no such directory: {dist_dir}")
 
-    resolved_env = env_path if env_path is not None else Path(".env")
+    resolved_env = env_path if env_path is not None else DEFAULT_ENV_PATH
     env = load_env_secret_prefixes(resolved_env)
 
     forbidden_counts: dict[str, int] = {}
@@ -219,4 +231,7 @@ def verify_dist(
     )
 
 
-__all__ = ["verify_dist", "DistVerifyResult", "TEXT_SUFFIXES", "BINARY_SUFFIXES"]
+__all__ = [
+    "verify_dist", "DistVerifyResult", "TEXT_SUFFIXES", "BINARY_SUFFIXES",
+    "DEFAULT_ENV_PATH",
+]

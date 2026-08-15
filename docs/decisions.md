@@ -6,6 +6,187 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-15 — An unchecked secret gate is an abort, not a note (automated chain only)
+
+**Decision.** In the **automated** refresh chain, an env-secret status of NOT CHECKED
+aborts at the deploy decision exactly as a redaction does: bytes held, WARNING raised,
+human pre-review required. Interactive runs (`--interactive`) and `--dry-run` keep the
+existing note and proceed.
+
+**Rationale — direct consequence of Defect #2** (the 2026-08-15 path-anchoring audit).
+`verify_dist`'s `.env` fallback was CWD-relative, and a missing `.env` is not an error in
+`load_env_secret_prefixes`: it returns an empty prefix set with a note and the gate still
+reports **PASS**. Under the scheduler, which supplies no working directory, that
+combination would have published bytes whose env-secret half had searched for nothing
+while the chain report said the gate passed. The path bug is fixed; this closes the
+class. **"The check silently did not run" must never be indistinguishable from "the check
+ran and found nothing"** — that is the same failure shape as Defect #1, where an error
+naming `reports` described a directory that had never existed.
+
+**Why the two modes differ.** The abort exists to substitute for a reader who is absent,
+so it fires exactly when the reader is. `--dry-run` publishes nothing and an interactive
+operator sees the note in the report they are already reading. The default is
+`automated=True` — fail closed, so a run that did not declare a human is assumed not to
+have one. The env-secret status is now printed on **every** report, passing or not,
+because "the check ran" should be confirmable rather than inferred from the absence of a
+note.
+
+---
+
+## 2026-08-15 — The AI improvement pipeline, and the firewall that makes it safe
+
+**Decision.** An automated improvement loop is added in three parts:
+`quantlab propose` (analysis, writes a document), a structural **firewall** (a denylist
+of frozen paths and change classes), and `quantlab implement PROP-n` (applies on a
+branch, gates it, reports, pushes, stops). Merge is human-only. The loop may improve the
+machine around the strategy; it may never touch the strategy, the limits that constrain
+it, the instruments that measure it, or the gate that keeps secrets out of the published
+bytes.
+
+**Why this needs a firewall at all.** The failure mode is not a rogue model, it is a
+*reasonable* one. Point an improvement loop at this repository and the most persuasive
+proposal available to it is to widen the 50 bps divergence threshold: four of the last
+six weekly reviews fired DIVERGING, every one was later attributed to mark-phase
+geometry, and the alerts produced no action. That argument is evidenced, coherent, and
+exactly wrong — it is the 2026-08-10 ruling ("fix the instrument, not the threshold")
+run in reverse. A prompt asking a model not to do that is a request. This is a gate.
+
+**What `propose` may READ** — an allowlist, in `improve/sources.py`: weekly reviews,
+daily digests, per-run paper reports, `alerts.jsonl`, the CI workflow, Glass Box / site
+artifacts, `decisions.md`, and prior proposals. **Source code is deliberately not
+readable evidence.** An observation has to trace to an artifact this system published
+about itself; a proposal justified by reading the implementation is how you end up
+"fixing" a measurement to agree with the code rather than the other way round. Absent
+sources are reported as absent rather than silently skipped.
+
+**What no proposal may CHANGE** — the firewall, in `improve/firewall.py`, enforced at
+BOTH ends. Forbidden paths:
+
+| path | why |
+|---|---|
+| `src/quantlab/backtest/strategies/` | strategy definitions and literature-fixed parameters |
+| `src/quantlab/broker/` | the order path, frozen under human review |
+| `src/quantlab/risk/` | limits, kill-switch, halt state |
+| `config/risk.yaml`, `config/crypto_risk.yaml` | risk limit values |
+| `src/quantlab/glassbox/sanitize.py` | sanitizer patterns — the secret-leak gate |
+| `src/quantlab/scheduling/tasks.py` | schedule cadences |
+
+Paths alone are not enough — a threshold can be moved from a constant in a reporting
+module — so six forbidden **change classes** are also matched against the proposal's own
+prose: `strategy_parameters`, `risk_limits`, `threshold_constants`, `schedule_cadence`,
+`sanitizer_patterns`, `broker_logic`. A class fires only when a frozen TARGET and a
+mutation VERB co-occur, because a target alone is discussion and a verb alone is most of
+English. Matching is word-boundary anchored: naive substring matching fired `change`
+inside "un**change**d" and refused the sentence "the threshold value itself is
+unchanged" — a firewall that fires on its own disclaimers trains its operator to route
+around it, the same lesson as the 2026-07-26 narrowing of `apca_api_header`.
+
+**Refusals cite the iron rule verbatim** and state that no flag overrides them, because
+a refusal that does not explain itself is indistinguishable from a bug. A refused
+proposal writes **nothing** — the gate runs before the file is created, mirroring the
+snapshot writer's "nothing is written unless the gate passes".
+
+**Strategy-performance data may inform INFRASTRUCTURE proposals only.** The rule is
+enforced on the proposal's EFFECT, not on what it read. Reading the divergence figures
+to notice that the Glass Box exposes only the raw number and not the residual the verdict
+was taken on is the intended use. Reading the same figures to argue for a different
+lookback is refused.
+
+**Merge is human-only, and that is structural too.** `implement` creates `prop/{n}`,
+applies the change, re-runs the firewall **against the actual diff** (the document and
+the diff are different artifacts, and only the second becomes a commit), runs
+ruff/mypy/pytest plus the frontend suite and `verify-dist` when the site is touched,
+writes an implementation report into the proposal, commits, pushes, and ends. There is
+no `git merge`, no `git rebase`, and no push to `main` anywhere in it. Two tests prove
+this rather than one: a behavioural test runs the real command against a real repository
+and asserts `main`'s SHA is byte-identical afterwards, and a source-level test reads
+`implement.py` and fails if a merge verb ever appears in it. The first catches a bug; the
+second catches a future feature. **Daniel merges via pull request after Quant Lead
+review.**
+
+A loop that can merge its own work is trusted by construction, and every safety property
+downstream of it collapses into "the analysis was right" — the one thing that cannot be
+guaranteed. Keeping the last step human means the worst case of a wrong proposal is a
+branch nobody merges.
+
+**Dogfooded on PROP-1.** The first real proposal was the Story page's claim that the
+system had caught itself "twice"; there have been three self-caught measurement
+incidents (the 2026-07-22 scheduler leak, the 2026-07-25 partial-bar read, and the
+2026-08-10 comparator interval dating defect). Proposed, firewall-passed, implemented on
+`prop/1`, six gates green, pushed, stopped at the human gate. The run also found two real
+defects in the pipeline itself, both fixed with regression tests: `implement` staged
+`-A` in patch mode (which would have swept unrelated working-tree changes into a
+proposal's commit), and the report written into the proposal claimed
+`committed: False` on a run that had committed and pushed, because the report is written
+before the commit that carries it.
+
+---
+
+## 2026-08-15 — DMARC enforcement: `p=none` -> `p=quarantine`
+
+**Decision.** The `_dmarc.danielmonzonautomation.com` TXT record moves from
+monitor-only to enforcing:
+
+```
+v=DMARC1; p=quarantine; sp=quarantine; rua=mailto:<project gmail>; fo=1
+```
+
+`sp=quarantine` is stated explicitly rather than left to inherit, so a subdomain
+cannot become an unenforced sending path by omission. `rua` and `fo=1` are
+unchanged — aggregate reporting continues, and enforcement is not a reason to
+stop reading it.
+
+The `rua` mailbox is elided above rather than transcribed, because this file is
+published verbatim through `/api/decisions` and `email_address` is a **forbidden**
+pattern in the snapshot gate — not a redaction, a hard refusal. Writing the literal
+address here would fail-close the next automated refresh on the gate's own
+documentation. The live value is in the zone; it is unchanged from the `p=none`
+record it replaced.
+
+**Rationale — the observation window did its job.** `p=none` existed to answer one
+question: does anything legitimate send as this domain that would break under
+enforcement? The aggregate reports answer no. **10 of 11** reported messages were
+DMARC-aligned. The single failure originated from **AWS** infrastructure with no
+alignment on either SPF or DKIM — not a legitimate sender misconfigured, but
+exactly the unauthorised use of the domain that a policy is supposed to act on.
+Quarantining that message is the correct outcome, not collateral damage. A policy
+whose only enforcement effect is the thing you deployed it for has no migration
+risk left to buy down by waiting.
+
+**Preconditions verified in the zone before the change**, since enforcement is only
+safe if alignment is actually achievable: MX is Google (`SMTP.GOOGLE.COM`, pref 1),
+SPF is `v=spf1 include:_spf.google.com ~all`, and a valid `google._domainkey`
+DKIM RSA key is published. Daniel confirmed **Gmail-only sending**; the zone
+contents corroborate it — there is no second sending path to break.
+
+**`quarantine`, not `reject`.** Quarantine is recoverable by the recipient: a
+false positive lands in spam where it can still be retrieved. Reject is
+unrecoverable and bounces. With one enforcing week of evidence and a
+single-digit message sample, the recoverable rung is the honest one. `p=reject`
+is a later decision that should be taken on aggregate reports gathered *under*
+quarantine, not on reports gathered under `none`.
+
+**Operational note — Netlify DNS cannot modify a record in place.** The API
+exposes `createDnsRecord` and `deleteDnsRecord` and **no update method**, so
+"edit the record" is necessarily delete-then-create. Order matters and is not
+arbitrary: deleting first leaves a brief window with *no* DMARC record, which
+receivers treat as no policy — fail-open, mail flows. Creating first would leave
+two `_dmarc` records, and RFC 7489 §6.6.3 requires receivers to apply **no
+policy at all** when more than one is present — a worse state that also silently
+defeats the change. Delete-then-create is therefore the correct order, and the
+record ID changes as a consequence (`6a6645686c76095d7a08d75a` ->
+`6a808f7c09c4e9aa73343cf1`).
+
+**Change protocol, run in full.** MX resolved before and after and compared —
+unchanged (`pref=1 smtp.google.com`), with the MX record object itself untouched
+(same id `6a2bffbd9e417c2f6941fd77`). Exactly one `_dmarc` record confirmed both
+before and after, at the API level and at **all four** authoritative
+nameservers (`dns{1..4}.p08.nsone.net`), byte-compared against the intended
+value. TTL 3600, so resolver caches carry the old `p=none` for up to an hour;
+that staleness is expected and is not a failed change.
+
+---
+
 ## 2026-08-10 — One bounded retry, and the list of things that must never get one
 
 **The gap.** Any abort ended the attempt until the next scheduled day. A vendor publishing a
