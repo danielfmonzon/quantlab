@@ -78,7 +78,7 @@ def _proposal(**over: object) -> Proposal:
 
 
 def test_propose_writes_the_document_with_every_required_section(tmp_path: Path) -> None:
-    path = write_proposal(_proposal(), proposals_dir=tmp_path, generated_at=STAMP)
+    path = write_proposal(_proposal(), proposals_dir=tmp_path, generated_at=STAMP, commit=False)
     text = path.read_text(encoding="utf-8")
     for heading in (
         "## Observation", "### Evidence", "## Proposed change", "## Affected files",
@@ -92,7 +92,7 @@ def test_propose_writes_the_document_with_every_required_section(tmp_path: Path)
 def test_propose_writes_nothing_outside_its_proposals_directory(tmp_path: Path) -> None:
     """The 'never edits code' claim, made concrete: exactly one file appears."""
     before = {p for p in tmp_path.rglob("*")}
-    write_proposal(_proposal(), proposals_dir=tmp_path, generated_at=STAMP)
+    write_proposal(_proposal(), proposals_dir=tmp_path, generated_at=STAMP, commit=False)
     after = {p for p in tmp_path.rglob("*")}
     created = after - before
     assert len(created) == 1
@@ -155,7 +155,7 @@ def test_implement_never_touches_main(repo: Path) -> None:
         affected_paths=["frontend/src/copy.ts"],
         risk_class="content",
     )
-    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP)
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
 
     main_before = _run(["git", "rev-parse", PROTECTED_BRANCH], repo).stdout.strip()
     assert main_before
@@ -185,7 +185,7 @@ def test_implement_never_touches_main(repo: Path) -> None:
 def test_implement_writes_the_report_into_the_proposal(repo: Path) -> None:
     proposals = repo / "docs" / "proposals"
     proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
-    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP)
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
     (repo / "frontend" / "src" / "copy.ts").write_text("changed\n", encoding="utf-8")
 
     implement(proposal.number, root=repo, proposals_dir=proposals, push=False, now=STAMP,
@@ -209,7 +209,7 @@ def test_report_in_the_file_never_claims_it_was_not_committed(repo: Path) -> Non
     """
     proposals = repo / "docs" / "proposals"
     proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
-    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP)
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
     (repo / "frontend" / "src" / "copy.ts").write_text("changed\n", encoding="utf-8")
 
     result = implement(proposal.number, root=repo, proposals_dir=proposals, push=False,
@@ -229,7 +229,7 @@ def test_implement_refuses_a_diff_that_touches_a_firewall_path(repo: Path) -> No
     """Defence in depth: the DOCUMENT said frontend, the DIFF says risk limits."""
     proposals = repo / "docs" / "proposals"
     proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
-    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP)
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
 
     (repo / "config").mkdir()
     (repo / "config" / "risk.yaml").write_text("max_drawdown: 0.99\n", encoding="utf-8")
@@ -246,7 +246,7 @@ def test_implement_refuses_a_diff_that_touches_a_firewall_path(repo: Path) -> No
 def test_implement_aborts_on_an_empty_diff(repo: Path) -> None:
     proposals = repo / "docs" / "proposals"
     proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
-    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP)
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
     # Commit the proposal so the tree is clean and the diff is genuinely empty.
     _run(["git", "add", "-A"], repo)
     _run(["git", "commit", "-m", "proposal"], repo)
@@ -298,3 +298,62 @@ def test_implement_and_propose_agree_on_the_firewall(repo: Path) -> None:
 
     assert impl_mod.firewall is firewall
     assert prop_mod.firewall is firewall
+
+
+# ------------------------------------------------------- proposal lifecycle (PROP-2)
+
+
+def test_propose_commits_the_proposal_where_it_was_run(repo: Path) -> None:
+    """The analysis is recorded at propose time, not at implement time."""
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+
+    assert "committed" in proposal.commit_status, proposal.commit_status
+    tracked = _run(["git", "ls-files", "--", str(path)], repo).stdout.strip()
+    assert tracked, "the proposal was not tracked after propose"
+    # Committing the proposal must not sweep in an unrelated dirty working tree.
+    assert _run(["git", "status", "--porcelain"], repo).stdout.strip() == ""
+
+
+def test_a_committed_proposal_survives_a_branch_switch(repo: Path) -> None:
+    """The PROP-1 failure, as a test: the record must not live only on prop/n."""
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+
+    _run(["git", "checkout", "-b", "somewhere-else"], repo)
+    _run(["git", "checkout", PROTECTED_BRANCH], repo)
+    assert path.is_file(), "the proposal vanished across a branch switch"
+
+
+def test_no_commit_leaves_the_proposal_untracked(repo: Path) -> None:
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP,
+                          root=repo, commit=False)
+    assert "--no-commit" in proposal.commit_status
+    assert not _run(["git", "ls-files", "--", str(path)], repo).stdout.strip()
+
+
+def test_status_is_awaiting_on_the_trunk_and_implemented_on_the_branch(repo: Path) -> None:
+    """The same file answers "has this been done?" per branch, and both are true."""
+    from quantlab.improve.propose import STATUS_AWAITING, STATUS_IMPLEMENTED
+
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    path = write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+    assert STATUS_AWAITING in path.read_text(encoding="utf-8")
+
+    (repo / "frontend" / "src" / "copy.ts").write_text("changed\n", encoding="utf-8")
+    implement(proposal.number, root=repo, proposals_dir=proposals, push=False, now=STAMP,
+              runner=lambda cmd, cwd: _run(list(cmd), cwd))
+
+    # On the prop branch: implemented.
+    assert STATUS_IMPLEMENTED in path.read_text(encoding="utf-8")
+    # On the trunk: still awaiting, because nobody has merged it.
+    on_main = _run(
+        ["git", "show", f"{PROTECTED_BRANCH}:docs/proposals/{path.name}"], repo
+    ).stdout
+    assert STATUS_AWAITING in on_main
+    assert STATUS_IMPLEMENTED not in on_main

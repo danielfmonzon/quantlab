@@ -18,6 +18,7 @@ unattended — without any path by which a bad observation becomes a bad commit.
 from __future__ import annotations
 
 import re
+import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +27,13 @@ from quantlab.constants import PROJECT_ROOT
 from quantlab.improve import firewall, sources
 
 PROPOSALS_DIR = PROJECT_ROOT / "docs" / "proposals"
+
+# The two states a proposal file can be in. `propose` writes AWAITING and commits it
+# where it was run; `implement` flips it to IMPLEMENTED on the prop branch only, so the
+# trunk keeps saying AWAITING until a human merges. The status therefore answers "has
+# this been done?" honestly from whichever branch you are reading.
+STATUS_AWAITING = "AWAITING IMPLEMENTATION"
+STATUS_IMPLEMENTED = "IMPLEMENTED — awaiting human merge"
 
 # A proposal's blast radius, stated by the author and checked by the reviewer. Ordered
 # least to most consequential; `implement` prints it back before it gates.
@@ -72,6 +80,9 @@ class Proposal:
     evidence: list[str] = field(default_factory=list)
     number: int = 0
     slug: str = ""
+    # Filled in by `write_proposal`; reported to the operator, never rendered into the
+    # document (a file cannot truthfully describe the commit that carries it).
+    commit_status: str = ""
 
     def __post_init__(self) -> None:
         if not self.slug:
@@ -99,7 +110,7 @@ def render(proposal: Proposal, *, generated_at: datetime | None = None) -> str:
         f"# PROP-{proposal.number} — {proposal.title}",
         "",
         f"_proposed {stamp}  |  risk class: **{proposal.risk_class}**  |  "
-        f"status: **AWAITING IMPLEMENTATION**_",
+        f"status: **{STATUS_AWAITING}**_",
         "",
         "## Observation",
         "",
@@ -154,13 +165,59 @@ def render(proposal: Proposal, *, generated_at: datetime | None = None) -> str:
     return "\n".join(lines)
 
 
+def commit_proposal(path: Path, number: int, *, root: Path | None = None) -> str:
+    """Commit the proposal where it was written. Returns a short status string.
+
+    WHY AT PROPOSE TIME. Until 2026-08-15 the proposal was left untracked and `implement`
+    was what first committed it — onto `prop/n`. That put the analysis record on the
+    implementation branch only, with three consequences. Switching back to the trunk
+    removed the file from the working tree; deleting the branch destroyed it (observed
+    during the PROP-1 dogfood, where it had to be recovered from the remote by hand); and
+    a proposal that was never implemented left no trace anywhere that the analysis had
+    been done and set aside. A pipeline that claims to be auditable has to record what was
+    considered, not only what was carried out.
+
+    Failures here are reported, never raised: a proposal that is written but uncommitted
+    is a worse outcome than one that is written and committed, but it is far better than
+    losing the document because git was unhappy.
+    """
+    repo = root if root is not None else PROJECT_ROOT
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args], cwd=str(repo), capture_output=True, text=True, shell=False,
+        )
+
+    added = git("add", "--", str(path))
+    if added.returncode != 0:
+        return f"NOT COMMITTED (git add failed: {added.stderr.strip()})"
+    # Commit ONLY this path, so a dirty working tree is never swept in alongside it.
+    # `-m` MUST precede the `--` separator: everything after `--` is a pathspec, so
+    # putting the message there made git look for a file named after the commit body.
+    committed = git(
+        "commit", "--only",
+        "-m", f"PROP-{number}: propose — {path.stem}\n\n"
+              f"Analysis recorded at propose time, status {STATUS_AWAITING}. "
+              f"Implementation, if any, happens on prop/{number} behind a human merge.",
+        "--", str(path),
+    )
+    if committed.returncode != 0:
+        detail = (committed.stderr or committed.stdout).strip().splitlines()
+        return f"NOT COMMITTED ({detail[-1] if detail else 'unknown error'})"
+    sha = git("rev-parse", "--short", "HEAD").stdout.strip()
+    branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    return f"committed {sha} on {branch}"
+
+
 def write_proposal(
     proposal: Proposal,
     *,
     proposals_dir: Path | None = None,
     generated_at: datetime | None = None,
+    commit: bool = True,
+    root: Path | None = None,
 ) -> Path:
-    """Gate, then write. Raises :class:`ProposalRefused` without writing anything.
+    """Gate, then write, then commit. Raises :class:`ProposalRefused` without writing.
 
     The firewall runs BEFORE the directory is created, so a refused proposal leaves no
     trace on disk at all — the same "nothing is written unless the gate passes" posture
@@ -181,6 +238,10 @@ def write_proposal(
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / proposal.filename
     out.write_text(render(proposal, generated_at=generated_at) + "\n", encoding="utf-8")
+    proposal.commit_status = (
+        commit_proposal(out, proposal.number, root=root) if commit
+        else "not committed (--no-commit)"
+    )
     return out
 
 
