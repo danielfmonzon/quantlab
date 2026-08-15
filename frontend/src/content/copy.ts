@@ -144,11 +144,12 @@ export const STORY_SECTIONS: readonly StorySection[] = [
     id: 'mistakes',
     title: 'The mistakes are on the site too',
     body: [
-      'In its first two weeks this system flagged itself as misbehaving twice. Both times ' +
-        'the investigation found the fault in the measurement, not the strategy: once a ' +
+      'This system has flagged itself as misbehaving three times. Every time the ' +
+        'investigation found the fault in the measurement, not the strategy: once a ' +
         'scheduler ran the crypto accounts twice a day, once a price was read before the ' +
-        'day had finished settling. Both are written up here in full, with the original ' +
-        'wrong numbers still displayed beside the corrected ones.',
+        'day had finished settling, once a week of results was compared against the ' +
+        'wrong day. All three are written up here in full, with the original wrong ' +
+        'numbers still displayed beside the corrected ones.',
       'That is deliberate. A track record you have never seen fail is a track record you ' +
         'cannot evaluate. Published reports are never edited after the fact — corrections ' +
         'are added beside them, and the reasoning is dated and signed.',
@@ -219,11 +220,12 @@ export const BUILD_PROCESS = {
         'since the first paper account went live.',
     },
     {
-      label: 'Two self-caught incidents, both published',
+      label: 'Three self-caught incidents, all published',
       detail:
-        'A scheduler that ran the crypto accounts twice a day, and a price read before ' +
-        'the day had settled. Both were found by the system measuring itself, and both ' +
-        'write-ups sit beside the original wrong numbers.',
+        'A scheduler that ran the crypto accounts twice a day, a price read before the ' +
+        'day had settled, and a week of results compared against the wrong day. All ' +
+        'three were found by the system measuring itself, and every write-up sits ' +
+        'beside the original wrong numbers.',
     },
     {
       label: 'Errors caught in both directions',
