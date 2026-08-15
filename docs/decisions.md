@@ -6,6 +6,73 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-15 — Required status checks on `main`, as a consequence of the CI incident
+
+**Decision.** The `main` ruleset now requires the CI check to pass before a pull request
+can merge, in addition to requiring a pull request at all.
+
+**Rationale.** Protect-main already made a direct push impossible, which is what forced
+the Phase 3 work through PR #2 in the first place. But "requires a PR" and "requires a
+PR that passes" are different guarantees, and the incident below is the proof: PR #2
+merged **red**, and the merge commit `a80ca1d` carried a live firewall hole on `main`
+for roughly fifteen minutes until PR #4 landed. Nothing exploited it — no automated
+proposal ran in that window — but the exposure was real and the ruleset permitted it.
+
+The two rules protect against different failures. Requiring a PR stops an unreviewed
+change. Requiring a green check stops a *reviewed* change whose reviewer did not read
+the check, which is the far more likely mistake on a one-person project where the
+reviewer and the author are the same person and the diff has already been discussed at
+length. A gate that depends on the reviewer's attention at the moment of merging is a
+gate that fails exactly when the work feels finished.
+
+Consistent with the human-merge-only rule: this makes merging *harder*, never automatic.
+`quantlab implement` still cannot merge, and a green check is a precondition for a human
+merge rather than a trigger for an automatic one.
+
+---
+
+## 2026-08-15 — CI found a firewall hole that the development platform could not
+
+**What happened.** CI went red on `main` and on `prop/2` with four failures. The leading
+hypothesis — that the new pipeline tests make real git commits in temp repos and the
+runner has no git identity — was **refuted**: no identity error appears anywhere in the
+logs, the `repo` fixture already sets a **repo-local** `user.name`/`user.email` (never
+global), and every test that makes real commits passed. Two unrelated causes, one of
+them a genuine defect in the gate rather than in its tests.
+
+**Cause 1 — the firewall's path matching was platform-dependent, and that is a hole.**
+`_normalise` built a `Path` directly from the caller's string. On POSIX,
+`Path(r"config\risk.yaml")` is a *single filename containing a backslash*; it never
+matched the `config/risk.yaml` entry, so **the firewall ALLOWED a frozen path**. The
+identical assertion passed on the Windows development machine, where `Path` splits on
+backslash. The separator is now normalised in the string before `Path` sees it, and
+`_normalise` is pinned by a parametrised test that asserts the transformation directly
+instead of inferring it from a verdict.
+
+The lesson is not "test on Linux too". It is that **a security boundary whose verdict
+depends on which operating system evaluates it is not a boundary**, and that this class
+of defect is structurally invisible to the machine it was written on. Linux CI was the
+only thing in the system capable of finding it. Live on `main` from `a80ca1d` until PR
+#4 merged, roughly fifteen minutes.
+
+**Cause 2 — a test that read the developer's data instead of the code's behaviour.**
+`test_allowed_evidence_paths_are_accepted` asserted `.exists()` on `reports/*`, which is
+gitignored, so a fresh clone has none of it. The assertion could only ever have caught
+"you have not run the system yet", which is not a defect, while passing locally for the
+wrong reason — months of accumulated artifacts. It now asserts what `assert_allowed`
+actually promises: the path lies inside the permitted read set and resolves under the
+repo root. Whether an artifact has been produced is the caller's problem, and
+`render_inventory` already reports absent sources as ABSENT rather than pretending
+otherwise.
+
+**The anti-pattern, stated generally so it is refusable next time:** a test must not
+assert on generated artifacts that are gitignored. Doing so couples the suite to one
+machine's history, turns a clean checkout into a failure, and — worse — makes the test
+pass locally for a reason unrelated to the property under test. Assert the decision, not
+the data.
+
+---
+
 ## 2026-08-15 — An unchecked secret gate is an abort, not a note (automated chain only)
 
 **Decision.** In the **automated** refresh chain, an env-secret status of NOT CHECKED
