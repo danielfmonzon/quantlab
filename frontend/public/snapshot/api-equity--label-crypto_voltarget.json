@@ -220,12 +220,42 @@
           "equity": 100798.2,
           "provenance": "on_schedule",
           "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-08-11T11:17:35.257478",
+          "equity": 100040.42,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-08-12T12:37:22.272525",
+          "equity": 99810.63,
+          "provenance": "leaked",
+          "provenance_rationale": "A crypto mark produced by the 10:00 ET EQUITY task, which iterated the crypto accounts until the --asset-class us_equity fix on 2026-07-22."
+        },
+        {
+          "timestamp": "2026-08-13T01:27:44.649765",
+          "equity": 98758.87,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-08-14T06:38:13.328622",
+          "equity": 98535.82,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-08-15T00:30:08.016859",
+          "equity": 98246.87,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
         }
       ],
       "provenance_counts": {
-        "catch_up": 15,
-        "leaked": 6,
-        "on_schedule": 15
+        "catch_up": 18,
+        "leaked": 7,
+        "on_schedule": 16
       }
     }
   ],

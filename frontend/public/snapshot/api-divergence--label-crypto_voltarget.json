@@ -64,6 +64,21 @@
       "window_start": "2026-07-30",
       "window_end": "2026-08-06",
       "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is MARK TIMING, and the 2026-07-24 diagnosis identified two mechanisms that dominate it. (1) Variable mark-window LENGTH: the shadow's sessions are uniform 24h UTC days, while consecutive paper marks are whatever the runs happened to land on - catch-up runs after a missed start produced windows from 10h to 33h in that week, so a paper 'daily' return can cover less than half or more than a third again of the day the shadow prices. (2) Mark-PHASE offset: a full 24h window struck at, say, 14:00 UTC still straddles two of the shadow's UTC days, so a trending stretch is split differently between them and both days show a gap. Weekend and overnight gaps are a secondary case of the same effect - a real but smaller contributor, since BTC trades 24/7 and no move is skipped, only attributed to a different mark. These gaps are largely self-cancelling in the WEEKLY aggregate the threshold is applied to, but individual days can swing well over 100 bps in either direction."
+    },
+    {
+      "week_ending": "2026-08-14",
+      "label": "crypto_voltarget",
+      "asset_class": "crypto",
+      "paper_week_return": -0.02134402756164666,
+      "shadow_week_return": -0.017924575978456203,
+      "divergence_bps": -34.19451583190458,
+      "cumulative_divergence_bps": -75.94120087669909,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-08-08",
+      "window_end": "2026-08-14",
+      "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is MARK TIMING, and the 2026-07-24 diagnosis identified two mechanisms that dominate it. (1) Variable mark-window LENGTH: the shadow's sessions are uniform 24h UTC days, while consecutive paper marks are whatever the runs happened to land on - catch-up runs after a missed start produced windows from 10h to 33h in that week, so a paper 'daily' return can cover less than half or more than a third again of the day the shadow prices. (2) Mark-PHASE offset: a full 24h window struck at, say, 14:00 UTC still straddles two of the shadow's UTC days, so a trending stretch is split differently between them and both days show a gap. Weekend and overnight gaps are a secondary case of the same effect - a real but smaller contributor, since BTC trades 24/7 and no move is skipped, only attributed to a different mark. These gaps are largely self-cancelling in the WEEKLY aggregate the threshold is applied to, but individual days can swing well over 100 bps in either direction."
     }
   ],
   "corrections": [
