@@ -105,6 +105,10 @@ class StepOutcome(BaseModel):
 class RefreshResult(BaseModel):
     started_at: datetime
     dry_run: bool = False
+    # True when this run may publish without a human reading the report first. Only an
+    # automated run treats an UNCHECKED env-secret gate as an abort; see the deploy
+    # decision for why the two modes differ.
+    automated: bool = True
     steps: list[StepOutcome] = []
     # The snapshot writer's report, then the published-bytes gate's report. Both are
     # rendered into the email; both feed the deploy decision.
@@ -113,6 +117,18 @@ class RefreshResult(BaseModel):
     redaction_count: int = 0
     redactable_findings: list[str] = []
     forbidden_matches: list[str] = []
+    # Whether each half of the secret search actually ran. A missing or unreadable `.env`
+    # is not an error inside `load_env_secret_prefixes` — it returns an empty prefix set
+    # with a note and the surrounding gate still PASSES. That is tolerable when a human
+    # is reading the report and can see the note; it is not tolerable when the chain
+    # deploys on its own. See the deploy decision.
+    snapshot_env_checked: bool = True
+    dist_env_checked: bool = True
+    env_notes: list[str] = []
+
+    @property
+    def env_checked(self) -> bool:
+        return self.snapshot_env_checked and self.dist_env_checked
     deployed: bool = False
     deploy_url: str | None = None
     aborted_at: str | None = None
@@ -162,6 +178,17 @@ class RefreshResult(BaseModel):
                      f"{'(must be 0 to auto-deploy)' if self.redaction_count else 'ok'}")
         lines.append(f"  redactable found  : {len(self.redactable_findings)} "
                      f"{'(must be 0 to auto-deploy)' if self.redactable_findings else 'ok'}")
+        # Stated on every report, not only when it fails: "the check ran" is a claim the
+        # reader should be able to confirm rather than assume from the absence of a note.
+        if self.env_checked:
+            env_status = "ran"
+        elif self.automated and not self.dry_run:
+            env_status = "NOT CHECKED (must have run to auto-deploy)"
+        else:
+            env_status = "NOT CHECKED (note only — no automated deploy in this mode)"
+        lines.append(f"  env-secret check  : {env_status}")
+        for note in self.env_notes:
+            lines.append(f"      {note}")
         for finding in self.redactable_findings:
             lines.append(f"      {finding}")
         if self.deployed:
@@ -280,6 +307,9 @@ def _alert(result: RefreshResult, alert_fn: AlertFn) -> None:
 def refresh(
     *,
     dry_run: bool = False,
+    # Defaults to True — fail closed. A run that did not say it had a human attached is
+    # assumed not to, so the stricter gate applies unless the operator opts out.
+    automated: bool = True,
     runner: Runner = _default_runner,
     alert_fn: AlertFn = dispatch,
     now: datetime | None = None,
@@ -305,7 +335,7 @@ def refresh(
     from quantlab.glassbox.verify_dist import verify_dist
 
     started = now if now is not None else datetime.now(UTC)
-    result = RefreshResult(started_at=started, dry_run=dry_run)
+    result = RefreshResult(started_at=started, dry_run=dry_run, automated=automated)
 
     # Provenance first, so it is on the report even if the chain aborts at step one.
     # Report-only: a dirty tree never blocks a publish.
@@ -340,6 +370,9 @@ def refresh(
 
     report = snapshot.report
     result.snapshot_report_text = report.render()
+    result.snapshot_env_checked = bool(getattr(report, "env_checked", True))
+    if getattr(report, "env_note", None):
+        result.env_notes.append(f"snapshot: {report.env_note}")
     result.redaction_count = report.redaction_count
     result.forbidden_matches = [f.pattern for f in report.failures]
     snap.ok = True
@@ -378,6 +411,11 @@ def refresh(
         gate.detail = str(exc)
         return abort(STEP_VERIFY, gate.detail)
     result.verify_report_text = verified.render()
+    dist_report = getattr(verified, "report", None)
+    result.dist_env_checked = bool(getattr(dist_report, "env_checked", True))
+    dist_env_note = getattr(dist_report, "env_note", None)
+    if dist_env_note:
+        result.env_notes.append(f"verify-dist: {dist_env_note}")
     result.redactable_findings = list(verified.redactable_findings)
     result.forbidden_matches = sorted(
         set(result.forbidden_matches) | {f.pattern for f in verified.report.failures}
@@ -392,6 +430,29 @@ def refresh(
                    f"{len(result.redactable_findings)} redactable finding(s)")
 
     # -- doctrine gate: clean, or a human looks ----------------------------
+    #
+    # AN UNCHECKED SECRET GATE IS TREATED EXACTLY AS A REDACTION: hold the bytes, raise a
+    # WARNING, let a human look. Consequence of Defect #2 (2026-08-15): the `.env`
+    # fallback in `verify_dist` was CWD-relative, and a missing `.env` is not an error
+    # there — `load_env_secret_prefixes` returns an empty prefix set with a note and the
+    # gate still reports PASS. Under the scheduler that combination would have published
+    # bytes whose env-secret half had searched for nothing, while the chain report said
+    # PASS. The path bug is fixed; this closes the class, because "the check silently did
+    # not run" must never be indistinguishable from "the check ran and found nothing".
+    #
+    # AUTOMATED ONLY. Interactive runs and `--dry-run` keep the note and proceed: there a
+    # human is reading the report, the note is visible in it, and nothing publishes
+    # without them. The distinction is not convenience — it is that the abort exists to
+    # substitute for a reader who is absent, so it fires exactly when the reader is.
+    if result.automated and not dry_run and not result.env_checked:
+        notes = "; ".join(result.env_notes) or "no note recorded"
+        return abort(
+            STEP_DEPLOY,
+            "env-secret check did NOT run "
+            f"({notes}); an automated deploy requires the secret search to have actually "
+            "executed, so these bytes are held for human pre-review exactly as a "
+            "redaction would hold them",
+        )
     if result.redaction_count > 0:
         return abort(
             STEP_DEPLOY,

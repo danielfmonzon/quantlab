@@ -62,10 +62,11 @@ from quantlab.data.validate import ValidationReport, validate
 from quantlab.glassbox.completeness import (
     DEFAULT_MAX_AGE_DAYS as GLASSBOX_MAX_SNAPSHOT_AGE_DAYS,
 )
-
-# Constants only: glassbox/__init__ is lazy, so this does not import FastAPI.
 from quantlab.glassbox.serve import DEFAULT_PORT as GLASSBOX_DEFAULT_PORT
 from quantlab.glassbox.serve import DEFAULT_SNAPSHOT_DIR
+
+# Constants only: glassbox/__init__ is lazy, so this does not import FastAPI.
+from quantlab.improve.propose import RISK_CLASSES as PROPOSAL_RISK_CLASSES
 from quantlab.logging_setup import get_logger
 from quantlab.paper.runner import (
     PaperRunReport,
@@ -1165,11 +1166,104 @@ def cmd_glassbox_refresh(args: argparse.Namespace) -> int:
     # should see a dirty-tree warning before the chain starts, not after it has deployed.
     # Report-only -- it never blocks (see repo_state).
     warn_if_unclean(check_repo_state())
-    result = refresh(dry_run=args.dry_run, max_age_days=args.max_age_days)
+    result = refresh(
+        dry_run=args.dry_run,
+        automated=not args.interactive,
+        max_age_days=args.max_age_days,
+    )
     print(result.render())
     if not result.ok:
         return 3
     return 0
+
+
+def cmd_propose(args: argparse.Namespace) -> int:
+    """Write a proposal, or refuse. Never edits code.
+
+    Exit 0 on a written proposal, 3 on a firewall refusal, 2 on a bad evidence path.
+    A refusal is a NORMAL outcome, not a crash -- it is the pipeline working.
+    """
+    from quantlab.improve.propose import Proposal, ProposalRefused, write_proposal
+    from quantlab.improve.sources import SourceViolation, render_inventory
+
+    if args.sources:
+        print(render_inventory())
+        return 0
+
+    print("quantlab propose: analysis only -- this command never edits code.\n")
+    print(render_inventory())
+    print()
+
+    try:
+        proposal = Proposal(
+            title=args.title,
+            observation=args.observation,
+            change=args.change,
+            affected_paths=list(args.affects),
+            risk_class=args.risk_class,
+            test_plan=args.test_plan,
+            evidence=list(args.evidence),
+            slug=args.slug,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        path = write_proposal(proposal)
+    except ProposalRefused as exc:
+        print(exc.verdict.render(), file=sys.stderr)
+        log.error("proposal_refused",
+                  refusals=[r.identifier for r in exc.verdict.refusals])
+        return 3
+    except SourceViolation as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"proposal written: {path}")
+    print("\nNext: `quantlab implement " f"{proposal.number}` "
+          "-- applies on a branch, gates it, pushes, and stops. Merge is human-only.")
+    log.info("proposal_written", number=proposal.number, path=str(path))
+    return 0
+
+
+def cmd_implement(args: argparse.Namespace) -> int:
+    """Apply PROP-n on its own branch, gate it, report, push, stop.
+
+    Exit 0 when every gate passed, 3 otherwise. A non-zero exit still leaves the branch
+    and the report in place: the failure is evidence for the human reviewer, not a
+    reason to hide the work.
+    """
+    from quantlab.improve.implement import NotOnBranch, implement
+
+    raw = str(args.proposal).upper().removeprefix("PROP-")
+    try:
+        number = int(raw)
+    except ValueError:
+        print(f"ERROR: not a proposal number: {args.proposal!r}", file=sys.stderr)
+        return 2
+
+    print(f"quantlab implement PROP-{number}: branch -> apply -> gate -> report -> push -> STOP")
+    print("  This command never merges. Daniel merges via PR after Quant Lead review.\n")
+
+    try:
+        result = implement(
+            number,
+            patch=Path(args.patch) if args.patch else None,
+            push=not args.no_push,
+        )
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    except NotOnBranch as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
+
+    print(result.render())
+    print(f"\nreport written into: {result.proposal_path}")
+    if result.aborted:
+        return 3
+    return 0 if result.ok else 3
 
 
 def cmd_weekly(args: argparse.Namespace) -> int:
@@ -1720,6 +1814,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="run every gate but stop before deploying",
     )
     p_gb_refresh.add_argument(
+        "--interactive", action="store_true",
+        help=(
+            "a human is reading this run: an unchecked env-secret gate is reported as a "
+            "note instead of aborting the deploy (default: automated, which aborts)"
+        ),
+    )
+    p_gb_refresh.add_argument(
         "--max-age-days", type=int, default=GLASSBOX_MAX_SNAPSHOT_AGE_DAYS,
         help=(
             "fail the gate if the snapshot manifest is older than this "
@@ -1727,6 +1828,54 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_gb_refresh.set_defaults(func=cmd_glassbox_refresh)
+
+    # -- the AI improvement pipeline: propose -> firewall -> implement -> human merge --
+    p_propose = sub.add_parser(
+        "propose",
+        help="analyse published artifacts and write docs/proposals/PROP-n (never edits code)",
+    )
+    p_propose.add_argument("--title", required=True, help="one-line proposal title")
+    p_propose.add_argument(
+        "--observation", required=True,
+        help="what was observed, in prose; cite evidence with --evidence",
+    )
+    p_propose.add_argument("--change", required=True, help="the proposed change")
+    p_propose.add_argument(
+        "--affects", action="append", default=[], metavar="PATH",
+        help="a file the change would touch (repeatable); checked against the firewall",
+    )
+    p_propose.add_argument(
+        "--risk-class", required=True, choices=list(PROPOSAL_RISK_CLASSES),
+        help="blast radius of the change",
+    )
+    p_propose.add_argument("--test-plan", required=True, help="how the change is verified")
+    p_propose.add_argument(
+        "--evidence", action="append", default=[], metavar="PATH",
+        help=(
+            "an artifact supporting the observation (repeatable). Must lie inside the "
+            "allowed read set; source code is not readable evidence."
+        ),
+    )
+    p_propose.add_argument("--slug", default="", help="filename slug (derived from title)")
+    p_propose.add_argument(
+        "--sources", action="store_true",
+        help="print the evidence-source inventory and exit without writing",
+    )
+    p_propose.set_defaults(func=cmd_propose)
+
+    p_impl = sub.add_parser(
+        "implement",
+        help="apply PROP-n on branch prop/n, gate it, report, push, and stop (never merges)",
+    )
+    p_impl.add_argument("proposal", help="proposal number, e.g. 1 or PROP-1")
+    p_impl.add_argument(
+        "--patch", default=None,
+        help="a git patch to apply; without it, changes already in the working tree are used",
+    )
+    p_impl.add_argument(
+        "--no-push", action="store_true", help="do everything except push the branch",
+    )
+    p_impl.set_defaults(func=cmd_implement)
 
     return parser
 

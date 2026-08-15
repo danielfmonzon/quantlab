@@ -32,6 +32,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from quantlab.config import APPROVED_STRATEGIES
+from quantlab.constants import PROJECT_ROOT
 from quantlab.glassbox import readers
 from quantlab.glassbox.app import create_app
 from quantlab.glassbox.paths import GlassboxPaths
@@ -64,7 +65,19 @@ REPORT_NAME = "sanitization-report.txt"
 # "authorization_header" — so `verify-dist` matched the gate's own vocabulary and failed
 # the build on its own report. Publishing a document that describes your secret-detection
 # rules is also just poor practice.
-DEFAULT_REPORT_DIR = Path("reports") / "glassbox"
+#
+# ANCHORED TO THE REPO ROOT, NOT THE CWD. This was a bare relative `Path("reports")`
+# until 2026-08-15, which made it the only path in the snapshot step not derived from
+# `PROJECT_ROOT`. Every read goes through `GlassboxPaths`, so reads were CWD-independent
+# and the defect stayed invisible under manual runs from the repo root. The first
+# UNATTENDED run found it: `schtasks` supplies no working directory, so the process ran
+# in `C:\Windows\System32`, `mkdir(parents=True)` tried to create `reports\glassbox`
+# there, and the recursion into the missing parent raised
+# `PermissionError: [WinError 5] Access is denied: 'reports'` — an error naming the
+# operator's reports tree while in fact describing a directory in System32 that had
+# never existed. The snapshot files had already been written (their out_dir IS
+# absolute), so the chain aborted with published bytes on disk and no deploy.
+DEFAULT_REPORT_DIR = PROJECT_ROOT / "reports" / "glassbox"
 
 # Query parameters that do not participate in snapshot addressing (see module docstring).
 _KEY_EXCLUDED_PARAMS = frozenset({"limit"})
