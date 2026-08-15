@@ -224,8 +224,21 @@ class FirewallVerdict:
 
 
 def _normalise(path: str | Path) -> str:
-    """Repo-relative POSIX form, so matching is stable across OS and absolute inputs."""
-    p = Path(path)
+    """Repo-relative POSIX form, so matching is stable across OS and absolute inputs.
+
+    BACKSLASHES ARE SEPARATORS ON EVERY PLATFORM, not only on Windows. `Path` is
+    platform-dependent here and that dependence was a real hole in the gate, not merely a
+    test artifact: on POSIX, ``Path(r"config\\risk.yaml")`` is a single filename that
+    happens to contain a backslash, so it never matched the ``config/risk.yaml`` entry and
+    the firewall ALLOWED it. CI on ubuntu-latest is what surfaced it (2026-08-15) — the
+    same assertion passed on the Windows dev machine, where `Path` splits on backslash.
+
+    A gate whose verdict depends on which operating system evaluates it is not a gate. So
+    the separator is normalised in the string, before `Path` ever sees it. The cost is
+    that a POSIX filename containing a literal backslash is read as a path; for a
+    security boundary that is the correct direction to be wrong in.
+    """
+    p = Path(str(path).replace("\\", "/"))
     if p.is_absolute():
         try:
             p = p.relative_to(PROJECT_ROOT)

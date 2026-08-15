@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from quantlab.constants import PROJECT_ROOT
 from quantlab.improve import firewall
 from quantlab.improve.implement import (
     BRANCH_PREFIX,
@@ -110,7 +111,20 @@ def test_evidence_outside_the_allowed_read_set_is_rejected() -> None:
     ["reports/weekly", "reports/paper", "reports/alerts/alerts.jsonl", "docs/decisions.md"],
 )
 def test_allowed_evidence_paths_are_accepted(allowed: str) -> None:
-    assert assert_allowed(allowed).exists()
+    """The allowlist decision is about LOCATION, not about what has been generated yet.
+
+    This asserted `.exists()` until 2026-08-15, which passed on a developer machine with
+    months of artifacts on disk and failed on CI, where `reports/*` is gitignored and a
+    fresh clone therefore has none of it. The test was reading the developer's data, not
+    the code's behaviour — so it could only ever have caught "you have not run the system
+    yet", which is not a defect. What `assert_allowed` promises is that the path lies
+    inside the permitted read set and resolves under the repo root; whether the artifact
+    has been produced is the caller's problem, and `render_inventory` already reports
+    absent sources as ABSENT rather than pretending they are there.
+    """
+    resolved = assert_allowed(allowed)
+    assert resolved.is_absolute()
+    assert resolved.is_relative_to(PROJECT_ROOT)
 
 
 def test_numbers_are_never_reused(tmp_path: Path) -> None:
