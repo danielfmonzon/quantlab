@@ -166,7 +166,32 @@ def test_absolute_paths_are_normalised_before_matching() -> None:
 
 
 def test_windows_separators_are_normalised_before_matching() -> None:
+    """A backslash is a separator on every platform, not only where `Path` says so.
+
+    This failed on CI (ubuntu-latest, 2026-08-15) while passing on the Windows dev
+    machine: POSIX `Path` treats `config\\risk.yaml` as one filename containing a
+    backslash, so it never matched `config/risk.yaml` and the firewall ALLOWED a frozen
+    path. The gate's verdict must not depend on the OS evaluating it.
+    """
     assert not firewall.check(affected_paths=[r"config\risk.yaml"]).allowed
     assert not firewall.check(
         affected_paths=[r"src\quantlab\broker\alpaca.py"]
     ).allowed
+    # Mixed separators, as a copy-paste from a Windows shell into a POSIX tool produces.
+    assert not firewall.check(
+        affected_paths=[r"src/quantlab\backtest/strategies\trend.py"]
+    ).allowed
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (r"config\risk.yaml", "config/risk.yaml"),
+        ("config/risk.yaml", "config/risk.yaml"),
+        (r"src\quantlab\broker\alpaca.py", "src/quantlab/broker/alpaca.py"),
+        (r"src/quantlab\broker/alpaca.py", "src/quantlab/broker/alpaca.py"),
+    ],
+)
+def test_normalise_is_platform_independent(raw: str, expected: str) -> None:
+    """Pinned directly, so the property is asserted rather than inferred from a verdict."""
+    assert firewall._normalise(raw) == expected
