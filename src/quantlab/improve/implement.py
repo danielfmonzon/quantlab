@@ -349,9 +349,20 @@ def _run_gates(run: Runner, repo: Path, changed: Sequence[str]) -> list[Gate]:
 
 
 def write_report(proposal_path: Path, result: ImplementResult) -> None:
-    """Append the report at the anchor, replacing any report from an earlier attempt."""
+    """Append the report at the anchor, replacing any report from an earlier attempt.
+
+    Also flips the status line — ON THE BRANCH ONLY. `propose` committed the document to
+    the trunk saying AWAITING IMPLEMENTATION, and the trunk keeps saying that until a
+    human merges. So the same file answers "has this been done?" differently depending on
+    which branch you read it from, and both answers are true: on `prop/n` it has been
+    implemented, on `main` it has not yet been accepted.
+    """
     text = proposal_path.read_text(encoding="utf-8")
     head = text.split(REPORT_ANCHOR)[0] if REPORT_ANCHOR in text else text.rstrip() + "\n\n---\n\n"
+    head = head.replace(
+        f"status: **{propose_mod.STATUS_AWAITING}**",
+        f"status: **{propose_mod.STATUS_IMPLEMENTED}**",
+    )
     body = head + REPORT_ANCHOR + "\n\n" + result.render()
     proposal_path.write_text(body.rstrip() + "\n", encoding="utf-8")
 

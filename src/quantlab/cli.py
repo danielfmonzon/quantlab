@@ -1210,7 +1210,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        path = write_proposal(proposal)
+        path = write_proposal(proposal, commit=not args.no_commit)
     except ProposalRefused as exc:
         print(exc.verdict.render(), file=sys.stderr)
         log.error("proposal_refused",
@@ -1221,6 +1221,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         return 2
 
     print(f"proposal written: {path}")
+    print(f"proposal record   : {proposal.commit_status}")
     print("\nNext: `quantlab implement " f"{proposal.number}` "
           "-- applies on a branch, gates it, pushes, and stops. Merge is human-only.")
     log.info("proposal_written", number=proposal.number, path=str(path))
@@ -1857,6 +1858,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_propose.add_argument("--slug", default="", help="filename slug (derived from title)")
+    p_propose.add_argument(
+        "--no-commit", action="store_true",
+        help=(
+            "leave the proposal untracked instead of committing it where it was written "
+            "(default: commit at propose time, so the analysis is recorded even if it is "
+            "never implemented)"
+        ),
+    )
     p_propose.add_argument(
         "--sources", action="store_true",
         help="print the evidence-source inventory and exit without writing",
