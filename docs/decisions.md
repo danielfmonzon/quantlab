@@ -126,8 +126,49 @@ full duration of any outage**, which is a different kind of exposure and not one
 clock's integrity argument obviously outweighs. The dead-man's switch bounds the *duration*
 of that exposure to at most eight days plus notification time; it does not reduce the
 exposure while it lasts. Carrying the deferral to day-90 is still the ruling, and it is now
-a deliberate acceptance of that window rather than an unexamined one. If a second outage
-occurs before day-90, this entry is the argument for moving early rather than waiting.
+a deliberate acceptance of that window rather than an unexamined one.
+
+**RULING — the early-move trigger.** That acceptance is bounded. **A second silent outage
+before day-90 ends the deferral immediately: migrate to an always-on host at that point
+rather than carrying the exposure to the review.** No further deliberation is required and
+none should be sought — the argument has been had here, and the trigger exists so that the
+decision does not have to be re-litigated at the worst possible moment, which is while an
+outage is being cleaned up and the instinct is to restore service and move on.
+
+*Silent* is the operative word and is defined here so the trigger cannot be argued away
+after the fact: an outage in which the scheduled tasks stop producing artifacts and **no
+local alert reaches Daniel** — regardless of the cause, and specifically regardless of
+whether the cause is one already seen. Both prior incidents qualify (2026-08-01, host off;
+2026-08-17, runtime orphaned). A run that aborts and alerts on its own does not qualify: that
+is the system working. A cause that is novel and interesting does not exempt it either — the
+trigger is about the *silence*, because the silence is the property that makes the single-host
+design unsafe, not any particular way of arriving at it.
+
+Two consequences worth stating plainly. The trigger fires on **detection**, not on duration,
+so a one-day outage counts; the point is that the class of failure recurred, not that it was
+long.
+
+And — **amended by Quant Lead ruling, 2026-08-22** — the readiness clocks **continue
+uninterrupted across a migration**. An earlier draft of this entry had them restart on the
+move. That was wrong, and wrong in a way worth recording rather than quietly fixing: a
+restart would attach a 90-day penalty to the exact action this trigger exists to compel,
+which is the standard shape of a rule that never fires. The trigger would have been written
+and then reasoned around at the moment it was needed, on the entirely sincere grounds that
+starting the clock over is a large price to pay in the middle of an incident.
+
+The premise behind the restart was also false. A migration changes **the host, not the
+record**: the same strategies, the same literature-fixed parameters, the same broker path and
+the same `.env` produce the same marks, and the equity series continues through the move with
+a gap no larger than the outage that triggered it. What legitimately needs proving after a
+move is not the strategy but the *new host* — that its schedule fires, its alerts deliver and
+its runtime survives a reboot.
+
+So the requirement attaches there instead. **A 14-day operational burn-in on the new host
+must complete before the day-90 review convenes: review date = max(day-90, migration + 14).**
+Fourteen days covers two full weekly cycles, so both Friday jobs and both weekend boundaries
+are exercised twice before the review reads the record. In the common case — a migration
+early enough that day-90 is more than a fortnight out — the burn-in costs nothing at all,
+which is the point: the trigger stays cheap enough to actually pull.
 
 ---
 
@@ -153,6 +194,12 @@ gate that fails exactly when the work feels finished.
 Consistent with the human-merge-only rule: this makes merging *harder*, never automatic.
 `quantlab implement` still cannot merge, and a green check is a precondition for a human
 merge rather than a trigger for an automatic one.
+
+**Amended 2026-08-22.** Merge *execution* may be delegated to Claude Code via `gh pr merge`,
+only on Daniel's explicit per-PR instruction naming the number, and only for PRs the Quant
+Lead has approved. The decision to merge stays human; what is delegated is the keystroke.
+`quantlab implement` retains no merge path — the delegation is to the assistant acting on a
+named instruction, never to the pipeline acting on its own gates.
 
 ---
 
