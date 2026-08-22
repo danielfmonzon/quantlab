@@ -146,9 +146,29 @@ design unsafe, not any particular way of arriving at it.
 
 Two consequences worth stating plainly. The trigger fires on **detection**, not on duration,
 so a one-day outage counts; the point is that the class of failure recurred, not that it was
-long. And the 90-day clock **restarts on migration** — the record forks either way, and the
-question this trigger settles is whether a forked record is worse than a third window of
-unarmed limits. Twice, it is not.
+long.
+
+And — **amended by Quant Lead ruling, 2026-08-22** — the readiness clocks **continue
+uninterrupted across a migration**. An earlier draft of this entry had them restart on the
+move. That was wrong, and wrong in a way worth recording rather than quietly fixing: a
+restart would attach a 90-day penalty to the exact action this trigger exists to compel,
+which is the standard shape of a rule that never fires. The trigger would have been written
+and then reasoned around at the moment it was needed, on the entirely sincere grounds that
+starting the clock over is a large price to pay in the middle of an incident.
+
+The premise behind the restart was also false. A migration changes **the host, not the
+record**: the same strategies, the same literature-fixed parameters, the same broker path and
+the same `.env` produce the same marks, and the equity series continues through the move with
+a gap no larger than the outage that triggered it. What legitimately needs proving after a
+move is not the strategy but the *new host* — that its schedule fires, its alerts deliver and
+its runtime survives a reboot.
+
+So the requirement attaches there instead. **A 14-day operational burn-in on the new host
+must complete before the day-90 review convenes: review date = max(day-90, migration + 14).**
+Fourteen days covers two full weekly cycles, so both Friday jobs and both weekend boundaries
+are exercised twice before the review reads the record. In the common case — a migration
+early enough that day-90 is more than a fortnight out — the burn-in costs nothing at all,
+which is the point: the trigger stays cheap enough to actually pull.
 
 ---
 
@@ -174,6 +194,12 @@ gate that fails exactly when the work feels finished.
 Consistent with the human-merge-only rule: this makes merging *harder*, never automatic.
 `quantlab implement` still cannot merge, and a green check is a precondition for a human
 merge rather than a trigger for an automatic one.
+
+**Amended 2026-08-22.** Merge *execution* may be delegated to Claude Code via `gh pr merge`,
+only on Daniel's explicit per-PR instruction naming the number, and only for PRs the Quant
+Lead has approved. The decision to merge stays human; what is delegated is the keystroke.
+`quantlab implement` retains no merge path — the delegation is to the assistant acting on a
+named instruction, never to the pipeline acting on its own gates.
 
 ---
 
