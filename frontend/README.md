@@ -189,6 +189,47 @@ snapshot is visible on every screen rather than silently out of date. There is n
 automatic refresh, by design: each publication is a deliberate act with a human
 reading the sanitization report first.
 
+### Runtime: uv-managed, and deliberately out of reach of the system
+
+The refresh chain runs from `.venv`, which is built against a **uv-managed CPython**
+(`uv python install 3.12`) living under `AppData\Roaming\uv\python\` — *not* a
+Python.org install registered in Add/Remove Programs.
+
+This is not a preference. On **2026-08-17** the system Python 3.13 that the venv was
+built against was uninstalled during unrelated housekeeping. `pyvenv.cfg` still pointed
+at the removed directory, so every entry point — the refresh chain included — exited
+`103` at launch for five days, and the site silently kept serving the 08-15 snapshot.
+A uv-managed interpreter is invisible to the Windows uninstaller and to Python.org's
+upgrade path, so ordinary system maintenance can no longer take the runtime out from
+under the schedule. It also matches CI, which has installed 3.12 this way from the
+start. Rebuild with:
+
+```bash
+uv python install 3.12
+uv venv --python 3.12
+uv sync --all-extras --dev
+uv run quantlab version   # must print; if it does not, the runtime is broken
+```
+
+See `docs/decisions.md`, entry **2026-08-22**, for the full incident.
+
+### Staleness is monitored from outside the machine
+
+`.github/workflows/liveness.yml` runs on GitHub every Saturday at 12:00Z, fetches the
+public `snapshot/manifest.json`, and opens a GitHub issue if `generated_at` is older
+than 8 days or the fetch fails. It needs no secrets and no access to the workstation.
+
+The reason it lives on GitHub rather than in the digest is the 08-17 outage: the
+existing scheduled-task watchdog runs *inside* the daily digest, which is itself a
+scheduled task, so it died with everything else and reported nothing. A watchdog that
+shares a runtime with its subject shares its failure modes. This one does not share
+either the runtime or the notification path — GitHub issue mail was the one channel
+still delivering while every local sender was dead.
+
+Note for anyone changing the probe: the site is an SPA and answers unknown paths with
+`200` and `index.html`, not `404`. A plain HTTP status check would not notice a deleted
+manifest, so the probe treats a missing or unparseable `generated_at` as a failure too.
+
 ## DNS runbook — both sites
 
 **Applied on 2026-07-26.** The zone is Netlify-hosted, so this was done via the Netlify API

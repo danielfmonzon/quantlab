@@ -6,6 +6,100 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-22 — The five-day silence: an orphaned interpreter, and why nothing said so
+
+**What happened.** On **2026-08-17 at 16:26–16:28 local**, Python 3.13.2 was uninstalled from
+the workstation — a manual housekeeping pass that also removed Python 3.8.8, visible in the
+Windows Installer log as eight `Removal completed successfully` events. The project venv was
+built against that interpreter: `.venv/pyvenv.cfg` recorded
+`home = ...\Programs\Python\Python313`, and the console shims in `.venv/Scripts` resolve the
+interpreter through it at launch. The moment the directory disappeared, every entry point in
+the system began exiting **103** before a single line of Python ran.
+
+The timeline is tight enough to be unambiguous. The last successful run was
+`quantlab-paper-run` at **08-17 14:00Z**, two hours before the uninstall. The first casualty
+was `quantlab-digest`, which fires weekdays at 16:45 — **seventeen minutes** after the last
+removal event completed. Nothing has succeeded since.
+
+**Twenty-five failed executions** followed over 08-18 → 08-22: 18 account run-days (`trend`
+and `voltarget` 4 each, `crypto_trend` and `crypto_voltarget` 5 each), 5 digests, the
+`week_20260821` weekly, and the Friday Glass Box refresh. Task Scheduler behaved perfectly
+throughout — all five tasks stayed **Ready**, fired on time as recently as 08-21, and
+recorded `Last Result: 103` each time. The scheduler was faithfully launching a binary that
+could not start.
+
+**The cost is a hole in the mark history, not a loss of money.** Paper positions drifted
+unmanaged for five days; converge-to-target repairs the *positions* on the next run and did
+so for crypto on 08-22. What it cannot repair is the record: the equity series simply has no
+marks for 08-18 → 08-21, and `week_20260821` — generated retroactively — reports one usable
+snapshot day where it expects five. That week is permanently sparse. The 90-day readiness
+clock keeps counting calendar days regardless, so the week is now a documented low-evidence
+stretch inside the track rather than a gap that can be backfilled.
+
+**Why nothing said so — the general lesson.** The system already had a watchdog for exactly
+this shape of failure: the *scheduled-task watchdog* added on 2026-08-10 to make silence
+audible, which asks which firings should have happened and whether an artifact exists for
+each. It was correct, it was well designed, and it was completely useless here, because it
+runs inside the daily digest and the daily digest is itself a scheduled task on the same
+runtime. It died at 103 alongside its subject, on the first firing after the break.
+
+Stated generally, and this is the part worth carrying forward: **a watchdog that shares a
+runtime with its subject shares its failure modes.** In-band monitoring can only report
+failures *narrower* than itself. It catches a strategy that aborts, a task that does not
+fire, a data feed that goes stale — but never the failure of the layer it is standing on. The
+2026-08-10 entry framed the risk as the machine being *off*; the actual failure was the
+machine being *on and healthy* while the runtime beneath every task was gone. Same silence,
+and the same watchdog blind to both — for the same structural reason, which the earlier entry
+did not name.
+
+Note also that the email channel was never at fault and was never even reached. The obvious
+first hypothesis for "no emails" — a bad Gmail app password, a dead SMTP channel — was wrong,
+and the evidence that ruled it out was the *absence* of any SMTP error anywhere in the logs.
+A channel that fails leaves a record; a process that never starts leaves nothing. The shape
+of the evidence pointed a layer lower than the symptom did.
+
+**Mitigation 1 — a uv-managed interpreter.** The venv is rebuilt against
+`uv python install 3.12`, which places CPython under `AppData\Roaming\uv\python\` rather than
+in Add/Remove Programs. The runtime is no longer reachable by the Windows uninstaller, by a
+Python.org installer's upgrade path, or by ordinary system housekeeping. It also aligns local
+with CI, which has installed its interpreter this way from the start — the very reason CI
+stayed green all week while nothing local could run. `requires-python` was already `>=3.12`;
+the full suite passes on 3.12.13 with no changes (691 tests, ruff and mypy clean), so nothing
+in the codebase depended on 3.13.
+
+This narrows the failure mode rather than eliminating it. Deleting the uv directory would
+break the venv the same way. What it removes is the *plausible accident* — the interpreter
+being taken out by a routine action aimed at something else.
+
+**Mitigation 2 — a dead-man's switch that does not run on the machine.** A new `Liveness`
+GitHub Actions workflow (`.github/workflows/liveness.yml`) runs Saturdays at 12:00Z, fetches
+the **public** Glass Box snapshot manifest, and opens or updates a GitHub issue if
+`generated_at` is older than 8 days or the fetch fails. No secrets, no access to the machine,
+no shared runtime — it observes the one artifact the machine publishes to the outside world
+and infers liveness from its freshness.
+
+The delivery path is the point. Issue notifications reach email **through GitHub**, which is
+the one channel proven to deliver during this outage: GitHub sent CI mail all week while
+every local sender was dead. The watchdog and its notification path now both live outside the
+system they watch, which is what the previous design got wrong.
+
+Two details worth recording. The threshold is 8 days rather than 7 so that a single skipped
+Friday refresh does not alarm, while two consecutive ones do. And the site is a single-page
+app that answers unknown paths with `200` and `index.html` rather than `404`, so an HTTP
+check alone would not notice a manifest that had been deleted — the probe therefore treats
+*unparseable or missing `generated_at`* as a failure, not just a failed fetch.
+
+**What this does not fix.** The exposure recorded on 2026-08-10 is unchanged: everything
+still fires from Task Scheduler on one workstation, and the real fix is still relocating the
+schedule to an always-on host. This outage strengthens that case — it is now the second
+distinct way the single-host design has produced multi-day silence, after the 2026-08-01
+machine-off miss — but it does not change the timing argument. Moving the `.env`, the parquet
+store, and the alert path mid-track would fork the record the 90-day clock is accumulating.
+**Still deferred to the day-90 review**, now with two incidents behind it instead of one, and
+with a dead-man's switch to bound how long the third one could go unnoticed.
+
+---
+
 ## 2026-08-15 — Required status checks on `main`, as a consequence of the CI incident
 
 **Decision.** The `main` ruleset now requires the CI check to pass before a pull request
