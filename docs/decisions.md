@@ -126,8 +126,29 @@ full duration of any outage**, which is a different kind of exposure and not one
 clock's integrity argument obviously outweighs. The dead-man's switch bounds the *duration*
 of that exposure to at most eight days plus notification time; it does not reduce the
 exposure while it lasts. Carrying the deferral to day-90 is still the ruling, and it is now
-a deliberate acceptance of that window rather than an unexamined one. If a second outage
-occurs before day-90, this entry is the argument for moving early rather than waiting.
+a deliberate acceptance of that window rather than an unexamined one.
+
+**RULING — the early-move trigger.** That acceptance is bounded. **A second silent outage
+before day-90 ends the deferral immediately: migrate to an always-on host at that point
+rather than carrying the exposure to the review.** No further deliberation is required and
+none should be sought — the argument has been had here, and the trigger exists so that the
+decision does not have to be re-litigated at the worst possible moment, which is while an
+outage is being cleaned up and the instinct is to restore service and move on.
+
+*Silent* is the operative word and is defined here so the trigger cannot be argued away
+after the fact: an outage in which the scheduled tasks stop producing artifacts and **no
+local alert reaches Daniel** — regardless of the cause, and specifically regardless of
+whether the cause is one already seen. Both prior incidents qualify (2026-08-01, host off;
+2026-08-17, runtime orphaned). A run that aborts and alerts on its own does not qualify: that
+is the system working. A cause that is novel and interesting does not exempt it either — the
+trigger is about the *silence*, because the silence is the property that makes the single-host
+design unsafe, not any particular way of arriving at it.
+
+Two consequences worth stating plainly. The trigger fires on **detection**, not on duration,
+so a one-day outage counts; the point is that the class of failure recurred, not that it was
+long. And the 90-day clock **restarts on migration** — the record forks either way, and the
+question this trigger settles is whether a forked record is worse than a third window of
+unarmed limits. Twice, it is not.
 
 ---
 
