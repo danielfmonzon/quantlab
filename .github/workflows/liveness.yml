@@ -1,0 +1,163 @@
+name: Liveness
+
+# Out-of-band watchdog for the unattended trading machine.
+#
+# Everything that watches quantlab today runs ON quantlab: the scheduled-task
+# watchdog lives inside the digest, and the digest is itself a scheduled task.
+# When the venv was orphaned on 2026-08-17 every one of those entry points
+# died at exit 103 together, and the silence was indistinguishable from a
+# quiet week. A watchdog that shares a runtime with its subject shares its
+# failure modes.
+#
+# This job runs on GitHub's infrastructure, not the machine. It reads only the
+# PUBLIC snapshot manifest -- no secrets, no runner access to the box -- and
+# raises a GitHub issue when the published site goes stale. Issue
+# notifications reach email through GitHub, a delivery path with no dependency
+# on the machine's SMTP or its Python.
+
+on:
+  schedule:
+    # Saturdays 12:00 UTC. The weekly refresh runs Friday 21:30Z, so a healthy
+    # site is ~14h old at probe time and a skipped Friday is caught the next day.
+    - cron: '0 12 * * 6'
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Report stale if the manifest is at least this many days old (0 forces a test alert)'
+        required: false
+        default: '8'
+
+permissions:
+  issues: write
+
+env:
+  MANIFEST_URL: https://glassbox.danielmonzonautomation.com/snapshot/manifest.json
+  ISSUE_TITLE: 'quantlab liveness: site snapshot stale'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the published snapshot manifest
+        id: probe
+        run: |
+          set -uo pipefail
+          MAX_AGE_DAYS="${{ github.event.inputs.max_age_days || '8' }}"
+          echo "threshold: ${MAX_AGE_DAYS} day(s)"
+          echo "url: ${MANIFEST_URL}"
+
+          status=ok
+          generated_at=""
+          age_human=""
+          detail=""
+
+          if ! payload=$(curl -fsS --max-time 30 "${MANIFEST_URL}" 2>err.txt); then
+            status=fetch_failed
+            detail="$(tr -d '\r' < err.txt | head -5)"
+            [ -n "${detail}" ] || detail="curl failed with no message"
+          else
+            # The site is an SPA: unknown paths return 200 with index.html rather
+            # than 404, so `curl -f` alone would not notice a manifest that had
+            # been deleted or renamed. Parsing is the real check -- HTML makes jq
+            # fail, which lands here as no_timestamp and still raises the alarm.
+            generated_at=$(printf '%s' "${payload}" | jq -r '.generated_at // empty' 2>/dev/null)
+            if [ -z "${generated_at}" ]; then
+              status=no_timestamp
+              detail="fetched ${MANIFEST_URL} but found no generated_at (not JSON, or the field is gone)"
+            elif ! gen_s=$(date -u -d "${generated_at}" +%s 2>/dev/null); then
+              status=unparseable
+              detail="generated_at not parseable as a date: ${generated_at}"
+            else
+              now_s=$(date -u +%s)
+              age_s=$(( now_s - gen_s ))
+              [ "${age_s}" -ge 0 ] || age_s=0
+              age_human="$(( age_s / 86400 ))d $(( (age_s % 86400) / 3600 ))h"
+              limit_s=$(( MAX_AGE_DAYS * 86400 ))
+              if [ "${age_s}" -ge "${limit_s}" ]; then
+                status=stale
+                detail="snapshot is ${age_human} old; threshold is ${MAX_AGE_DAYS} day(s)"
+              else
+                detail="snapshot is ${age_human} old; within the ${MAX_AGE_DAYS}-day threshold"
+              fi
+            fi
+          fi
+
+          echo "status=${status}"        >> "$GITHUB_OUTPUT"
+          echo "generated_at=${generated_at}" >> "$GITHUB_OUTPUT"
+          echo "age_human=${age_human}"  >> "$GITHUB_OUTPUT"
+          echo "detail=${detail}"        >> "$GITHUB_OUTPUT"
+          echo "max_age_days=${MAX_AGE_DAYS}" >> "$GITHUB_OUTPUT"
+          echo "::notice::liveness ${status} -- ${detail}"
+
+      - name: Open or update the liveness issue
+        if: steps.probe.outputs.status != 'ok'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATUS: ${{ steps.probe.outputs.status }}
+          GENERATED_AT: ${{ steps.probe.outputs.generated_at }}
+          AGE_HUMAN: ${{ steps.probe.outputs.age_human }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          MAX_AGE_DAYS: ${{ steps.probe.outputs.max_age_days }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          {
+            echo "**The published Glass Box snapshot is not being refreshed.**"
+            echo
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| status | \`${STATUS}\` |"
+            echo "| detail | ${DETAIL} |"
+            echo "| manifest \`generated_at\` | ${GENERATED_AT:-(none)} |"
+            echo "| age | ${AGE_HUMAN:-(unknown)} |"
+            echo "| threshold | ${MAX_AGE_DAYS} day(s) |"
+            echo "| probed | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
+            echo "| url | ${MANIFEST_URL} |"
+            echo "| run | ${RUN_URL} |"
+            echo
+            echo "The site is refreshed by the \`quantlab-glassbox-refresh\` scheduled task"
+            echo "(Fridays 21:30Z) on the trading machine. A stale manifest means that task,"
+            echo "or the machine, or the runtime underneath it, is not working."
+            echo
+            echo "First checks, cheapest first:"
+            echo "1. Is the machine on and awake?"
+            echo "2. \`schtasks /query /fo LIST /v\` -- a non-zero **Last Result** on any"
+            echo "   \`quantlab-*\` task. Exit \`103\` means the venv interpreter is missing."
+            echo "3. \`.venv/Scripts/quantlab.exe version\` -- if this does not print, the"
+            echo "   runtime is broken and every scheduled entry point is down with it."
+            echo
+            echo "_Raised by the \`Liveness\` workflow, which runs on GitHub and not on the"
+            echo "machine, so it survives the machine's failure modes._"
+          } > body.md
+
+          num=$(gh issue list --state open --search "${ISSUE_TITLE} in:title" \
+                  --json number,title \
+                  -q "[.[] | select(.title == \"${ISSUE_TITLE}\") | .number] | first // empty")
+
+          if [ -n "${num}" ]; then
+            echo "updating existing issue #${num}"
+            gh issue comment "${num}" --body-file body.md
+          else
+            echo "opening a new issue"
+            gh issue create --title "${ISSUE_TITLE}" --body-file body.md
+          fi
+
+      - name: Close the liveness issue on recovery
+        if: steps.probe.outputs.status == 'ok'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          GENERATED_AT: ${{ steps.probe.outputs.generated_at }}
+        run: |
+          set -euo pipefail
+          num=$(gh issue list --state open --search "${ISSUE_TITLE} in:title" \
+                  --json number,title \
+                  -q "[.[] | select(.title == \"${ISSUE_TITLE}\") | .number] | first // empty")
+          if [ -n "${num}" ]; then
+            # Left open, the issue would absorb the next outage as one more comment
+            # on an alert already seen. Closing it keeps the next opening meaningful.
+            gh issue comment "${num}" --body "Recovered: ${DETAIL} (manifest \`generated_at\` ${GENERATED_AT}). Closing."
+            gh issue close "${num}"
+          else
+            echo "healthy; no open liveness issue"
+          fi
