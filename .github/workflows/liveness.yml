@@ -93,6 +93,10 @@ jobs:
         if: steps.probe.outputs.status != 'ok'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job deliberately does not check out the repo -- it probes a public
+          # URL and needs nothing from the tree. Without a checkout there is no git
+          # remote for gh to infer the repo from, so name it explicitly.
+          GH_REPO: ${{ github.repository }}
           STATUS: ${{ steps.probe.outputs.status }}
           GENERATED_AT: ${{ steps.probe.outputs.generated_at }}
           AGE_HUMAN: ${{ steps.probe.outputs.age_human }}
@@ -146,6 +150,10 @@ jobs:
         if: steps.probe.outputs.status == 'ok'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job deliberately does not check out the repo -- it probes a public
+          # URL and needs nothing from the tree. Without a checkout there is no git
+          # remote for gh to infer the repo from, so name it explicitly.
+          GH_REPO: ${{ github.repository }}
           DETAIL: ${{ steps.probe.outputs.detail }}
           GENERATED_AT: ${{ steps.probe.outputs.generated_at }}
         run: |
