@@ -336,6 +336,12 @@ def test_digest_fires_exactly_one_warning_naming_every_miss(tmp_path: Path) -> N
     assert "crypto_voltarget" in body
     # It says what a miss MEANS, so the reader does not go hunting for a failure.
     assert "never ran" in body
+    # PROP-4: and it names both observed causes. The wording used to assert the host
+    # was off "most often", which the 2026-08-17 outage disproved -- the host was on
+    # and awake for all 20 of those misses and the runtime beneath the tasks was gone.
+    # A first diagnostic step that points only at the power state is the wrong step.
+    assert "host off, or the runtime itself broken" in body
+    assert "most often the host was off" not in body
 
     md = render_markdown(digest)
     assert "## Scheduled-task watchdog" in md

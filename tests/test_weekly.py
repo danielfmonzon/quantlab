@@ -1137,3 +1137,83 @@ def test_mixed_legacy_and_structured_entries_coexist(tmp_path) -> None:
                     "paper crypto_trend: 1 order(s) submitted", strategy="crypto_trend")
     assert _counts_for(path, "trend") == {"INFO": 2}
     assert _counts_for(path, "crypto_trend") == {"INFO": 1}
+
+
+# ---------------------------------------------------------------------------
+# PROP-4: a window that could not be filled from the requested week
+# ---------------------------------------------------------------------------
+#
+# week_20260821 is the shape this guards against. The runtime the scheduled tasks
+# launch was uninstalled on 2026-08-17, so the requested week held ONE usable mark
+# day; the window fell back to the week before it and all four accounts reported
+# TRACKING over days the reader had not asked about. The figures were right about
+# the window they covered -- nothing said which window that was.
+
+# Prior week (5 marks) + a single mark inside the requested week 07-04 -> 07-10.
+_OUTAGE_SHAPED_DATES = [
+    "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03",
+    "2026-07-06",
+]
+
+
+def _build_outage_shaped(tmp_path, *, shadow_values=None):
+    """One usable mark day inside the requested week; the rest precede it."""
+    data_dir, reports_dir, alerts_path = _base_dirs(tmp_path)
+    _seed_equity(data_dir / "equity_history_voltarget.parquet", _OUTAGE_SHAPED_DATES,
+                 [100_000, 100_250, 100_500, 100_750, 101_000, 101_250])
+    _seed_equity(data_dir / "equity_history_trend.parquet", _OUTAGE_SHAPED_DATES,
+                 [50_000, 50_250, 50_500, 50_750, 51_000, 51_250])
+    return build_weekly_review(
+        {"voltarget": object(), "trend": object()},
+        MagicMock(), TradingCalendar(), NOW, WEEK_ENDING,
+        shadow_fn=_stub_shadow(shadow_values or {"voltarget": 0.0095, "trend": 0.0195}),
+        alert_fn=lambda _a: [],
+        data_dir=data_dir, paper_reports_dir=reports_dir, alerts_path=alerts_path,
+    )
+
+
+def test_unfillable_week_is_insufficient_not_tracking(tmp_path) -> None:
+    review = _build_outage_shaped(tmp_path)
+    available = [a for a in review.accounts if a.available]
+    assert len(available) == 2
+    for acct in available:
+        # Divergence is small, so without the guard this would read TRACKING.
+        assert acct.divergence_bps is not None
+        assert abs(acct.divergence_bps) <= review.divergence_threshold_bps
+        assert acct.verdict == "INSUFFICIENT"
+
+
+def test_unfillable_week_note_names_the_fallback_week(tmp_path) -> None:
+    review = _build_outage_shaped(tmp_path)
+    vt = next(a for a in review.accounts if a.label == "voltarget")
+    note = vt.window_fallback_note
+    assert note is not None
+    # Names the week that was ASKED for...
+    assert "2026-07-04 -> 2026-07-10" in note
+    # ...and the week actually described, which is the window the figures cover.
+    assert "2026-06-30 -> 2026-07-06" in note
+    assert vt.window is not None
+    assert vt.window.start == date(2026, 6, 30)
+    assert vt.window.end == date(2026, 7, 6)
+    # The note is rendered, not just carried on the model.
+    assert note in render_markdown(review)
+
+
+def test_unfillable_week_leaves_readiness_blockers_unchanged(tmp_path) -> None:
+    """The verdict changes; the readiness gate does not. Pinned as a literal."""
+    review = _build_outage_shaped(tmp_path)
+    assert review.readiness.blockers == [
+        "voltarget: only 0 completed run(s) this week (< 4)",
+        "trend: only 0 completed run(s) this week (< 4)",
+    ]
+
+
+def test_a_fillable_week_is_unaffected(tmp_path) -> None:
+    """The guard must not fire on a healthy week -- every mark is inside it."""
+    review, *_ = _build(tmp_path, shadow_values={"voltarget": 0.0095, "trend": 0.0195})
+    available = [a for a in review.accounts if a.available]
+    assert len(available) == 2
+    for acct in available:
+        assert acct.verdict == "TRACKING"
+        assert acct.window_fallback_note is None
+    assert "comparison window drawn from" not in render_markdown(review)
