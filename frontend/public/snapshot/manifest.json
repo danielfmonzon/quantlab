@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-15T18:01:17.556656Z",
-  "git_commit": "8a192ad",
+  "generated_at": "2026-08-22T16:27:26.559536Z",
+  "git_commit": "6024753",
   "quantlab_version": "1.0.0",
   "endpoints": [
     {
@@ -9,7 +9,7 @@
       "path": "/api/decisions",
       "params": {},
       "status": 200,
-      "bytes": 112280
+      "bytes": 116607
     },
     {
       "key": "/api/divergence",
@@ -17,7 +17,7 @@
       "path": "/api/divergence",
       "params": {},
       "status": 200,
-      "bytes": 24906
+      "bytes": 29710
     },
     {
       "key": "/api/divergence?label=voltarget",
@@ -27,7 +27,7 @@
         "label": "voltarget"
       },
       "status": 200,
-      "bytes": 5017
+      "bytes": 5832
     },
     {
       "key": "/api/divergence?label=trend",
@@ -37,7 +37,7 @@
         "label": "trend"
       },
       "status": 200,
-      "bytes": 5683
+      "bytes": 6493
     },
     {
       "key": "/api/divergence?label=crypto_trend",
@@ -47,7 +47,7 @@
         "label": "crypto_trend"
       },
       "status": 200,
-      "bytes": 6710
+      "bytes": 8265
     },
     {
       "key": "/api/divergence?label=crypto_voltarget",
@@ -57,7 +57,7 @@
         "label": "crypto_voltarget"
       },
       "status": 200,
-      "bytes": 7751
+      "bytes": 9375
     },
     {
       "key": "/api/equity",
@@ -65,7 +65,7 @@
       "path": "/api/equity",
       "params": {},
       "status": 200,
-      "bytes": 40500
+      "bytes": 42974
     },
     {
       "key": "/api/equity?label=voltarget",
@@ -75,7 +75,7 @@
         "label": "voltarget"
       },
       "status": 200,
-      "bytes": 7426
+      "bytes": 7673
     },
     {
       "key": "/api/equity?label=trend",
@@ -85,7 +85,7 @@
         "label": "trend"
       },
       "status": 200,
-      "bytes": 7044
+      "bytes": 7292
     },
     {
       "key": "/api/equity?label=crypto_trend",
@@ -95,7 +95,7 @@
         "label": "crypto_trend"
       },
       "status": 200,
-      "bytes": 13100
+      "bytes": 14089
     },
     {
       "key": "/api/equity?label=crypto_voltarget",
@@ -105,7 +105,7 @@
         "label": "crypto_voltarget"
       },
       "status": 200,
-      "bytes": 13123
+      "bytes": 14113
     },
     {
       "key": "/api/ignored-inputs",
@@ -121,7 +121,7 @@
       "path": "/api/overview",
       "params": {},
       "status": 200,
-      "bytes": 5314
+      "bytes": 5628
     },
     {
       "key": "/api/risk",
@@ -129,7 +129,7 @@
       "path": "/api/risk",
       "params": {},
       "status": 200,
-      "bytes": 2972
+      "bytes": 3006
     },
     {
       "key": "/api/runs",
@@ -137,7 +137,7 @@
       "path": "/api/runs",
       "params": {},
       "status": 200,
-      "bytes": 238397
+      "bytes": 254218
     },
     {
       "key": "/api/runs?label=voltarget",
@@ -147,7 +147,7 @@
         "label": "voltarget"
       },
       "status": 200,
-      "bytes": 53946
+      "bytes": 56198
     },
     {
       "key": "/api/runs?label=trend",
@@ -157,7 +157,7 @@
         "label": "trend"
       },
       "status": 200,
-      "bytes": 39422
+      "bytes": 40964
     },
     {
       "key": "/api/runs?label=crypto_trend",
@@ -167,7 +167,7 @@
         "label": "crypto_trend"
       },
       "status": 200,
-      "bytes": 61760
+      "bytes": 66954
     },
     {
       "key": "/api/runs?label=crypto_voltarget",
@@ -177,7 +177,71 @@
         "label": "crypto_voltarget"
       },
       "status": 200,
-      "bytes": 83500
+      "bytes": 90333
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260822T162421Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260822T162421Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260822T162421Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3539
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260822T162419Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260822T162419Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260822T162419Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2966
+    },
+    {
+      "key": "/api/runs/run_trend_20260817T140015Z/narrate",
+      "file": "api-runs-run_trend_20260817T140015Z-narrate.json",
+      "path": "/api/runs/run_trend_20260817T140015Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 2294
+    },
+    {
+      "key": "/api/runs/run_voltarget_20260817T140006Z/narrate",
+      "file": "api-runs-run_voltarget_20260817T140006Z-narrate.json",
+      "path": "/api/runs/run_voltarget_20260817T140006Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3437
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260817T064231Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260817T064231Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260817T064231Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3501
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260817T064229Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260817T064229Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260817T064229Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
+    },
+    {
+      "key": "/api/runs/run_crypto_voltarget_20260816T003009Z/narrate",
+      "file": "api-runs-run_crypto_voltarget_20260816T003009Z-narrate.json",
+      "path": "/api/runs/run_crypto_voltarget_20260816T003009Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 3526
+    },
+    {
+      "key": "/api/runs/run_crypto_trend_20260816T003007Z/narrate",
+      "file": "api-runs-run_crypto_trend_20260816T003007Z-narrate.json",
+      "path": "/api/runs/run_crypto_trend_20260816T003007Z/narrate",
+      "params": {},
+      "status": 200,
+      "bytes": 1636
     },
     {
       "key": "/api/runs/run_crypto_voltarget_20260815T003008Z/narrate",
@@ -1249,9 +1313,9 @@
       "path": "/api/timeline",
       "params": {},
       "status": 200,
-      "bytes": 162238
+      "bytes": 203232
     }
   ],
-  "endpoint_count": 153,
+  "endpoint_count": 161,
   "note": "Static capture of a localhost-only read-only API. Every figure was read from an artifact this system wrote. Refreshed manually."
 }

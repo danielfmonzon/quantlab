@@ -160,11 +160,17 @@
           "equity": 103171.09,
           "provenance": "on_schedule",
           "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-08-17T14:00:06.657790",
+          "equity": 102878.1,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
         }
       ],
       "provenance_counts": {
         "catch_up": 6,
-        "on_schedule": 20
+        "on_schedule": 21
       }
     }
   ],

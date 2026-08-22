@@ -1,7 +1,95 @@
 {
-  "count": 26,
+  "count": 27,
   "label": "voltarget",
   "runs": [
+    {
+      "run_id": "run_voltarget_20260817T140006Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-08-17T14:00:06.657790Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102878.1,
+      "target_weights": {
+        "SPY": 0.7484911486164191
+      },
+      "no_trades": false,
+      "est_turnover": 0.033915764428725126,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102878.10 cash=29364.89"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-08-14 -> {'SPY': 0.7484911486164191}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.0028398459297075407)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0339"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 3489.1894044748265,
+          "current_w": 0.714575384187694,
+          "target_w": 0.7484911486164191
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 3489.19,
+          "status": "pending_new",
+          "client_order_id": "ql-voltarget-20260817-SPY-buy",
+          "submitted_at": "2026-08-17T14:00:10.241838Z",
+          "was_duplicate": false
+        }
+      ]
+    },
     {
       "run_id": "run_voltarget_20260814T140004Z",
       "strategy": "voltarget",
