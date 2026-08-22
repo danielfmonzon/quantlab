@@ -183,6 +183,11 @@ class AccountWeekly(BaseModel):
     predicted_mark_phase_bps: float | None = None
     residual_bps: float | None = None
     decomposition_note: str | None = None
+    # Set when the comparison window could not be filled from the requested week and
+    # reached back into earlier ones. Names the period the figures actually describe,
+    # and forces the verdict to INSUFFICIENT so the verdict line cannot report a clean
+    # week over days the reader did not ask about (2026-08-17 outage; PROP-4).
+    window_fallback_note: str | None = None
     cumulative: CumulativeStats | None = None
     ops: OpsStats | None = None
     verdict: str = "INSUFFICIENT"  # TRACKING / DIVERGING / INSUFFICIENT
@@ -529,6 +534,31 @@ def _account_weekly(
     else:
         verdict = "TRACKING" if abs(residual_bps) <= threshold_bps else "DIVERGING"
 
+    # When the requested week does not supply the window, the figures describe a
+    # period the reader did not ask for. week_20260821 is the case that prompted this:
+    # the equity accounts held ONE usable mark day inside the week, the window fell
+    # back to 2026-08-10 -> 2026-08-14, and the verdict line read TRACKING over a week
+    # in which the system produced almost no marks at all.
+    #
+    # Two separate things are owed the reader, and they fire on different conditions.
+    # The NOTE is transparency and fires whenever the window reaches back at all -- a
+    # week merely missing its Friday mark is still being measured from the prior
+    # Friday, and saying so costs nothing. The VERDICT is withheld only when the
+    # requested week supplied less than HALF the window, because below that the
+    # figures are mostly about other weeks. A stricter rule would report INSUFFICIENT
+    # on any week missing a single mark, and a gate that cries wolf on an ordinary
+    # week is worse than none (2026-08-10, the watchdog's not-yet-due rule).
+    window_fallback_note: str | None = None
+    if w_start < week_start:
+        in_week = int((week_hist["timestamp"].dt.date >= week_start).sum())
+        window_fallback_note = (
+            f"comparison window drawn from {w_start.isoformat()} -> {w_end.isoformat()}; "
+            f"the requested week {week_start.isoformat()} -> {week_ending.isoformat()} "
+            f"supplied {in_week} of {week_snapshots} snapshot(s)"
+        )
+        if in_week * 2 < week_snapshots:
+            verdict = "INSUFFICIENT"
+
     window = WeekWindow(
         start=w_start, end=w_end, n_snapshots=int(len(week_hist)),
         insufficient=len(week_hist) < week_snapshots,
@@ -540,7 +570,8 @@ def _account_weekly(
         paper_week_return=paper_week, shadow_week_return=shadow_week,
         divergence_bps=divergence_bps, raw_divergence_bps=divergence_bps,
         predicted_mark_phase_bps=predicted_bps, residual_bps=residual_bps,
-        decomposition_note=decomposition_note, unpaired_sessions=unpaired_sessions,
+        decomposition_note=decomposition_note, window_fallback_note=window_fallback_note,
+        unpaired_sessions=unpaired_sessions,
         cumulative=CumulativeStats(
             paper_total_return=paper_total, shadow_total_return=shadow_total,
             cumulative_divergence_bps=cum_div_bps,
@@ -749,6 +780,8 @@ def _render_account(acct: AccountWeekly) -> list[str]:
     if w is not None:
         span = f"{w.start.isoformat()} -> {w.end.isoformat()}" if w.start and w.end else "n/a"
         lines.append(f"- week window: {span} ({w.n_snapshots} snapshot(s))")
+    if acct.window_fallback_note is not None:
+        lines.append(f"- _{acct.window_fallback_note}_")
     lines.append(f"- paper week return: {_pct(acct.paper_week_return)}")
     lines.append(f"- shadow week return: {_pct(acct.shadow_week_return)}")
     lines.append(f"- week divergence: {_bps(acct.divergence_bps)}")

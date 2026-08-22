@@ -36,6 +36,27 @@ snapshot day where it expects five. That week is permanently sparse. The 90-day 
 clock keeps counting calendar days regardless, so the week is now a documented low-evidence
 stretch inside the track rather than a gap that can be backfilled.
 
+**The kill switches were unarmed, and the outcome was luck.** This is the part that matters
+more than the missing marks. `evaluate_portfolio` is a stage *inside* the paper run — it is
+where the daily-loss, weekly-loss and drawdown limits are evaluated and where a breach halts
+the account. No paper run executed between 08-18 and 08-22, so that stage never ran, and for
+five days the risk engine was not watching anything. The limits were configured, correct, and
+completely inert.
+
+The exposure was live, not theoretical. `crypto_voltarget` was carrying **99.9%** of its
+equity in BTC against a **41.5%** target the whole time. Had BTC fallen 30% that week, no
+drawdown limit would have fired, no halt would have been recorded, and nothing would have
+alerted — the same silence, with a real loss inside it. Instead BTC rallied and the account
+finished **+21%** (98,976.93 → 120,264.39). That number is not evidence the system is safe.
+It is evidence that nothing was checking, and the coin landed the right way up.
+
+This generalises past the interpreter: **a risk gate that only runs inside the trading loop
+provides no protection during the intervals when the loop is not running** — and those are
+exactly the intervals nobody is watching, because the absence of runs is also the absence of
+alerts. It is the same in-band blindness as the watchdog, one layer down and with money
+behind it. It is also the **second independent argument for the VPS**, and a stronger one than
+the missed marks: an always-on host does not make the limits better, it makes them *armed*.
+
 **Why nothing said so — the general lesson.** The system already had a watchdog for exactly
 this shape of failure: the *scheduled-task watchdog* added on 2026-08-10 to make silence
 audible, which asks which firings should have happened and whether an artifact exists for
@@ -97,6 +118,16 @@ machine-off miss — but it does not change the timing argument. Moving the `.en
 store, and the alert path mid-track would fork the record the 90-day clock is accumulating.
 **Still deferred to the day-90 review**, now with two incidents behind it instead of one, and
 with a dead-man's switch to bound how long the third one could go unnoticed.
+
+But the deferral should be made with its price stated, because this outage changed what is
+being deferred. Before 08-17 the cost of a single-host schedule was *missed marks* — a
+thinner record. After it, the cost is understood to include **unarmed risk limits for the
+full duration of any outage**, which is a different kind of exposure and not one the 90-day
+clock's integrity argument obviously outweighs. The dead-man's switch bounds the *duration*
+of that exposure to at most eight days plus notification time; it does not reduce the
+exposure while it lasts. Carrying the deferral to day-90 is still the ruling, and it is now
+a deliberate acceptance of that window rather than an unexamined one. If a second outage
+occurs before day-90, this entry is the argument for moving early rather than waiting.
 
 ---
 

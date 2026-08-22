@@ -266,8 +266,9 @@ def build_digest(
                     f"between {watchdog.window_start} and {watchdog.window_end}.\n"
                     f"tasks: {', '.join(named)}\n\n"
                     f"{detail}\n\n"
-                    "A missed firing means the task never ran (most often the host was "
-                    "off), not that it failed -- a failure alerts on its own."
+                    "A missed firing means the task never ran (host off, or the "
+                    "runtime itself broken), not that it failed -- a failure alerts "
+                    "on its own."
                 ),
                 source="reporting.watchdog",
             ))
