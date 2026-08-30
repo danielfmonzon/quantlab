@@ -34,7 +34,11 @@ from quantlab.paper.runner import (
     make_paper_strategy,
 )
 from quantlab.reporting.alerts import ALERTS_JSONL, Alert, dispatch
-from quantlab.reporting.watchdog import WatchdogReport, check_schedule
+from quantlab.reporting.watchdog import (
+    TaskResultReader,
+    WatchdogReport,
+    check_schedule,
+)
 from quantlab.reporting.weekly import WEEKLY_DIR
 from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
 from quantlab.version import version_string
@@ -227,6 +231,11 @@ def build_digest(
     digests_dir: Path = DIGESTS_DIR,
     alert_fn: Callable[[Alert], object] | None = None,
     run_watchdog: bool = True,
+    # PROP-8 seams. Both default to None so production reads the real scheduler and the
+    # real log; the tests inject deterministic stubs and never touch either.
+    log_path: Path | None = None,
+    task_reader: TaskResultReader | None = None,
+    task_results_available: bool | None = None,
 ) -> Digest:
     """Assemble the digest across every approved account (missing keys -> skipped).
 
@@ -251,6 +260,8 @@ def build_digest(
         watchdog = check_schedule(
             now, calendar, paper_reports_dir=paper_reports_dir,
             weekly_dir=weekly_dir, alerts_path=alerts_path, digests_dir=digests_dir,
+            log_path=log_path, task_reader=task_reader,
+            task_results_available=task_results_available,
         )
         if watchdog.missed:
             emit = alert_fn if alert_fn is not None else dispatch
@@ -269,6 +280,36 @@ def build_digest(
                     "A missed firing means the task never ran (host off, or the "
                     "runtime itself broken), not that it failed -- a failure alerts "
                     "on its own."
+                ),
+                source="reporting.watchdog",
+            ))
+        if watchdog.deaths:
+            # A SEPARATE alert, at CRITICAL, and never folded into the missed-firing
+            # WARNING above (PROP-8). The two describe opposite failures: a missed
+            # firing means the task never ran; a death means it ran and was killed
+            # somewhere its own error handling could not reach. They also demand
+            # different responses, and one alert carrying both would get the cheaper
+            # of the two.
+            emit = alert_fn if alert_fn is not None else dispatch
+            death_detail = "\n".join(d.render() for d in watchdog.deaths)
+            death_tasks = ", ".join(sorted({d.task for d in watchdog.deaths}))
+            emit(Alert(
+                level="CRITICAL",
+                title=(
+                    "task died outside its error handling — "
+                    "post-battery-hardening recurrence, escalate to Quant Lead"
+                ),
+                body=(
+                    f"{len(watchdog.deaths)} task(s) recorded a non-zero scheduler "
+                    f"result with NO matching in-code failure record.\n"
+                    f"tasks: {death_tasks}\n\n"
+                    f"{death_detail}\n\n"
+                    "The task fired and then died somewhere its own abort path could "
+                    "not reach -- that path logs and then alerts, so the absence of "
+                    "both is what identifies this case. The battery settings that were "
+                    "the leading suspect for 2026-08-28 were disarmed on all five "
+                    "tasks on 2026-08-30, so a recurrence is a new fact and not the "
+                    "known one."
                 ),
                 source="reporting.watchdog",
             ))

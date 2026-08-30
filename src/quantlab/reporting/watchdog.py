@@ -43,6 +43,10 @@ cancelling it.
 from __future__ import annotations
 
 import json
+import platform
+import re
+import subprocess
+from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
@@ -71,6 +75,144 @@ DEFAULT_LOOKBACK_DAYS = 7
 _FRIDAY_WEEKDAY = 4
 _REFRESH_ALERT_SOURCE = "glassbox.refresh"
 
+# Which alert sources and logger names each task speaks through when it fails on its OWN
+# terms (PROP-8). A non-zero scheduler result whose day carries one of these is already
+# accounted for -- the task alerted for itself -- and must not alert a second time. Keyed
+# by task name so the mapping is reviewable in one place; `scheduling.tasks` is a
+# firewall-forbidden path and is not touched.
+_FAILURE_SOURCES_BY_TASK: dict[str, tuple[str, ...]] = {
+    "quantlab-paper-run": ("paper.runner", "quantlab.paper"),
+    "quantlab-crypto-paper-run": ("paper.runner", "quantlab.paper"),
+    "quantlab-weekly": ("reporting.weekly", "quantlab.weekly"),
+    "quantlab-digest": ("reporting.digest", "quantlab.digest", "reporting.watchdog"),
+    "quantlab-glassbox-refresh": ("glassbox.refresh", "quantlab.glassbox.refresh"),
+}
+
+# Log levels that count as the system saying "I failed" in its own voice.
+_FAILURE_LEVELS = frozenset({"error", "critical"})
+
+_TASK_NAME_PREFIX = "quantlab-"
+
+# schtasks renders its own local timestamps; none of these carry a zone.
+_SCHTASKS_STAMP_FORMATS = (
+    "%m/%d/%Y %I:%M:%S %p",
+    "%m/%d/%Y %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+)
+
+
+class TaskResult(BaseModel):
+    """One task's last recorded outcome, as the SCHEDULER saw it.
+
+    This is the only witness to a run that died outside its own error handling: the
+    process left no artifact and no log line, but the scheduler still wrote down what
+    became of it.
+    """
+
+    task: str
+    last_result: int
+    recorded_at: datetime | None = None
+
+
+class TaskDeath(BaseModel):
+    """A non-zero scheduler result that the system itself never accounted for."""
+
+    task: str
+    result_code: int
+    recorded_at: datetime | None = None
+
+    @property
+    def hex_code(self) -> str:
+        """The result as Windows reports it, which is the form that is searchable."""
+        return f"0x{self.result_code & 0xFFFFFFFF:08X}"
+
+    def render(self) -> str:
+        when = self.recorded_at.isoformat() if self.recorded_at else "unknown instant"
+        return f"{self.task} - result {self.result_code} ({self.hex_code}) at {when}"
+
+
+# Injected so the parsing is testable with no scheduler present, and so the Linux CI
+# runner exercises the same code path the workstation does.
+TaskResultReader = Callable[[], list[TaskResult]]
+
+
+def schtasks_available() -> bool:
+    """Whether this host has the scheduler this check reads.
+
+    Kept as its own predicate rather than folded into the reader: a host without a
+    scheduler must report the check as UNAVAILABLE, not as clean. An empty result list
+    and "there is nothing to read here" are different facts, and conflating them is how
+    a silent check starts looking like a passing one.
+    """
+    return platform.system() == "Windows"
+
+
+def _field(block: str, label: str) -> str | None:
+    match = re.search(rf"^{re.escape(label)}:\s*(.*)$", block, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def _parse_local_stamp(raw: str | None) -> datetime | None:
+    """A schtasks local timestamp, or None when absent or unparseable.
+
+    Never raises: this only decorates an alert, and a timestamp that cannot be read must
+    not prevent the alert that carries it.
+    """
+    if not raw or raw.strip() in {"", "N/A", "Never"}:
+        return None
+    for fmt in _SCHTASKS_STAMP_FORMATS:
+        try:
+            return datetime.strptime(raw.strip(), fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def parse_schtasks_list(text: str) -> list[TaskResult]:
+    """Parse ``schtasks /query /fo LIST /v`` output into one entry per quantlab task.
+
+    Separate from the subprocess call so the parsing is unit-testable against captured
+    output on any platform. A block whose fields cannot be read is skipped rather than
+    guessed at -- a wrong result code would fire a CRITICAL naming a failure that never
+    happened.
+    """
+    results: list[TaskResult] = []
+    for block in re.split(r"\n\s*\n", text.replace("\r\n", "\n")):
+        name = _field(block, "TaskName")
+        if not name:
+            continue
+        short = name.strip().lstrip("\\").strip()
+        if not short.startswith(_TASK_NAME_PREFIX):
+            continue
+        raw_result = _field(block, "Last Result")
+        if raw_result is None:
+            continue
+        try:
+            code = int(raw_result.strip())
+        except ValueError:
+            continue
+        results.append(TaskResult(
+            task=short, last_result=code,
+            recorded_at=_parse_local_stamp(_field(block, "Last Run Time")),
+        ))
+    return results
+
+
+def _default_task_reader() -> list[TaskResult]:
+    """Every ``quantlab-*`` task's Last Result, read from Windows Task Scheduler."""
+    if not schtasks_available():
+        return []
+    try:
+        proc = subprocess.run(
+            ["schtasks", "/query", "/fo", "LIST", "/v"],
+            capture_output=True, text=True, shell=False, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode != 0:
+        return []
+    return parse_schtasks_list(proc.stdout or "")
+
 
 class MissedRun(BaseModel):
     """One firing that should have left an artifact behind and did not."""
@@ -95,6 +237,13 @@ class WatchdogReport(BaseModel):
     anchored_to_previous_digest: bool = False
     firings_checked: int = 0
     missed: list[MissedRun] = []
+    # Non-zero scheduler results the system never accounted for (PROP-8). Separate from
+    # ``missed`` because they are the opposite failure: the task DID fire, and died
+    # somewhere its own error handling could not reach.
+    deaths: list[TaskDeath] = []
+    # False when this host has no scheduler to read. The check then says so rather than
+    # reporting an empty list as a clean bill of health.
+    task_results_available: bool = True
 
     @property
     def ok(self) -> bool:
@@ -117,12 +266,30 @@ class WatchdogReport(BaseModel):
         lines.append(f"- expected firings checked: {self.firings_checked}")
         if not self.missed:
             lines.append("- **MISSED RUNS: none** — every expected firing left an artifact.")
-            lines.append("")
-            return lines
-        lines.append(f"- **MISSED RUNS ({len(self.missed)})**")
-        for m in self.missed:
-            lines.append(f"  - {m.render()}")
+        else:
+            lines.append(f"- **MISSED RUNS ({len(self.missed)})**")
+            for m in self.missed:
+                lines.append(f"  - {m.render()}")
+        lines.extend(self._death_lines())
         lines.append("")
+        return lines
+
+    def _death_lines(self) -> list[str]:
+        """The task-death section. Always rendered, including when it cannot run.
+
+        A check whose output only appears on failure is one nobody notices has stopped
+        working — the same reasoning that makes the missed-runs section render on a
+        clean window.
+        """
+        if not self.task_results_available:
+            return ["- task-death tripwire: **unavailable on this host** "
+                    "(no Windows Task Scheduler to read)"]
+        if not self.deaths:
+            return ["- **TASK DEATHS: none** — every non-zero result was one the "
+                    "system reported itself."]
+        lines = [f"- **TASK DEATHS ({len(self.deaths)}) — died outside their own "
+                 f"error handling**"]
+        lines.extend(f"  - {d.render()}" for d in self.deaths)
         return lines
 
 
@@ -213,6 +380,95 @@ def _refresh_alert_days(alerts_path: Path) -> set[date]:
     return days
 
 
+def _failure_record_days(
+    task: str, alerts_path: Path, log_path: Path | None
+) -> set[date]:
+    """Days on which ``task`` reported a failure IN ITS OWN VOICE.
+
+    Two witnesses, either sufficient: an alert whose ``source`` belongs to this task, or
+    a log record at error/critical level from one of its loggers. Both are things only
+    running code can write, which is exactly the point — their absence beside a non-zero
+    scheduler result is what distinguishes "it failed and said so" from "it was killed".
+
+    A malformed line is skipped, not fatal. This decides whether to RAISE an alert, so
+    an unreadable record biases toward raising one, which is the safe direction.
+    """
+    sources = _FAILURE_SOURCES_BY_TASK.get(task, ())
+    if not sources:
+        return set()
+    days: set[date] = set()
+
+    def _harvest(path: Path, is_log: bool) -> None:
+        if not path.exists():
+            return
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            if is_log:
+                if str(record.get("level", "")).lower() not in _FAILURE_LEVELS:
+                    continue
+                origin = str(record.get("logger", ""))
+            else:
+                origin = str(record.get("source", ""))
+            if not any(origin == s or origin.startswith(f"{s}.") for s in sources):
+                continue
+            stamp = record.get("timestamp")
+            if not isinstance(stamp, str):
+                continue
+            try:
+                days.add(datetime.fromisoformat(stamp.replace("Z", "+00:00")).date())
+            except ValueError:
+                continue
+
+    _harvest(alerts_path, is_log=False)
+    if log_path is not None:
+        _harvest(log_path, is_log=True)
+    return days
+
+
+def unexplained_task_deaths(
+    results: list[TaskResult],
+    alerts_path: Path,
+    log_path: Path | None,
+) -> list[TaskDeath]:
+    """Non-zero scheduler results with no in-code failure record to account for them.
+
+    A non-zero result WITH such a record raises nothing here: the task already alerted
+    for itself, and a second alert for one failure teaches its reader to discount both.
+    A zero result is silent. What is left is the case the 2026-08-28 non-publish fell
+    into — the scheduler recorded ``ERROR_PROCESS_ABORTED`` and the system recorded
+    nothing at all, because the process that would have written the record was gone.
+    """
+    deaths: list[TaskDeath] = []
+    for result in results:
+        if result.last_result == 0:
+            continue
+        day = result.recorded_at.date() if result.recorded_at else None
+        explained_on = _failure_record_days(result.task, alerts_path, log_path)
+        if day is not None and day in explained_on:
+            continue
+        if day is None and explained_on:
+            # No instant to match against; any record for this task is taken as
+            # accounting for it rather than firing a CRITICAL on a guess.
+            continue
+        deaths.append(TaskDeath(
+            task=result.task, result_code=result.last_result,
+            recorded_at=result.recorded_at,
+        ))
+    return sorted(deaths, key=lambda d: (d.task, d.result_code))
+
+
 def previous_digest_instant(digests_dir: Path, day: date) -> datetime | None:
     """When the digest dated ``day`` actually ran, read from its own JSON.
 
@@ -261,6 +517,9 @@ def check_schedule(
     alerts_path: Path,
     digests_dir: Path,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    log_path: Path | None = None,
+    task_reader: TaskResultReader | None = None,
+    task_results_available: bool | None = None,
 ) -> WatchdogReport:
     """Find every scheduled firing since the last digest that left no artifact.
 
@@ -346,6 +605,21 @@ def check_schedule(
                 ))
 
     missed.sort(key=lambda m: (m.day, m.task, m.label or ""))
+
+    # -- task-death tripwire (PROP-8) ---------------------------------------
+    # Asks the opposite question to everything above: not "did the artifact appear"
+    # but "did the scheduler record an ending the system never mentioned". A run that
+    # is killed leaves no artifact AND no log line, so the artifact check alone reports
+    # it as a missed firing with the wrong cause attached.
+    available = (
+        task_results_available if task_results_available is not None
+        else schtasks_available()
+    )
+    deaths: list[TaskDeath] = []
+    if available:
+        reader = task_reader if task_reader is not None else _default_task_reader
+        deaths = unexplained_task_deaths(reader(), alerts_path, log_path)
+
     result = WatchdogReport(
         # The reported window names what was actually examined, deferred firings
         # included -- a window line that hid them would understate the check.
@@ -353,7 +627,11 @@ def check_schedule(
         window_end=today,
         anchored_to_previous_digest=anchored,
         firings_checked=checked, missed=missed,
+        deaths=deaths, task_results_available=available,
     )
+    if deaths:
+        log.error("watchdog_task_deaths", count=len(deaths),
+                  deaths=[d.render() for d in deaths])
     if missed:
         log.warning("watchdog_missed_runs", count=len(missed),
                     missed=[m.render() for m in missed])
@@ -365,7 +643,13 @@ def check_schedule(
 __all__ = [
     "DEFAULT_LOOKBACK_DAYS",
     "MissedRun",
+    "TaskDeath",
+    "TaskResult",
+    "TaskResultReader",
     "WatchdogReport",
     "check_schedule",
+    "parse_schtasks_list",
     "previous_digest_date",
+    "schtasks_available",
+    "unexplained_task_deaths",
 ]
