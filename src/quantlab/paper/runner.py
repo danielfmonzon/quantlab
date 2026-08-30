@@ -627,7 +627,19 @@ def _submit_plan(
     sleep_fn: Callable[[float], None],
     monotonic_fn: Callable[[], float],
 ) -> list[OrderInfo]:
-    """Submit sells, wait for them to reach a terminal state, then submit buys."""
+    """Submit sells, wait for them to reach a terminal state, then submit buys.
+
+    Every submitted order is then polled to a terminal state within the SAME bounded
+    window already applied to sells, and what that poll read back is merged into the
+    returned records (PROP-5). Without it a run report preserves only the ``pending_new``
+    that a freshly submitted order always carries, which is what left divergence
+    diagnosis #3 inferring a 58%-turnover fill effect from equity-history deltas because
+    no artifact recorded the fill.
+
+    ORDERING IS UNCHANGED. Sells are still submitted, awaited, and only then are buys
+    submitted -- the buys need the sells' cash. The new poll happens strictly AFTER every
+    order is placed, so it cannot move, resize, or delay a single one of them.
+    """
     sells = [i for i in plan.intents if i.side == "sell"]
     buys = [i for i in plan.intents if i.side == "buy"]
     submitted: list[OrderInfo] = []
@@ -651,7 +663,37 @@ def _submit_plan(
         )
         submitted.append(order)
 
+    if submitted:
+        resolved = _await_terminal(
+            broker, [o.id for o in submitted], day,
+            poll_timeout, poll_interval, sleep_fn, monotonic_fn,
+        )
+        submitted = [_with_fill_evidence(o, resolved.get(o.id)) for o in submitted]
+
     return submitted
+
+
+def _with_fill_evidence(submitted: OrderInfo, resolved: OrderInfo | None) -> OrderInfo:
+    """``submitted`` carrying what the terminal poll read back, or unchanged.
+
+    The two records are authoritative about different things and neither replaces the
+    other. ``submitted`` is what this run ASKED for -- notional, side, client_order_id,
+    and ``was_duplicate``, which only the submit path knows -- and is preserved exactly.
+    ``resolved`` is what became of it.
+
+    A poll that could not resolve the order leaves the fill fields None. That is the
+    honest reading of a timeout: unknown, not zero. Writing 0.0 there would tell a later
+    reader the order filled nothing, and the residual attribution built on these fields
+    would silently price a real fill as none at all.
+    """
+    if resolved is None:
+        return submitted
+    return submitted.model_copy(update={
+        "status": resolved.status,
+        "filled_qty": resolved.filled_qty,
+        "filled_avg_price": resolved.filled_avg_price,
+        "filled_at": resolved.filled_at,
+    })
 
 
 def _await_terminal(
@@ -662,18 +704,37 @@ def _await_terminal(
     interval: float,
     sleep_fn: Callable[[float], None],
     monotonic_fn: Callable[[], float],
-) -> dict[str, str]:
-    """Poll until every order id is terminal or the timeout elapses."""
+) -> dict[str, OrderInfo]:
+    """Poll until every order id is terminal or the timeout elapses.
+
+    Returns the full ``OrderInfo`` read back for each id the broker could resolve, rather
+    than its status alone, so a caller can record the fill evidence that came with it
+    (PROP-5). An id the broker never returned is simply absent from the mapping — the
+    polling condition is unchanged by that, since a missing id is not terminal and keeps
+    the loop running until the deadline exactly as an in-flight one does.
+    """
     deadline = monotonic_fn() + timeout
     wanted = set(order_ids)
-    while True:
-        by_id = {o.id: o.status for o in broker.get_orders(status="all", after=day)}
-        statuses = {oid: by_id.get(oid, "unknown") for oid in wanted}
-        if all(s in _TERMINAL_STATUSES for s in statuses.values()):
-            return statuses
+    # The deadline is the real bound in production. The poll COUNT is a second one, for
+    # the case the deadline cannot fire: a monotonic clock that does not advance -- a
+    # suspended host, a frozen clock in a harness -- would otherwise spin here forever,
+    # and this loop sits inside the trading path between submitting sells and submitting
+    # the buys they fund. At the shipped 120s/2s that is 61 polls, so the deadline is
+    # always reached first and behaviour is unchanged.
+    max_polls = max(1, int(timeout / interval) + 1) if interval > 0 else 1
+    found: dict[str, OrderInfo] = {}
+    for _ in range(max_polls):
+        by_id = {o.id: o for o in broker.get_orders(status="all", after=day)}
+        found = {oid: by_id[oid] for oid in wanted if oid in by_id}
+        settled = len(found) == len(wanted) and all(
+            o.status in _TERMINAL_STATUSES for o in found.values()
+        )
+        if settled:
+            return found
         if monotonic_fn() >= deadline:
-            return statuses  # market likely closed; caller proceeds and reports status
+            break  # market likely closed; caller proceeds and reports status
         sleep_fn(interval)
+    return found
 
 
 def _finish(report: PaperRunReport, reports_dir: Path, write_report: bool) -> None:

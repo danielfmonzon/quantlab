@@ -79,6 +79,15 @@ class OrderInfo(BaseModel):
     status: str
     submitted_at: datetime | None
     was_duplicate: bool = False
+    # FILL EVIDENCE (PROP-5; Quant Lead ruling 2026-08-30, docs/decisions.md). Read-only
+    # and purely additive: nothing here is consulted by any order decision, and
+    # ``submit_order`` is untouched. These are populated when an order is READ BACK --
+    # a freshly submitted order has not filled, so they are None on the way out and
+    # carry what happened only after the terminal poll. They stay None when a poll
+    # times out, which is the honest reading: unknown, not zero.
+    filled_qty: float | None = None
+    filled_avg_price: float | None = None
+    filled_at: datetime | None = None
 
 
 class AlpacaTradingClient:
@@ -248,6 +257,22 @@ class AlpacaTradingClient:
         return 0
 
 
+def _numeric(value: Any) -> float | None:
+    """A numeric payload field as a float, or None when it is absent or not a number.
+
+    Alpaca renders these as decimal STRINGS ("0.6284", "77540.06") and uses both null and
+    "" for "no value yet", so a plain float() is not safe. An unparseable value returns
+    None rather than raising: fill evidence is reporting-only, and a malformed field must
+    never break the order path it is read from.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _order_from_payload(d: dict[str, Any]) -> OrderInfo:
     notional_raw = d.get("notional")
     return OrderInfo(
@@ -259,6 +284,9 @@ def _order_from_payload(d: dict[str, Any]) -> OrderInfo:
         status=str(d.get("status", "")),
         submitted_at=d.get("submitted_at"),
         was_duplicate=False,
+        filled_qty=_numeric(d.get("filled_qty")),
+        filled_avg_price=_numeric(d.get("filled_avg_price")),
+        filled_at=d.get("filled_at"),
     )
 
 
