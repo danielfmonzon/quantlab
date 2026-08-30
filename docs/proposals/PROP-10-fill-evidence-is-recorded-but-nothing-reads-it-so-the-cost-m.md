@@ -1,6 +1,6 @@
 # PROP-10 — Fill evidence is recorded but nothing reads it, so the cost model is still an assumption
 
-_proposed 2026-08-30T23:38:36.807780Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-08-30T23:38:36.807780Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -45,3 +45,41 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-08-30T23:42:30.029226Z  |  branch `prop/10`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+```
+src/quantlab/cli.py              |  23 +++
+ src/quantlab/reporting/fills.py  | 299 +++++++++++++++++++++++++++++++++++++++
+ src/quantlab/reporting/weekly.py |   7 +
+ tests/test_fills.py              | 227 +++++++++++++++++++++++++++++
+ 4 files changed, 556 insertions(+)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 72 source files |
+| `pytest` | PASS | 750 passed, 1 warning in 78.56s (0:01:18) |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/10`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/10` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.

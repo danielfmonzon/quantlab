@@ -64,6 +64,7 @@ from quantlab.paper.runner import (
     equity_history_path_for,
 )
 from quantlab.reporting.alerts import ALERTS_JSONL, Alert, DeliveryResult, dispatch
+from quantlab.reporting.fills import build_fill_ledger
 from quantlab.reporting.markphase import fill_vs_mark_bps, predicted_mark_phase_bps
 from quantlab.reporting.shadow import shadow_returns
 from quantlab.risk.limits import load_risk_limits
@@ -854,6 +855,12 @@ def render_markdown(review: WeeklyReview) -> str:
     ]
     for acct in review.accounts:
         lines.extend(_render_account(acct))
+
+    # The fill-vs-mark ledger (PROP-10). Sits between the accounts and the readiness
+    # clocks deliberately: it is the day-90 cost-model input, so it belongs beside the
+    # gate it feeds rather than buried under the per-account detail. Built here rather
+    # than carried on the model so an older week_*.json still parses.
+    lines.extend(build_fill_ledger().render())
 
     r = review.readiness
     lines.append("## Live-readiness ledger")
