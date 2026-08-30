@@ -1,7 +1,332 @@
 {
-  "count": 26,
+  "count": 31,
   "label": "trend",
   "runs": [
+    {
+      "run_id": "run_trend_20260828T140014Z",
+      "strategy": "trend",
+      "timestamp": "2026-08-28T14:00:14.996127Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102776.29,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102776.29 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-08-27 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.00728663232966309)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20260827T140009Z",
+      "strategy": "trend",
+      "timestamp": "2026-08-27T14:00:09.265665Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102237.75,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102237.75 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-08-26 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.012488375426491838)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20260826T192052Z",
+      "strategy": "trend",
+      "timestamp": "2026-08-26T19:20:52.297959Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102018.03,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102018.03 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-08-25 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.01461064488323649)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20260825T140008Z",
+      "strategy": "trend",
+      "timestamp": "2026-08-25T14:00:08.009241Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 101846.42,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=101846.42 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-08-24 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.016268221168836083)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20260824T145404Z",
+      "strategy": "trend",
+      "timestamp": "2026-08-24T14:54:04.020157Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 101570.34,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=101570.34 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-08-21 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.018934870320565844)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
     {
       "run_id": "run_trend_20260817T140015Z",
       "strategy": "trend",

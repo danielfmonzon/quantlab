@@ -160,11 +160,41 @@
           "equity": 103122.16,
           "provenance": "on_schedule",
           "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-08-24T14:54:04.020157",
+          "equity": 101570.34,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-08-25T14:00:08.009241",
+          "equity": 101846.42,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-08-26T19:20:52.297959",
+          "equity": 102018.03,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-08-27T14:00:09.265665",
+          "equity": 102237.75,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-08-28T14:00:14.996127",
+          "equity": 102776.29,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
         }
       ],
       "provenance_counts": {
-        "catch_up": 5,
-        "on_schedule": 21
+        "catch_up": 7,
+        "on_schedule": 24
       }
     }
   ],
