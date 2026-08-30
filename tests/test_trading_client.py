@@ -13,6 +13,8 @@ from quantlab.broker.alpaca_trading import (
     OrderInfo,
     Position,
     TradingError,
+    _numeric,
+    _order_from_payload,
 )
 
 FAKE_KEY_ID = "AKFAKETRADEKEYID0000000"
@@ -133,3 +135,105 @@ def test_cancel_all_open_counts_cancellations() -> None:
     session = FakeSession([FakeResponse(207, [{"id": "a", "status": 200},
                                               {"id": "b", "status": 200}])])
     assert _client(session).cancel_all_open() == 2
+
+
+# --------------------------------------------------------------------------- #
+# Fill evidence must never be able to fail an order read (PROP-5 amendments)  #
+# --------------------------------------------------------------------------- #
+
+def _order_payload(**over: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "id": "order-abc", "client_order_id": "ql-x", "symbol": "BTC/USD",
+        "side": "sell", "notional": "70218.29", "status": "filled",
+        "submitted_at": "2026-08-22T16:24:19.346526Z",
+        "filled_qty": "0.921208", "filled_avg_price": "77540.06",
+        "filled_at": "2026-08-22T16:24:21.000000Z",
+    }
+    base.update(over)
+    return base
+
+
+def test_an_unparseable_filled_at_yields_none_and_still_parses() -> None:
+    """`filled_at="garbage"` must not raise. Construction failing here aborts a run.
+
+    The poll that reads these fields stands between submitting sells and submitting the
+    buys those sells fund. A ValidationError there does not lose a timestamp -- it strands
+    the account half-rebalanced. Unknown, not fatal.
+    """
+    order = _order_from_payload(_order_payload(filled_at="garbage"))
+
+    assert order.filled_at is None
+    # ...and nothing else about the order was disturbed by the bad field.
+    assert order.status == "filled"
+    assert order.filled_qty == pytest.approx(0.921208)
+    assert order.filled_avg_price == pytest.approx(77540.06)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["garbage", "", "  ", "2026-13-45T99:99:99Z", [], {}, object(), float("nan")],
+)
+def test_no_filled_at_value_can_raise(value: Any) -> None:
+    """Whatever arrives in that field, the order parses and the field reads None."""
+    order = _order_from_payload(_order_payload(filled_at=value))
+    assert order.filled_at is None
+
+
+def test_a_good_filled_at_is_unchanged_by_the_tolerance() -> None:
+    """Tolerance may only widen what is accepted, never alter a value that was fine."""
+    order = _order_from_payload(_order_payload())
+    assert order.filled_at is not None
+    assert order.filled_at.year == 2026
+    assert order.filled_at.month == 8
+    assert order.filled_at.day == 22
+
+
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "Infinity"])
+def test_numeric_rejects_non_finite_strings(value: str) -> None:
+    """`float("nan")` and `float("inf")` both SUCCEED, so they had to be excluded here.
+
+    Without this, "unparseable -> None" was not literally true, and a nan reaching
+    `markphase.fill_vs_mark_bps` -- which sums filled_qty x filled_avg_price across a
+    window -- turns a whole week's attribution into nan while still type-checking as a
+    float. A missing figure has to read as missing.
+    """
+    assert _numeric(value) is None
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_numeric_rejects_non_finite_floats(value: float) -> None:
+    assert _numeric(value) is None
+
+
+def test_non_finite_fill_fields_reach_the_order_as_none() -> None:
+    """End to end: a nan quantity and an inf price both land as None, not as nan/inf."""
+    order = _order_from_payload(_order_payload(filled_qty="nan", filled_avg_price="inf"))
+    assert order.filled_qty is None
+    assert order.filled_avg_price is None
+
+
+def test_numeric_still_parses_the_ordinary_decimal_strings() -> None:
+    """The teeth: the rejections above must not have broken the normal case."""
+    assert _numeric("0.6284") == pytest.approx(0.6284)
+    assert _numeric("77540.06") == pytest.approx(77540.06)
+    assert _numeric(0) == 0.0
+    assert _numeric(None) is None
+    assert _numeric("") is None
+    assert _numeric(True) is None          # a bool is not a quantity
+
+
+def test_constructing_an_order_directly_cannot_fail_on_the_three_fields() -> None:
+    """The guarantee is on the MODEL, so it holds for every construction path.
+
+    `_order_from_payload` is not the only way an OrderInfo comes into being, and a future
+    caller building one from something other than an Alpaca payload inherits the same
+    protection rather than rediscovering the need for it.
+    """
+    order = OrderInfo(
+        id="x", client_order_id="c", symbol="S", side="buy", notional=None,
+        status="new", submitted_at=None,
+        filled_qty="garbage", filled_avg_price=[], filled_at=object(),
+    )
+    assert order.filled_qty is None
+    assert order.filled_avg_price is None
+    assert order.filled_at is None

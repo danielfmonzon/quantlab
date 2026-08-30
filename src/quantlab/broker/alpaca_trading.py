@@ -14,11 +14,12 @@ Alpaca rejects it as a duplicate, we fetch and return the pre-existing order wit
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import Any
 
 import requests
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError, field_validator
 from tenacity import (
     Retrying,
     retry_if_exception_type,
@@ -66,6 +67,11 @@ class Position(BaseModel):
     avg_entry_price: float
 
 
+# Built once at import. Used by OrderInfo's filled_at validator to parse with pydantic's
+# own datetime rules instead of a second, subtly different parser.
+_FILLED_AT_ADAPTER: TypeAdapter[datetime | None] = TypeAdapter(datetime | None)
+
+
 class OrderInfo(BaseModel):
     """A submitted (or looked-up) order."""
 
@@ -88,6 +94,41 @@ class OrderInfo(BaseModel):
     filled_qty: float | None = None
     filled_avg_price: float | None = None
     filled_at: datetime | None = None
+
+    # CONSTRUCTING AN OrderInfo MUST NEVER FAIL BECAUSE OF THE THREE FIELDS ABOVE.
+    #
+    # They are reporting-only, and the order path reads them on the way back from a poll
+    # that stands between submitting sells and submitting the buys those sells fund. A
+    # ValidationError raised there does not lose a number — it aborts the run mid-plan.
+    # So a value these fields cannot represent becomes None, which every consumer already
+    # treats as "unknown, not zero" (see ``paper.runner._with_fill_evidence`` and
+    # ``reporting.markphase._signed_filled_notional``).
+    #
+    # The guarantee lives on the MODEL rather than only in ``_order_from_payload``, so it
+    # holds for every construction path, including a future caller that builds an
+    # OrderInfo from something other than an Alpaca payload.
+
+    @field_validator("filled_qty", "filled_avg_price", mode="before")
+    @classmethod
+    def _tolerate_unparseable_number(cls, value: Any) -> float | None:
+        """Coerce to a finite float or None. Idempotent, so the explicit ``_numeric``
+        calls in ``_order_from_payload`` remain a correct local statement of intent."""
+        return _numeric(value)
+
+    @field_validator("filled_at", mode="before")
+    @classmethod
+    def _tolerate_unparseable_filled_at(cls, value: Any) -> datetime | None:
+        """Parse exactly as pydantic would, but yield None where it would have raised.
+
+        Delegating to a ``TypeAdapter`` rather than hand-rolling a parser is deliberate:
+        every value that parsed before this validator existed still parses identically,
+        so the tolerance can only widen what is accepted, never change what a good value
+        becomes.
+        """
+        try:
+            return _FILLED_AT_ADAPTER.validate_python(value)
+        except ValidationError:
+            return None
 
 
 class AlpacaTradingClient:
@@ -258,19 +299,28 @@ class AlpacaTradingClient:
 
 
 def _numeric(value: Any) -> float | None:
-    """A numeric payload field as a float, or None when it is absent or not a number.
+    """A numeric payload field as a FINITE float, or None for anything else.
 
     Alpaca renders these as decimal STRINGS ("0.6284", "77540.06") and uses both null and
     "" for "no value yet", so a plain float() is not safe. An unparseable value returns
     None rather than raising: fill evidence is reporting-only, and a malformed field must
     never break the order path it is read from.
+
+    NON-FINITE IS NOT A NUMBER HERE. ``float("nan")`` and ``float("inf")`` both succeed,
+    so an earlier version let them through and "unparseable -> None" was not literally
+    true. That matters downstream rather than here: ``markphase.fill_vs_mark_bps`` sums
+    ``filled_qty * filled_avg_price`` across a window, and a single nan silently turns the
+    whole week's attribution into nan while still type-checking as a float. A missing
+    figure must read as missing, which the residual attribution already handles by
+    reporting the component as absent.
     """
     if value is None or isinstance(value, bool):
         return None
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _order_from_payload(d: dict[str, Any]) -> OrderInfo:
