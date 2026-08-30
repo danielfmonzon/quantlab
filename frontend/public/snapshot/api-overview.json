@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-08-22T16:27:26.108575Z",
+  "generated_at": "2026-08-30T20:21:54.420091Z",
   "accounts": [
     {
       "label": "voltarget",
       "asset_class": "us_equity",
-      "latest_equity": 102878.1,
-      "latest_snapshot_at": "2026-08-17T14:00:06.657790",
+      "latest_equity": 102596.74,
+      "latest_snapshot_at": "2026-08-28T14:00:09.018209",
       "latest_snapshot_provenance": "on_schedule",
-      "snapshot_count": 27,
+      "snapshot_count": 32,
       "risk": {
         "halted": false,
         "reason": null,
@@ -20,22 +20,20 @@
       "clock": {
         "asset_class": "us_equity",
         "paper_start_date": "2026-07-09",
-        "calendar_days_elapsed": 43,
+        "calendar_days_elapsed": 50,
         "target_days": 90,
-        "pct_complete": 47.77777777777778,
+        "pct_complete": 55.55555555555556,
         "start_note": null,
-        "blockers": [
-          "voltarget: only 1 completed run(s) this week (< 4)"
-        ]
+        "blockers": []
       }
     },
     {
       "label": "trend",
       "asset_class": "us_equity",
-      "latest_equity": 103122.16,
-      "latest_snapshot_at": "2026-08-17T14:00:15.364249",
+      "latest_equity": 102776.29,
+      "latest_snapshot_at": "2026-08-28T14:00:14.996127",
       "latest_snapshot_provenance": "on_schedule",
-      "snapshot_count": 26,
+      "snapshot_count": 31,
       "risk": {
         "halted": false,
         "reason": null,
@@ -48,22 +46,20 @@
       "clock": {
         "asset_class": "us_equity",
         "paper_start_date": "2026-07-09",
-        "calendar_days_elapsed": 43,
+        "calendar_days_elapsed": 50,
         "target_days": 90,
-        "pct_complete": 47.77777777777778,
+        "pct_complete": 55.55555555555556,
         "start_note": null,
-        "blockers": [
-          "trend: only 1 completed run(s) this week (< 4)"
-        ]
+        "blockers": []
       }
     },
     {
       "label": "crypto_trend",
       "asset_class": "crypto",
-      "latest_equity": 100000.0,
-      "latest_snapshot_at": "2026-08-22T16:24:19.374834",
+      "latest_equity": 101076.06,
+      "latest_snapshot_at": "2026-08-30T07:01:48.831884",
       "latest_snapshot_provenance": "catch_up",
-      "snapshot_count": 44,
+      "snapshot_count": 52,
       "risk": {
         "halted": false,
         "reason": null,
@@ -76,22 +72,20 @@
       "clock": {
         "asset_class": "crypto",
         "paper_start_date": "2026-07-22",
-        "calendar_days_elapsed": 30,
+        "calendar_days_elapsed": 37,
         "target_days": 90,
-        "pct_complete": 33.333333333333336,
+        "pct_complete": 41.111111111111114,
         "start_note": "clock restarted 2026-07-22 by ruling; paper history back to 2026-07-12 is retained but does not count toward the gate",
-        "blockers": [
-          "crypto_trend: only 3 completed run(s) this week (< 4)"
-        ]
+        "blockers": []
       }
     },
     {
       "label": "crypto_voltarget",
       "asset_class": "crypto",
-      "latest_equity": 120264.39,
-      "latest_snapshot_at": "2026-08-22T16:24:21.999533",
+      "latest_equity": 120739.26,
+      "latest_snapshot_at": "2026-08-30T07:01:52.324720",
       "latest_snapshot_provenance": "catch_up",
-      "snapshot_count": 44,
+      "snapshot_count": 52,
       "risk": {
         "halted": false,
         "reason": null,
@@ -104,16 +98,16 @@
       "clock": {
         "asset_class": "crypto",
         "paper_start_date": "2026-07-22",
-        "calendar_days_elapsed": 30,
+        "calendar_days_elapsed": 37,
         "target_days": 90,
-        "pct_complete": 33.333333333333336,
+        "pct_complete": 41.111111111111114,
         "start_note": "clock restarted 2026-07-22 by ruling; paper history back to 2026-07-12 is retained but does not count toward the gate",
         "blockers": [
-          "crypto_voltarget: only 3 completed run(s) this week (< 4)"
+          "crypto_voltarget: DIVERGING week (+116 bps residual)"
         ]
       }
     }
   ],
-  "week_ending": "2026-08-21",
+  "week_ending": "2026-08-28",
   "note": null
 }
