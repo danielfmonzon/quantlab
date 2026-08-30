@@ -6,6 +6,150 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-30 — Divergence diagnosis #3: the ruling on `crypto_voltarget` week 2026-08-28
+
+**Scope.** `week_20260828`'s single DIVERGING verdict: `crypto_voltarget`, raw **+66.34 bps**,
+predicted mark-phase **−49.26 bps**, residual **+115.60 bps** against a 50 bps threshold.
+Read-only; nothing was modified to produce these figures. This is the first flag raised by the
+corrected comparator (per-asset-class mark dating and residual thresholding, 2026-08-10), so it
+is also the first test of whether that instrument reports something real. Every published figure
+reproduced exactly through the shipped code path.
+
+**RULING — OUTAGE-AFTERSHOCK. The pre-registered escalation is NOT triggered.**
+
+The residual is not account behaviour. It is concentrated almost entirely in one interval, and
+that interval is the repair converge that followed the 08-17 → 08-22 outage.
+
+* **The clean sub-window 2026-08-25 → 2026-08-28 has a residual of +0.85 bps** — 1.7% of the
+  threshold — computed through the comparator itself, not by subtraction. The wider
+  2026-08-24 → 2026-08-28 window gives **+1.24 bps**. The pre-registered condition for escalating
+  to a strategy investigation was the clean portion diverging. It does not.
+* **The repair window 2026-08-22 → 2026-08-24 carries +114.54 of the +115.60 bps (99.1%).** The
+  five non-repair intervals sum to **−0.62 bps**.
+* `markphase`'s identity `paper_return = w_post × r_mark` holds to **0.00 bps on all five
+  zero-turnover intervals** and breaks by **+100.79 bps** on the one interval opening at the
+  2026-08-22 16:24:21Z mark, which carried **58.39%** turnover. The account held a constant
+  **0.6284 BTC** with `est_turnover = 0.0000` on every run from 08-23 to 08-27; there is no
+  position change in the clean stretch for a strategy investigation to examine.
+* Cadence was uniformly bad and it did not matter: **not one of the six intervals was 24.00h**
+  (spans 11.64h–31.45h), only 2 of 7 marks fired on schedule, yet the interior marks cancel
+  because the sub-window's two edges are both on-schedule 00:30Z marks. This is finding 1's
+  corollary from diagnosis #2 holding a second time — off-schedule marks move days, not weeks,
+  whenever the window's edges are on schedule.
+
+**The blocker stands as published.** `week_20260828.md` is the record of what was reported and is
+**not rewritten** — the precedent set on 2026-07-25 and followed on 2026-08-10. This entry is the
+correction. The readiness blocker `crypto_voltarget: DIVERGING week (+116 bps residual)` remains
+listed, and is **expected to clear on 2026-09-04**: the repair mark ages out of the seven-snapshot
+window after 2026-08-29, so the next weekly's window opens on a post-repair mark and, on the
+evidence of the clean sub-window, should report a residual inside the threshold. If it does not,
+that is a genuinely new fact and the escalation question reopens on it rather than on this week.
+
+**A provenance label to distrust.** The 2026-08-27 12:51:34Z mark is classified `leaked` by
+`glassbox.provenance`, which tests crypto marks against the 14:00Z equity window first. It is not
+a leak: the equity task ran normally and separately that day (`run_trend_20260827T140009Z.json`,
+`run_voltarget_20260827T140005Z.json`). It is a very late catch-up that the clock-time heuristic
+cannot distinguish from the pre-2026-07-22 leak — the documented limitation, observed in the wild
+for the first time. No change is made to it here.
+
+### The +172.6 bps favorable fill — a live-readiness exposure, not a comfort
+
+The +100.79 bps is the gap between the cash the 2026-08-22 repair actually raised and the notional
+`markphase` assumes it raised: **$71,430.49 against $70,218.29, a $1,212.20 excess**, which is
+**+172.6 bps against the traded notional**. `reporting.markphase` leaves fill-vs-mark in the
+residual deliberately and says so; this is the first week where that choice cost a verdict.
+
+The direction is favorable, and **that is the problem, not the reassurance.** A +172.6 bps
+execution gain on a $70k paper crypto sell will not reproduce live, and until it is explained it is
+an unquantified difference between the paper record and what a live account would have done.
+Whether the cause is the fill price, the feed Alpaca marks positions against, or its
+notional-to-quantity conversion **cannot be determined from the artifacts**: run reports record
+`submitted_orders` with `status: "pending_new"` and no fill data at all. The figure had to be
+inferred from equity-history deltas and corroborated indirectly — by backing an implied BTC price
+out of position value and testing it against the session bar. Under the model's own assumption
+that implied price lands **0.60%–1.02% above 2026-08-22's high (78,828.37)**, which is impossible;
+under the observed proceeds it lands inside the range on every quantity anchor. Decisive here, and
+only because the account held one asset and traded once.
+
+**This forces day-90 revisit item (b) — "the 5 bps assumption tested against actual paper fill
+prices versus the marks" (2026-08-10, turnover entry) — to be answered early**, and it cannot be
+answered with the artifacts the system currently writes. That is what PROP-5 exists to fix.
+Recorded here so the day-90 review inherits a dated exposure rather than a comfortable number.
+
+### Cumulative ledger annotation: `crypto_voltarget` +335 bps
+
+`week_20260828` reports cumulative paper **+22.09%** against shadow **+18.73%**, divergence
+**+335 bps**. **Roughly +197 bps of that is outage economics, not tracking error and not
+measurement geometry**, and it should be read that way whenever the cumulative figure is cited.
+
+Across **2026-08-17 06:42Z → 2026-08-22 16:24Z** no crypto run fired (the orphaned-interpreter
+outage; `WARNING scheduled tasks: 20 missed firing(s)` at 08-22 16:23:31Z). The account was pinned
+at **99.91% BTC** — it could not rebalance down, because rebalancing requires a run — while BTC
+rallied **+24.65%** (08-16 close 62,836.66 → 08-21 close 78,325.54) and the shadow, which converges
+every session, carried roughly 41–51%. Paper returned **+21.51%** over that span against the
+shadow's **+19.54%**: **+197.2 bps in a single unmarked five-day interval.**
+
+That gap is **real economic consequence of the outage**, correctly attributed to the account. It
+sits outside week 2026-08-28's comparison window, which opens at the 08-22 mark, so it does not
+touch this week's verdict — but it is permanently inside the cumulative series.
+
+**It is a scar, and it is annotated rather than erased.** The equity history is the record of what
+the account did, and it did hold an unmanaged 99.9% BTC position through a rally because the
+machine was dead. Removing it would be rewriting the track; leaving it unlabelled would let a
+favorable accident read as strategy skill in exactly the document the 90-day readiness review reads
+back. The same posture as the permanently sparse `week_20260821` (2026-08-22 entry): the record
+stands, and the reason it looks the way it does is recorded beside it.
+
+---
+
+## 2026-08-30 — The Friday 2026-08-28 non-publish, and a watchdog that could never have caught it
+
+**What happened.** The `quantlab-glassbox-refresh` task fired on schedule at 2026-08-28 21:30Z and
+**did not publish**. The site continued serving the 2026-08-22 manifest for eight days. The snapshot
+step completed — 183 endpoint captures logged 21:30:04.599 → 21:30:05.456Z, manifest written
+`2026-08-28T21:30:05.470458Z` — and then the process died. `build`, `verify-dist` and `deploy` never
+ran, which is the fail-closed chain behaving correctly: nothing was built, so nothing could be
+deployed.
+
+**Nothing said so.** There is **no `quantlab.glassbox.refresh` log record of any kind** for
+2026-08-28 and **no alert was dispatched** — `alerts.jsonl` is empty between the weekly WARNING at
+21:01:30.909Z and the next paper INFO at 08-29 00:32:07.752Z. The task's own record is
+`Last Result: -2147023829` = `0x8007042B` = **`ERROR_PROCESS_ABORTED`**, "the process terminated
+unexpectedly". All four sibling tasks returned 0.
+
+**The alerting path is not what failed.** `refresh.abort()` logs `glassbox_refresh_aborted` at ERROR
+*and then* dispatches, on every in-code failure path, and `cmd_glassbox_refresh` has no `except` that
+could swallow anything. The absence of both the log record and the alert proves `abort()` never ran.
+A killed process cannot alert about being killed — this failed below the alerting layer, the same
+class as the 2026-08-17 orphaned interpreter. No sleep or shutdown event is recorded at that instant.
+Every quantlab task carries `StopIfGoingOnBatteries=true` and `DisallowStartIfOnBatteries=true` on a
+convertible laptop running Modern Standby, which is the only external kill switch armed and the
+leading hypothesis; the System log records no power-source transition at 17:30 local, so **the trigger
+is not proven** and is recorded here as unexplained rather than guessed at.
+
+**The watchdog could never have caught it, and that is the finding that matters.**
+`reporting.watchdog.check_schedule` opens its window at `previous_digest_date(...) + 1 day` and skips
+any task whose `_due_at` is later than `now`. The digest runs weekdays at 20:45Z. Both Friday jobs are
+due after it — `quantlab-weekly` at 21:00Z and `quantlab-glassbox-refresh` at 21:30Z — so each is
+skipped as *not yet due* on the Friday it fires, and then **permanently excluded from every later
+window**, which starts on the Saturday. Verified by replaying the window arithmetic for digests dated
+08-29, 08-31, 09-01 and 09-04: 2026-08-28 is outside all of them. Monday's digest will not report this.
+No digest ever will. `digest_20260828`'s `MISSED RUNS: none` over `expected firings checked: 4` was
+true by construction.
+
+The out-of-band GitHub liveness probe did run on Sat 08-29 (scheduled, `success`, issue step skipped,
+no issue opened — verified, not assumed) and reported `liveness ok -- snapshot is 6d 23h old; within
+the 8-day threshold`. Truthful, and green over a week-old site: an 8-day threshold cannot distinguish
+"published yesterday" from "published a week ago" against a weekly publish cadence.
+
+**Two watchdogs, both green, over a site that had stopped updating.** The chain was re-run by hand on
+2026-08-30 and deployed cleanly (187 endpoints, 0 forbidden, 0 redactions,
+`DEPLOYED -> https://glassbox.danielmonzonautomation.com`). The window defect is filed as **PROP-6**;
+the battery/idle stop conditions and the liveness threshold are recorded here as open questions, not
+yet ruled on.
+
+---
+
 ## 2026-08-22 — The five-day silence: an orphaned interpreter, and why nothing said so
 
 **What happened.** On **2026-08-17 at 16:26–16:28 local**, Python 3.13.2 was uninstalled from
