@@ -21,7 +21,11 @@ import pytest
 
 from quantlab.data import CANONICAL_COLUMNS
 from quantlab.data.store import ParquetStore
-from quantlab.reporting.markphase import load_mark_inputs, predicted_mark_phase_bps
+from quantlab.reporting.markphase import (
+    fill_vs_mark_bps,
+    load_mark_inputs,
+    predicted_mark_phase_bps,
+)
 from quantlab.reporting.weekly import session_for_mark
 
 # A held share count, used only to turn implied prices into an independent
@@ -41,14 +45,24 @@ def _seed_run(
     reports_dir: Path, label: str, ts: str, *, equity: float, cash: float,
     symbol: str, sell: float = 0.0, buy: float = 0.0, aborted: bool = False,
     weights: dict[str, float] | None = None,
+    filled_qty: float | None = None, filled_avg_price: float | None = None,
 ) -> None:
-    """One run report carrying just the fields the decomposition reads."""
+    """One run report carrying just the fields the decomposition reads.
+
+    ``filled_qty`` / ``filled_avg_price`` are the PROP-5 fill evidence, applied to every
+    order this run submitted. Left None the report looks exactly like one written before
+    PROP-5, which is what keeps the pre-existing cases in this file unchanged.
+    """
     reports_dir.mkdir(parents=True, exist_ok=True)
     orders = []
     if buy:
         orders.append({"symbol": symbol, "side": "buy", "notional": buy})
     if sell:
         orders.append({"symbol": symbol, "side": "sell", "notional": sell})
+    if filled_qty is not None and filled_avg_price is not None:
+        for order in orders:
+            order["filled_qty"] = filled_qty
+            order["filled_avg_price"] = filled_avg_price
     if weights is None:
         weights = {symbol: (equity - cash) / equity}
     payload = {
@@ -312,3 +326,164 @@ def test_last_report_of_a_day_supplies_that_day_s_mark(tmp_path: Path) -> None:
     inputs = load_mark_inputs("trend", reports, [date(2026, 8, 3), date(2026, 8, 4)])
     assert inputs is not None
     assert inputs[date(2026, 8, 4)].equity == 2000.0
+
+
+# --------------------------------------------------------------------------
+# Fill-vs-mark attribution (PROP-5)
+# --------------------------------------------------------------------------
+
+# One window, hand-checkable throughout. The account is fully invested at a mark price
+# of 1,000 (equity 100,000, cash 0, so 100 shares), and sells half of itself. The model
+# assumes 50 shares leave at the mark; the fill lands 1% away.
+_FILL_EQUITY = 100_000.0
+_FILL_MARK_PRICE = 1_000.0
+_FILL_SELL_NOTIONAL = 50_000.0
+_FILL_QTY = _FILL_SELL_NOTIONAL / _FILL_MARK_PRICE      # 50 shares
+_FILL_DEVIATION = 0.01                                   # 1% above the mark
+
+
+def _fill_window(tmp_path: Path, **fill: float | None) -> tuple[Path, list[date]]:
+    """A two-mark window whose OPENING mark sells half the book."""
+    reports = tmp_path / "paper"
+    _seed_run(reports, "trend", "2026-08-03T14:00:10", equity=_FILL_EQUITY, cash=0.0,
+              symbol="SPY", sell=_FILL_SELL_NOTIONAL, **fill)  # type: ignore[arg-type]
+    _seed_run(reports, "trend", "2026-08-04T14:00:10", equity=_FILL_EQUITY, cash=50_000.0,
+              symbol="SPY")
+    return reports, [date(2026, 8, 3), date(2026, 8, 4)]
+
+
+def test_a_fill_one_percent_from_the_mark_yields_the_expected_component(
+    tmp_path: Path,
+) -> None:
+    """The PROP-5 acceptance case: a synthetic 1%-away fill prices to its exact bps.
+
+    Selling 50% of the book 1% above the price the mark valued it at raises 1% x 50% =
+    50 bps more than the model assumed, so that is what the attribution must report. The
+    expected figure is deviation x (traded notional / equity), which depends on no
+    intermediate the implementation computes.
+    """
+    reports, marks = _fill_window(
+        tmp_path,
+        filled_qty=_FILL_QTY,
+        filled_avg_price=_FILL_MARK_PRICE * (1.0 + _FILL_DEVIATION),
+    )
+    measured = fill_vs_mark_bps("trend", marks, reports)
+
+    expected_bps = _FILL_DEVIATION * (_FILL_SELL_NOTIONAL / _FILL_EQUITY) * 1e4
+    assert expected_bps == pytest.approx(50.0)          # the fixture says what it means
+    assert measured is not None
+    assert measured == pytest.approx(expected_bps, abs=0.1)
+
+
+def test_a_fill_below_the_mark_reverses_the_sign(tmp_path: Path) -> None:
+    """A sell that filled BELOW its mark raised less than assumed: the sign must flip.
+
+    Sign errors in an attribution are invisible in magnitude tests, and this one decides
+    whether a fill effect reads as flattering the account or penalising it.
+    """
+    reports, marks = _fill_window(
+        tmp_path,
+        filled_qty=_FILL_QTY,
+        filled_avg_price=_FILL_MARK_PRICE * (1.0 - _FILL_DEVIATION),
+    )
+    measured = fill_vs_mark_bps("trend", marks, reports)
+    assert measured is not None
+    assert measured == pytest.approx(-50.0, abs=0.1)
+
+
+def test_a_fill_exactly_at_the_mark_measures_zero(tmp_path: Path) -> None:
+    """Zero is a MEASUREMENT here, not an absence, and must be reported as one."""
+    reports, marks = _fill_window(
+        tmp_path, filled_qty=_FILL_QTY, filled_avg_price=_FILL_MARK_PRICE,
+    )
+    measured = fill_vs_mark_bps("trend", marks, reports)
+    assert measured is not None
+    assert measured == pytest.approx(0.0, abs=1e-9)
+
+
+def test_no_turnover_reports_no_component_and_leaves_the_prediction_untouched(
+    tmp_path: Path,
+) -> None:
+    """A window that traded nothing has no fill effect, and mark-phase is unchanged.
+
+    The second half is the guarantee that matters: the attribution is additive reporting,
+    so a week without turnover must decompose byte-identically to how it did before
+    PROP-5 existed. The static-position fixture is the same one the endpoint-identity
+    anchor above uses.
+    """
+    store, reports, marks = _static_fixture(tmp_path)
+    assert fill_vs_mark_bps("trend", marks, reports) is None
+
+    predicted = predicted_mark_phase_bps(
+        "trend", "us_equity", marks, store, reports, session_for_mark
+    )
+    assert predicted is not None
+    first, last = marks[0], marks[-1]
+    rem_first = _STATIC_CLOSES[first.isoformat()] / _STATIC_MARKS[first.isoformat()] - 1
+    rem_last = _STATIC_CLOSES[last.isoformat()] / _STATIC_MARKS[last.isoformat()] - 1
+    assert predicted == pytest.approx((rem_first - rem_last) * 1e4, abs=0.5)
+
+
+def test_a_report_without_fill_evidence_reports_nothing_rather_than_zero(
+    tmp_path: Path,
+) -> None:
+    """A pre-PROP-5 report traded, but recorded no fill. That is unknown, not zero.
+
+    Every report written before 2026-08-30 has this shape. Returning 0.0 would tell a
+    reader the orders filled exactly at their marks, which is the very claim diagnosis #3
+    had to disprove by hand.
+    """
+    reports, marks = _fill_window(tmp_path)   # sells, but records no fill fields
+    assert fill_vs_mark_bps("trend", marks, reports) is None
+
+
+def test_one_order_missing_fill_evidence_suppresses_the_whole_mark(
+    tmp_path: Path,
+) -> None:
+    """A partial view understates the effect, so it is refused rather than reported.
+
+    The run below sells AND buys; only one side carries fill evidence. Summing just that
+    side would produce a confident number that is short by the other, which is worse than
+    no number at all.
+    """
+    reports = tmp_path / "paper"
+    payload_dir = reports
+    _seed_run(payload_dir, "trend", "2026-08-03T14:00:10", equity=_FILL_EQUITY,
+              cash=0.0, symbol="SPY", sell=_FILL_SELL_NOTIONAL)
+    _seed_run(payload_dir, "trend", "2026-08-04T14:00:10", equity=_FILL_EQUITY,
+              cash=50_000.0, symbol="SPY")
+    path = next(payload_dir.glob("run_trend_20260803*.json"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["submitted_orders"].append(
+        {"symbol": "SPY", "side": "buy", "notional": 1_000.0,
+         "filled_qty": 1.0, "filled_avg_price": 1_000.0}
+    )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    marks = [date(2026, 8, 3), date(2026, 8, 4)]
+    assert fill_vs_mark_bps("trend", marks, reports) is None
+
+
+def test_the_closing_mark_s_own_trade_belongs_to_the_next_window(
+    tmp_path: Path,
+) -> None:
+    """Only marks that OPEN an interval contribute, matching the mark-phase loop.
+
+    crypto_voltarget's 2026-08-28 mark is exactly this case: it traded, and that trade
+    sits in the following week's window, not the one it closes.
+    """
+    reports = tmp_path / "paper"
+    _seed_run(reports, "trend", "2026-08-03T14:00:10", equity=_FILL_EQUITY, cash=0.0,
+              symbol="SPY")
+    _seed_run(reports, "trend", "2026-08-04T14:00:10", equity=_FILL_EQUITY,
+              cash=50_000.0, symbol="SPY", sell=_FILL_SELL_NOTIONAL,
+              filled_qty=_FILL_QTY,
+              filled_avg_price=_FILL_MARK_PRICE * (1.0 + _FILL_DEVIATION))
+    assert fill_vs_mark_bps("trend", [date(2026, 8, 3), date(2026, 8, 4)], reports) is None
+
+
+def test_a_single_mark_has_no_window_to_attribute(tmp_path: Path) -> None:
+    reports, marks = _fill_window(
+        tmp_path, filled_qty=_FILL_QTY, filled_avg_price=_FILL_MARK_PRICE,
+    )
+    assert fill_vs_mark_bps("trend", marks[:1], reports) is None

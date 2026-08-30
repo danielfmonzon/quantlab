@@ -6,6 +6,66 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-30 — RULING: the broker path opens three fields, and only three (PROP-5)
+
+**Decision.** `OrderInfo` in `src/quantlab/broker/alpaca_trading.py` gains **three optional,
+read-only fields** — `filled_qty`, `filled_avg_price`, `filled_at` — populated in
+`_order_from_payload` from the payload Alpaca already returns. Nothing else in `broker/` changes.
+`submit_order` is untouched. **Approved by Quant Lead, 2026-08-30.**
+
+**Why it needed a ruling.** `quantlab propose` **REFUSED** PROP-5 (exit 3):
+
+```
+FORBIDDEN PATH   src/quantlab/broker/alpaca_trading.py
+                 the broker order path, frozen under human review since the first paper account
+```
+
+The refusal was correct. It is also the first time the firewall has blocked a change the record
+itself demanded, so the reasoning is worth keeping rather than the outcome alone.
+
+**The refusal was not routed around, and the alternatives were worse.** `OrderInfo` sets
+`extra="ignore"`, so the fields Alpaca returns are discarded before the runner sees them; there is
+no way to read a fill without changing that model. A second orders client living under `paper/`
+would have delivered the same capability while leaving `broker/` formally untouched — the same
+change wearing a disguise, and a duplicate of the retry, auth and canonical-symbol handling the
+real client already carries. Narrowing PROP-5 to record only `status`, which `OrderInfo` already
+has, would have passed the firewall and delivered nothing: status is not a fill price, and the
+fill price is the entire question.
+
+**What makes this safe to approve rather than a precedent for opening the path.** The frozen thing
+is the **order path** — what is ordered, when, at what size, and on what decision. This change
+touches none of it:
+
+* the fields are populated only when an order is **read back**, never on the way out;
+* nothing reads them except `reporting.markphase`, which is report-only;
+* the runner's ordering is unchanged — sells submitted, awaited, then buys — and the new poll runs
+  strictly *after* the last order is placed, so it cannot move, resize, or delay one;
+* the parse fails soft: an unparseable value yields `None` rather than raising, because reporting
+  must never break the path it reads from.
+
+**The firewall is NOT modified.** `propose` and `implement` refuse this proposal today and will
+refuse it tomorrow; re-running the same command reproduces the refusal verbatim. What was granted
+is one dated exception applied by hand, which is exactly what the refusal text prescribes — *"take
+it to the Quant Lead, and if it is approved it is recorded as a dated ruling in `docs/decisions.md`
+and applied by hand."* A firewall that can be edited to permit the thing it just refused is not a
+firewall, and the cost of the manual path — no `implement` report, no automated gate run, gates run
+by hand instead — is the price that keeps it real. **The human merge gate is unchanged:** the branch
+is pushed and stops there.
+
+**Scope of the exception.** This ruling authorises the three named fields and their parsing. It does
+**not** open `src/quantlab/broker/` generally, and it does not license a future automated proposal to
+touch that path. The next change there needs its own ruling.
+
+**What it buys.** Divergence diagnosis #3 (same date) had to infer a **+100.79 bps** fill effect from
+equity-history deltas and corroborate it by backing an implied price out of position value and
+testing it against a daily bar — decisive only because the account held one asset and traded once.
+Fed the real 2026-08-22 mark with the fill these fields would have recorded,
+`markphase.fill_vs_mark_bps` returns **+100.79 bps** directly. Day-90 revisit item (b) — the 5 bps
+cost assumption tested against actual fills — becomes answerable from artifacts rather than by hand,
+which is what that item was always going to require.
+
+---
+
 ## 2026-08-30 — Divergence diagnosis #3: the ruling on `crypto_voltarget` week 2026-08-28
 
 **Scope.** `week_20260828`'s single DIVERGING verdict: `crypto_voltarget`, raw **+66.34 bps**,

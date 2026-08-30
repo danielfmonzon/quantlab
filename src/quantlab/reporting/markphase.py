@@ -65,17 +65,24 @@ class MarkPhaseInputs:
     ``position_value`` is the non-cash value at the mark (``equity - cash``) and
     ``traded_notional`` is signed (buys positive), so ``position_value +
     traded_notional`` is the value carried into the next mark window.
+
+    ``filled_notional`` is the signed value the run's orders ACTUALLY filled, on the same
+    sign convention, or None when the report does not record it (see
+    ``_signed_filled_notional``). It is what makes ``fill_vs_mark_bps`` measurable.
     """
 
-    __slots__ = ("mark_date", "equity", "position_value", "traded_notional", "symbol")
+    __slots__ = ("mark_date", "equity", "position_value", "traded_notional", "symbol",
+                 "filled_notional")
 
     def __init__(self, mark_date: date, equity: float, position_value: float,
-                 traded_notional: float, symbol: str) -> None:
+                 traded_notional: float, symbol: str,
+                 filled_notional: float | None = None) -> None:
         self.mark_date = mark_date
         self.equity = equity
         self.position_value = position_value
         self.traded_notional = traded_notional
         self.symbol = symbol
+        self.filled_notional = filled_notional
 
 
 def _held_symbol(payload: dict[str, object]) -> str | None:
@@ -121,6 +128,34 @@ def _signed_notional(payload: dict[str, object]) -> float:
     return total
 
 
+def _signed_filled_notional(payload: dict[str, object]) -> float | None:
+    """Signed value this run's orders actually FILLED (buys positive), or None.
+
+    None means "not measurable", never "zero", and it is returned in three cases: the run
+    submitted no orders, so there is no fill effect to price; any order is missing
+    ``filled_qty`` or ``filled_avg_price``, because a partial view understates the total
+    and a number that is quietly short is worse than no number; or the report predates
+    PROP-5 and records neither field. Every report written before 2026-08-30 falls in the
+    last case, which is why the component is absent rather than wrong on historical weeks.
+    """
+    orders = payload.get("submitted_orders")
+    if not isinstance(orders, list) or not orders:
+        return None
+    total = 0.0
+    for order in orders:
+        if not isinstance(order, dict):
+            return None
+        qty = order.get("filled_qty")
+        price = order.get("filled_avg_price")
+        if isinstance(qty, bool) or isinstance(price, bool):
+            return None
+        if not isinstance(qty, (int, float)) or not isinstance(price, (int, float)):
+            return None
+        sign = -1.0 if str(order.get("side", "")).lower() == "sell" else 1.0
+        total += sign * float(qty) * float(price)
+    return total
+
+
 def load_mark_inputs(
     label: str, paper_reports_dir: Path, mark_dates: list[date]
 ) -> dict[date, MarkPhaseInputs] | None:
@@ -162,6 +197,7 @@ def load_mark_inputs(
             mark_date=run_date, equity=float(equity),
             position_value=float(equity) - float(cash),
             traded_notional=_signed_notional(payload), symbol=symbol,
+            filled_notional=_signed_filled_notional(payload),
         )
     missing = wanted - set(found)
     if missing:
@@ -232,8 +268,64 @@ def predicted_mark_phase_bps(
     return total * 1e4
 
 
+def fill_vs_mark_bps(
+    label: str,
+    mark_dates: list[date],
+    paper_reports_dir: Path,
+) -> float | None:
+    """How much of the window's residual is orders filling away from their mark.
+
+    ATTRIBUTION ONLY. This does not move ``predicted_mark_phase_bps``, the residual, or
+    the verdict; it names a component of the residual that was previously unnamed. Which
+    figure the threshold is applied to is a dated ruling (2026-08-10) and is not touched
+    here.
+
+    DERIVATION. ``predicted_mark_phase_bps`` carries the position into a window as
+    ``carried = position_value + traded_notional`` -- it assumes the order moved exactly
+    the notional it submitted, at the mark price. The module docstring says so and leaves
+    the difference in the residual deliberately. Writing the identity out, the part of an
+    interval's residual that assumption accounts for is::
+
+        r_paper - w_post * r_mark
+            = (equity_b - equity_a) / equity_a - (position_b - carried) / equity_a
+            = (cash_b - cash_a + traded_notional) / equity_a
+
+    and cash moves by the negative of what actually filled, so with ``filled`` the signed
+    filled value the same quantity is ``(traded_notional - filled) / equity_a``. That form
+    needs only this mark's own report, which is why it is computed here per opening mark
+    rather than from a pair of equity snapshots.
+
+    Diagnosis #3's worked case, for orientation: the 2026-08-22 repair submitted a
+    $70,218.29 sell against equity 120,264.39 and raised $71,430.49, giving
+    (-70,218.29 + 71,430.49) / 120,264.39 = **+100.79 bps**. That figure had to be inferred
+    from equity-history deltas because no artifact recorded the fill; with PROP-5's fields
+    it is read straight off the report.
+
+    Only marks that OPEN an interval contribute, matching the mark-phase loop -- the
+    window's last mark closes it, and whatever that run traded belongs to the next window.
+    Returns None when nothing in the window is measurable (no turnover, or reports that
+    predate PROP-5), so a caller can tell "no effect" from "not recorded".
+    """
+    if len(mark_dates) < 2:
+        return None
+    inputs = load_mark_inputs(label, paper_reports_dir, mark_dates)
+    if inputs is None:
+        return None
+
+    total = 0.0
+    measured = False
+    for previous_date in mark_dates[:-1]:
+        before = inputs[previous_date]
+        if before.filled_notional is None or before.equity == 0.0:
+            continue
+        measured = True
+        total += (before.traded_notional - before.filled_notional) / before.equity
+    return total * 1e4 if measured else None
+
+
 __all__ = [
     "MarkPhaseInputs",
+    "fill_vs_mark_bps",
     "load_mark_inputs",
     "predicted_mark_phase_bps",
 ]

@@ -64,7 +64,7 @@ from quantlab.paper.runner import (
     equity_history_path_for,
 )
 from quantlab.reporting.alerts import ALERTS_JSONL, Alert, DeliveryResult, dispatch
-from quantlab.reporting.markphase import predicted_mark_phase_bps
+from quantlab.reporting.markphase import fill_vs_mark_bps, predicted_mark_phase_bps
 from quantlab.reporting.shadow import shadow_returns
 from quantlab.risk.limits import load_risk_limits
 from quantlab.risk.state import RiskState, load_risk_state, risk_state_path_for
@@ -182,6 +182,11 @@ class AccountWeekly(BaseModel):
     # incomplete, in which case the verdict falls back to the raw figure.
     predicted_mark_phase_bps: float | None = None
     residual_bps: float | None = None
+    # How much of ``residual_bps`` is this window's orders filling away from their mark
+    # (reporting.markphase.fill_vs_mark_bps). ATTRIBUTION ONLY: it never changes the
+    # residual or the verdict. None when the window has no turnover, or when its run
+    # reports predate the recorded fill evidence PROP-5 added.
+    fill_vs_mark_bps: float | None = None
     decomposition_note: str | None = None
     # Set when the comparison window could not be filled from the requested week and
     # reached back into earlier ones. Names the period the figures actually describe,
@@ -515,6 +520,9 @@ def _account_weekly(
     predicted_bps = predicted_mark_phase_bps(
         label, asset_class, mark_dates, store, paper_reports_dir, session_for_mark,
     )
+    # Attribution only, and deliberately computed independently of the prediction above:
+    # it names a component of whatever residual is left, and must not alter it.
+    fill_bps = fill_vs_mark_bps(label, mark_dates, paper_reports_dir)
     residual_bps = (
         divergence_bps - predicted_bps
         if divergence_bps is not None and predicted_bps is not None
@@ -570,6 +578,7 @@ def _account_weekly(
         paper_week_return=paper_week, shadow_week_return=shadow_week,
         divergence_bps=divergence_bps, raw_divergence_bps=divergence_bps,
         predicted_mark_phase_bps=predicted_bps, residual_bps=residual_bps,
+        fill_vs_mark_bps=fill_bps,
         decomposition_note=decomposition_note, window_fallback_note=window_fallback_note,
         unpaired_sessions=unpaired_sessions,
         cumulative=CumulativeStats(
@@ -729,6 +738,11 @@ def _decomposition_lines(acct: AccountWeekly) -> list[str]:
         f"- predicted mark-phase: {_bps(acct.predicted_mark_phase_bps)}",
         f"- residual (verdict is taken on this): {_bps(acct.residual_bps)}",
     ]
+    if acct.fill_vs_mark_bps is not None:
+        lines.append(
+            f"- of which fill-vs-mark: {_bps(acct.fill_vs_mark_bps)} "
+            "(measured from recorded fills)"
+        )
     if acct.decomposition_note:
         lines.append(f"- _{acct.decomposition_note}_")
     else:
@@ -738,6 +752,15 @@ def _decomposition_lines(acct: AccountWeekly) -> list[str]:
             "alone accounts for (per-session weight x mark-window move less "
             "session move), so the residual is what the account did that the "
             "measurement cannot explain. The threshold applies to the residual._"
+        )
+    if acct.fill_vs_mark_bps is not None:
+        lines.append(
+            "- _fill-vs-mark is the part of the residual that is this window's orders "
+            "filling away from the price the mark valued them at, read from the fills "
+            "the run reports record rather than inferred. It ATTRIBUTES the residual; it "
+            "does not reduce it, and the verdict is unchanged by its presence. Absent "
+            "when the window carries no turnover, or when its reports predate the fill "
+            "evidence (PROP-5)._"
         )
     return lines
 

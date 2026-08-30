@@ -302,3 +302,110 @@ def test_kill_in_one_account_does_not_halt_the_other(tmp_path) -> None:
     )
     assert vt_report.abort_stage != "risk_state"  # NOT halted by trend's KILL
     assert load_risk_state(vt_rs).halted is False  # voltarget's state stayed clean
+
+
+# --------------------------------------------------------------------------- #
+# Fill evidence in the run report (PROP-5)                                    #
+# --------------------------------------------------------------------------- #
+
+def _filled_broker() -> MagicMock:
+    """`_happy_broker`, but the poll resolves BOTH orders with real fill evidence.
+
+    The default double resolves only the sell, because before PROP-5 only the sell was
+    ever polled. A broker that answers for every order it was given is the honest model
+    now that every order is read back.
+    """
+    broker = _happy_broker()
+    broker.get_orders.return_value = [
+        OrderInfo(id="oid-IEF", client_order_id="c", symbol="IEF", side="sell",
+                  notional=100_000.0, status="filled", submitted_at=None,
+                  filled_qty=1_000.0, filled_avg_price=101.0,
+                  filled_at=datetime(2026, 7, 9, 14, 0, 5)),
+        OrderInfo(id="oid-SPY", client_order_id="c", symbol="SPY", side="buy",
+                  notional=100_000.0, status="filled", submitted_at=None,
+                  filled_qty=200.0, filled_avg_price=500.0,
+                  filled_at=datetime(2026, 7, 9, 14, 0, 7)),
+    ]
+    return broker
+
+
+def test_run_report_records_fill_evidence_for_every_order(tmp_path) -> None:
+    """The gap diagnosis #3 hit: a report must say what filled, not just what was asked.
+
+    Every order carries its terminal status, filled quantity, average fill price and fill
+    timestamp, read back from the broker rather than left at the `pending_new` a freshly
+    submitted order always shows.
+    """
+    broker = _filled_broker()
+    report = _run("trend", False, broker, _trend_store(), tmp_path)
+    assert not report.aborted
+
+    by_symbol = {o.symbol: o for o in report.submitted_orders}
+    assert set(by_symbol) == {"IEF", "SPY"}
+
+    sell = by_symbol["IEF"]
+    assert sell.status == "filled"
+    assert sell.filled_qty == 1_000.0
+    assert sell.filled_avg_price == 101.0
+    assert sell.filled_at == datetime(2026, 7, 9, 14, 0, 5)
+
+    buy = by_symbol["SPY"]
+    assert buy.status == "filled"
+    assert buy.filled_qty == 200.0
+    assert buy.filled_avg_price == 500.0
+
+
+def test_fill_evidence_does_not_disturb_what_the_run_asked_for(tmp_path) -> None:
+    """The submitted record stays authoritative for the ORDER; the poll only adds to it.
+
+    Notional, side, symbol and the client_order_id are what this run decided, and the
+    read-back must not be able to overwrite any of them -- the polled record is a
+    different view of the same order, not a replacement for the decision behind it.
+    """
+    broker = _filled_broker()
+    report = _run("trend", False, broker, _trend_store(), tmp_path)
+
+    by_symbol = {o.symbol: o for o in report.submitted_orders}
+    assert by_symbol["IEF"].side == "sell"
+    assert by_symbol["SPY"].side == "buy"
+    assert by_symbol["IEF"].client_order_id == "ql-trend-20260709-IEF-sell"
+    assert by_symbol["SPY"].client_order_id == "ql-trend-20260709-SPY-buy"
+    # The notionals are the plan's, not the poll's view of them.
+    submitted = {c.args[0]: c.args[2] for c in broker.submit_order.call_args_list}
+    assert by_symbol["IEF"].notional == submitted["IEF"]
+    assert by_symbol["SPY"].notional == submitted["SPY"]
+
+
+def test_a_poll_that_never_resolves_leaves_fill_fields_null(tmp_path) -> None:
+    """A timed-out poll reports UNKNOWN, never zero.
+
+    Writing 0.0 would tell a later reader the order filled nothing, and the residual
+    attribution built on these fields would price a real fill as none at all. The run
+    itself must still complete -- fill evidence is reporting, and its absence is never
+    allowed to fail a run that placed its orders.
+    """
+    broker = _happy_broker()
+    broker.get_orders.return_value = []          # the broker never resolves anything
+    report = _run("trend", False, broker, _trend_store(), tmp_path)
+
+    assert not report.aborted
+    assert len(report.submitted_orders) == 2
+    for order in report.submitted_orders:
+        assert order.filled_qty is None
+        assert order.filled_avg_price is None
+        assert order.filled_at is None
+        assert order.status == "accepted"        # the submit-time status, unchanged
+
+
+def test_the_poll_is_bounded_when_the_clock_never_advances(tmp_path) -> None:
+    """Termination does not depend on the clock moving.
+
+    `_run` freezes `monotonic_fn` at 0.0, so the deadline can never fire. The poll-count
+    bound is what returns; without it this sits forever inside the trading path.
+    """
+    broker = _happy_broker()
+    broker.get_orders.return_value = []
+    report = _run("trend", False, broker, _trend_store(), tmp_path)
+    assert not report.aborted
+    # 120s / 2s + 1 per await, and the sells are awaited before the evidence poll.
+    assert broker.get_orders.call_count <= 2 * 61
