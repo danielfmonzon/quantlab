@@ -1,6 +1,6 @@
 # PROP-9 — The refresh chain deploys bytes it never records, so main drifts from the live site
 
-_proposed 2026-08-30T23:30:54.249703Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-08-30T23:30:54.249703Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -44,3 +44,41 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-08-30T23:36:11.823934Z  |  branch `prop/9`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+```
+frontend/README.md               |  23 +++++
+ src/quantlab/glassbox/refresh.py | 214 ++++++++++++++++++++++++++++++++++++++-
+ tests/test_glassbox_refresh.py   | 184 ++++++++++++++++++++++++++++++++-
+ 3 files changed, 415 insertions(+), 6 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 71 source files |
+| `pytest` | PASS | 747 passed, 1 warning in 81.31s (0:01:21) |
+| `frontend` | PASS | [2m   Duration [22m 8.09s[2m (transform 975ms, setup 4.17s, collect 5.90s, tests 6.61s, environment 13.04s, prepare 2.14s)[22m |
+| `frontend-lint` | PASS | > tsc -b --noEmit |
+| `verify-dist` | PASS | {"files": 212, "event": "verify_dist_passed", "logger": "quantlab.cli", "level": "info", "timestamp": "2026-08-30T23:37:53.368095Z"} |
+
+### Branch
+
+- branch: `prop/9`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/9` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.
