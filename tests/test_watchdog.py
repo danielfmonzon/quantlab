@@ -53,8 +53,28 @@ class Tree:
                 "source": "glassbox.refresh",
             }) + "\n")
 
-    def digest(self, day: date) -> None:
-        (self.digests / f"digest_{day:%Y%m%d}.json").write_text("{}", encoding="utf-8")
+    def digest(self, day: date, at: str = "20:45:04.370800+00:00") -> None:
+        """A digest for ``day``, stamped with WHEN it ran.
+
+        The default is the real 16:45 ET instant. The stamp matters since PROP-6: a
+        digest that ran before one of its own day's firings was due cannot have reported
+        on it, and the next window reaches back over that day instead of skipping it.
+        """
+        (self.digests / f"digest_{day:%Y%m%d}.json").write_text(
+            json.dumps({"generated_at": f"{day}T{at}"}), encoding="utf-8"
+        )
+
+    def healthy_digest(self, day: date, at: str = "20:45:04.370800+00:00") -> None:
+        """A digest for ``day``, PLUS the artifacts for firings due after it ran.
+
+        Since PROP-6 the next window defers-checks exactly those firings, so an anchor
+        day that is *meant* to be healthy has to actually be healthy. On a Friday that
+        is the weekly review and the refresh alert, both due after 20:45Z.
+        """
+        self.digest(day, at)
+        if day.weekday() == 4:
+            self.weekly_review(day)
+            self.refresh_alert(day)
 
     def check(self, now: datetime, **kw: object):
         return check_schedule(
@@ -88,7 +108,7 @@ def _seed_complete(t: Tree, days: list[date], *, weekly_on: list[date] | None = 
 def test_a_missing_crypto_day_is_named_and_renders_the_section(tmp_path: Path) -> None:
     """The real incident: no crypto run fired on 2026-08-01, and nothing alerted."""
     t = Tree(tmp_path)
-    t.digest(date(2026, 7, 31))                    # window anchor
+    t.healthy_digest(date(2026, 7, 31))            # window anchor, a clean Friday
     days = [date(2026, 8, 1), date(2026, 8, 2), date(2026, 8, 3)]
     _seed_complete(t, days)
     # ...then remove 08-01's crypto reports, reproducing the miss.
@@ -109,7 +129,9 @@ def test_a_missing_crypto_day_is_named_and_renders_the_section(tmp_path: Path) -
     assert "2026-08-01" in rendered
     assert "crypto_voltarget" in rendered
     assert report.anchored_to_previous_digest is True
-    assert report.window_start == date(2026, 8, 1)
+    # 07-31, not 08-01: the anchor Friday's weekly and refresh were not yet due when its
+    # own digest ran, so they are deferred into this window and the line says so (PROP-6).
+    assert report.window_start == date(2026, 7, 31)
 
 
 def test_a_complete_window_renders_the_section_with_no_misses(tmp_path: Path) -> None:
@@ -239,12 +261,14 @@ def test_a_market_holiday_is_not_a_missed_equity_run(tmp_path: Path) -> None:
 def test_a_weekend_is_not_a_missed_equity_run(tmp_path: Path) -> None:
     t = Tree(tmp_path)
     saturday = date(2026, 8, 8)
-    t.digest(date(2026, 8, 7))
+    t.healthy_digest(date(2026, 8, 7))
     for label in CRYPTO:
         t.run_report(label, saturday, "003006")
     report = t.check(datetime(2026, 8, 8, 22, 0, tzinfo=UTC))
     assert report.missed == []
-    assert report.firings_checked == 2   # only the two crypto accounts were expected
+    # Two crypto accounts on the Saturday, plus Friday's weekly and refresh, which were
+    # not yet due when Friday's digest ran and are deferred to this one (PROP-6).
+    assert report.firings_checked == 4
 
 
 def test_without_a_previous_digest_it_uses_a_bounded_lookback(tmp_path: Path) -> None:
@@ -314,7 +338,7 @@ def test_digest_fires_exactly_one_warning_naming_every_miss(tmp_path: Path) -> N
             return None
 
     t = Tree(tmp_path)
-    t.digest(date(2026, 7, 31))
+    t.healthy_digest(date(2026, 7, 31))
     # 08-01 and 08-02 entirely absent for both crypto accounts: four missed firings.
     alerts: list[object] = []
     digest = build_digest(
@@ -377,3 +401,85 @@ def test_digest_fires_no_alert_on_a_complete_window(tmp_path: Path) -> None:
     assert digest.watchdog is not None and digest.watchdog.ok
     assert alerts == []
     assert "MISSED RUNS: none" in render_markdown(digest)
+
+
+# --------------------------------------------------------------------------- #
+# Deferred not-yet-due firings (PROP-6)                                       #
+# --------------------------------------------------------------------------- #
+
+_FRIDAY = date(2026, 8, 28)      # the non-publish
+_MONDAY = date(2026, 8, 31)
+
+
+def test_a_friday_refresh_that_never_ran_is_named_by_the_next_digest(
+    tmp_path: Path,
+) -> None:
+    """The 2026-08-28 case: the refresh left no alert, and this must not stay silent.
+
+    Friday's own digest fires 20:45Z and the refresh is not due until 21:30Z, so that
+    digest correctly said nothing. Before PROP-6 the next window opened on the Saturday
+    and no digest ever looked at the Friday again; the site went stale for eight days
+    with the watchdog reporting clean throughout.
+    """
+    t = Tree(tmp_path)
+    t.digest(_FRIDAY)                      # ran at 20:45Z; refresh due 21:30Z
+    t.weekly_review(_FRIDAY)               # the weekly DID run
+    _seed_complete(t, [date(2026, 8, 29), date(2026, 8, 30), _MONDAY])
+
+    report = t.check(datetime(2026, 8, 31, 20, 45, tzinfo=UTC))
+
+    assert report.ok is False
+    assert [(m.day, m.task) for m in report.missed] == [
+        (_FRIDAY, "quantlab-glassbox-refresh")
+    ]
+    assert "no glassbox.refresh alert" in "\n".join(report.render())
+
+
+def test_the_same_window_is_clean_when_the_refresh_did_alert(tmp_path: Path) -> None:
+    """A wider window must not invent a miss: the healthy Friday still reports clean."""
+    t = Tree(tmp_path)
+    t.digest(_FRIDAY)
+    t.weekly_review(_FRIDAY)
+    t.refresh_alert(_FRIDAY)               # the chain alerted, deployed or aborted
+    _seed_complete(t, [date(2026, 8, 29), date(2026, 8, 30), _MONDAY])
+
+    report = t.check(datetime(2026, 8, 31, 20, 45, tzinfo=UTC))
+    assert report.missed == []
+    assert report.ok is True
+
+
+def test_a_firing_not_yet_due_is_still_skipped_on_the_day_it_fires(
+    tmp_path: Path,
+) -> None:
+    """The not-yet-due rule is untouched: today's 21:30Z refresh is not missing at 20:45Z.
+
+    This is the guarantee PROP-6 must not break. Deferring a check is the point; turning
+    it into a daily false alarm is the failure mode the rule exists to prevent.
+    """
+    t = Tree(tmp_path)
+    t.healthy_digest(date(2026, 8, 21))
+    _seed_complete(t, [date(2026, 8, 22), date(2026, 8, 23), date(2026, 8, 24),
+                       date(2026, 8, 25), date(2026, 8, 26), date(2026, 8, 27)])
+    for label in CRYPTO:
+        t.run_report(label, _FRIDAY, "003006")
+    for label in EQUITY:
+        t.run_report(label, _FRIDAY)
+    # Friday 20:45Z: the weekly (21:00Z) and refresh (21:30Z) have not fired yet, and
+    # neither has left an artifact. Neither may be reported.
+    report = t.check(datetime(2026, 8, 28, 20, 45, tzinfo=UTC))
+    assert report.missed == []
+
+
+def test_an_ordinary_weekday_anchor_defers_nothing(tmp_path: Path) -> None:
+    """A Thursday digest sees every one of its own day's firings, so nothing carries over.
+
+    The deferral is scoped to firings the previous digest could not have seen. On a day
+    with no such firing the window is exactly what it was before PROP-6.
+    """
+    t = Tree(tmp_path)
+    thursday, friday = date(2026, 8, 27), _FRIDAY
+    t.digest(thursday)
+    _seed_complete(t, [friday])
+    report = t.check(datetime(2026, 8, 28, 20, 45, tzinfo=UTC))
+    assert report.window_start == friday          # not thursday: nothing was deferred
+    assert report.missed == []
