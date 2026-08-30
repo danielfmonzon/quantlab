@@ -6,6 +6,75 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-30 — RULING: the battery kill switches are disarmed on all five tasks
+
+**Decision.** `StopIfGoingOnBatteries` and `DisallowStartIfOnBatteries` are set **false** on all
+five scheduled tasks — `quantlab-paper-run`, `quantlab-crypto-paper-run`, `quantlab-weekly`,
+`quantlab-digest`, `quantlab-glassbox-refresh`. **Approved by Quant Lead, 2026-08-30.** Applied
+the same day and verified.
+
+**Why, and why without waiting for proof.** The 2026-08-28 Glass Box refresh died after writing
+its snapshot with `Last Result: -2147023829` (`0x8007042B`, `ERROR_PROCESS_ABORTED`) and alerted
+nothing. The diagnosis could not identify what terminated it: no sleep, shutdown or power-source
+transition is logged at 17:30 local, and the Task Scheduler Operational log is not enabled. The
+only external kill switch that was armed is this pair, on a convertible laptop
+(`ChassisTypes 31`) running Modern Standby — where switching to DC power is an ordinary,
+unlogged event.
+
+So this is **not** recorded as "we found the cause and fixed it". It is recorded as: **a class of
+silent, unalertable kill was armed on every task in the system, and it is now gone.** Whether it
+fired on 2026-08-28 remains unknown and is likely to stay unknown. The value of removing it does
+not depend on that answer — a scheduler that can terminate a mid-flight trading run on a power
+transition, with no alert and no log, is a hazard on its own terms. `DisallowStartIfOnBatteries`
+is the same hazard one step earlier: a run that never starts is exactly the silence the 2026-08-01
+miss and the 2026-08-17 outage both produced.
+
+`StopIfGoingOnBatteries` is the more serious of the two. `paper.runner._submit_plan` submits
+sells, waits for them, and only then submits the buys they fund. A kill inside that window leaves
+an account **half-rebalanced** — sells filled, buys never placed — with no report written and no
+alert raised, because the process that would have written them is gone.
+
+**Cadence is untouched, and that is the boundary of this ruling.** Nothing about when any task
+fires changed: every trigger, `Next Run Time`, `Schedule Type` and `Status` is as it was.
+`scheduling/tasks.py` is a firewall-forbidden path precisely because a changed mark interval
+silently redefines every divergence figure, and nothing here goes near it. What changed is two
+booleans in the Task Scheduler settings block.
+
+**Method, and a deliberate deviation.** The ruling named `Set-ScheduledTaskSettingsSet`. It was
+applied instead by reading each task's existing `Settings` object, flipping exactly the two
+booleans, and writing it back with `Set-ScheduledTask -Settings`. Building a fresh settings set
+with `New-ScheduledTaskSettingsSet` would have **reset every other setting to its default**, and
+`StartWhenAvailable` defaults to `false` — silently disabling the catch-up runs that are the only
+reason a missed firing on a workstation ever recovers. That would have been a cadence change
+smuggled in under a settings change. The two booleans named in the ruling are the two booleans
+that moved.
+
+**Verified twice, by different tools.** `Get-ScheduledTask` reports both `False` on all five, and
+an independent `schtasks /query /xml` read of the registered XML shows
+`<StopIfGoingOnBatteries>false`, `<DisallowStartIfOnBatteries>false` and
+`<StartWhenAvailable>true` on all five. Triggers unchanged: 10:00, 20:30, 17:00, 16:45 and 17:30
+local respectively.
+
+```
+                               BEFORE                        AFTER
+task                           StopOnBatt  NoStartOnBatt      StopOnBatt  NoStartOnBatt
+quantlab-paper-run             True        True               False       False
+quantlab-crypto-paper-run      True        True               False       False
+quantlab-weekly                True        True               False       False
+quantlab-digest                True        True               False       False
+quantlab-glassbox-refresh      True        True               False       False
+
+StartWhenAvailable=True and MultipleInstances=IgnoreNew preserved on all five.
+```
+
+**What this does not fix.** The host is still a single workstation, and the tasks still cannot run
+while it is off — the 2026-08-01 miss's cause, and the standing argument for the VPS move
+(2026-08-10, amended 2026-08-22). Disarming these two settings removes a way the machine could
+kill a run *while awake*. It does not make the machine reliable, and it is not a substitute for
+the migration.
+
+---
+
 ## 2026-08-30 — RULING: the broker path opens three fields, and only three (PROP-5)
 
 **Decision.** `OrderInfo` in `src/quantlab/broker/alpaca_trading.py` gains **three optional,

@@ -101,20 +101,70 @@ class ProposalRefused(RuntimeError):
         self.verdict = verdict
 
 
+class ProposalNumberCollision(RuntimeError):
+    """``prop/{n}`` already exists. Raised BEFORE anything is committed or pushed."""
+
+    def __init__(self, number: int) -> None:
+        super().__init__(
+            f"prop/{number} already exists. `propose` will not move a reference it did "
+            f"not create — that ref may be another proposal's only pointer to its work. "
+            f"Numbers are never reused; this one is taken."
+        )
+        self.number = number
+
+
 def slugify(title: str) -> str:
     return _SLUG_STRIP.sub("-", title.lower()).strip("-")[:60]
 
 
-def next_number(proposals_dir: Path | None = None) -> int:
-    """One higher than the highest PROP- on disk. Numbers are never reused."""
-    directory = proposals_dir if proposals_dir is not None else PROPOSALS_DIR
-    if not directory.exists():
-        return 1
-    highest = 0
-    for path in directory.glob("PROP-*.md"):
-        match = re.match(r"PROP-(\d+)", path.name)
+def existing_prop_numbers(
+    root: Path | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+) -> set[int]:
+    """Every ``n`` for which a ``prop/n`` reference exists, locally or on a remote.
+
+    Read from the REFS, not from the working tree, because that is where an in-flight
+    proposal that is not on this branch is visible at all. ``docs/proposals`` only ever
+    shows what the current checkout happens to contain (PROP-7).
+
+    A git failure yields the empty set rather than raising: this feeds a numbering
+    decision, and a repository git cannot read is a reason to fall back to what is on
+    disk, not a reason to refuse to write a proposal.
+    """
+    repo = root if root is not None else PROJECT_ROOT
+    run = runner if runner is not None else _subprocess_runner
+    result = run(
+        ["git", "for-each-ref", "--format=%(refname)",
+         "refs/heads/prop/", "refs/remotes/"],
+        repo,
+    )
+    if result.returncode != 0:
+        return set()
+    found: set[int] = set()
+    for line in (result.stdout or "").splitlines():
+        match = re.search(r"/prop/(\d+)$", line.strip())
         if match:
-            highest = max(highest, int(match.group(1)))
+            found.add(int(match.group(1)))
+    return found
+
+
+def next_number(
+    proposals_dir: Path | None = None, taken: set[int] | None = None
+) -> int:
+    """One higher than the highest number in USE ANYWHERE. Numbers are never reused.
+
+    ``taken`` is the set of numbers already claimed by a ``prop/n`` reference (see
+    ``existing_prop_numbers``). Counting only the files on disk is what produced the
+    2026-08-30 collision: run from a branch whose ``docs/proposals`` did not carry the
+    in-flight PROP-5, this handed out 5 a second time.
+    """
+    directory = proposals_dir if proposals_dir is not None else PROPOSALS_DIR
+    highest = max(taken) if taken else 0
+    if directory.exists():
+        for path in directory.glob("PROP-*.md"):
+            match = re.match(r"PROP-(\d+)", path.name)
+            if match:
+                highest = max(highest, int(match.group(1)))
     return highest + 1
 
 
@@ -299,8 +349,15 @@ def publish_proposal(
     *,
     root: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+    taken_numbers: set[int] | None = None,
 ) -> str:
     """Seed ``prop/{number}`` with the proposal and push it, then return to where we were.
+
+    ASSERT BEFORE CREATE (PROP-7). ``prop/{number}`` must not already exist. When
+    ``taken_numbers`` is supplied the check is pure and raises
+    :class:`ProposalNumberCollision` before this function issues a single git command —
+    tested with a recording runner that observes zero calls. When it is not supplied the
+    refs are read here first, and the check still precedes every write.
 
     NO PULL REQUEST IS OPENED HERE. A proposal is not a request to merge anything — it is
     an observation with evidence, and most of them should be readable without ever
@@ -315,6 +372,15 @@ def publish_proposal(
     ref = f"{PROP_REF_PREFIX}{number}"
     assert_prop_ref(ref)
 
+    # The collision check runs BEFORE the commit, before the branch, before the push.
+    # Nothing about this invocation has touched the repository when it raises.
+    claimed = (
+        taken_numbers if taken_numbers is not None
+        else existing_prop_numbers(root=repo, runner=run)
+    )
+    if number in claimed:
+        raise ProposalNumberCollision(number)
+
     # Commit WHERE WE ARE first — PROP-2's local durability, unchanged. The proposal has
     # to stay in the working tree: an earlier draft of this function checked out `prop/n`
     # to commit there and then returned, which made the file vanish from the operator's
@@ -325,9 +391,12 @@ def publish_proposal(
     if committed.startswith("NOT COMMITTED"):
         return committed
 
-    # `prop/n` is just a name for the commit we already made. Force is safe: it names a
-    # ref this command owns, and the guard has already refused anything outside `prop/*`.
-    pointed = run(["git", "branch", "--force", ref, "HEAD"], repo)
+    # `prop/n` is just a name for the commit we already made. NO --force (PROP-7): the
+    # ref is not one this invocation owns merely because it can name it, and the earlier
+    # draft's comment claiming otherwise is the defect stated as a justification. The
+    # assertion above should mean this never collides; dropping the force verb means
+    # that even a defeated assertion cannot overwrite another proposal's pointer.
+    pointed = run(["git", "branch", ref, "HEAD"], repo)
     if pointed.returncode != 0:
         detail = (pointed.stderr or pointed.stdout).strip().splitlines()
         return f"{committed}; NOT PUBLISHED ({detail[-1] if detail else 'branch failed'})"
@@ -360,13 +429,17 @@ def write_proposal(
         sources.assert_allowed(path)
 
     directory = proposals_dir if proposals_dir is not None else PROPOSALS_DIR
+    # Read once, and use the same set for both decisions (PROP-7): the number is chosen
+    # so it cannot collide, and publishing then asserts against that same set rather
+    # than re-reading and risking a different answer.
+    taken = existing_prop_numbers(root=root)
     if proposal.number == 0:
-        proposal.number = next_number(directory)
+        proposal.number = next_number(directory, taken)
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / proposal.filename
     out.write_text(render(proposal, generated_at=generated_at) + "\n", encoding="utf-8")
     proposal.commit_status = (
-        publish_proposal(out, proposal.number, root=root) if commit
+        publish_proposal(out, proposal.number, root=root, taken_numbers=taken) if commit
         else "not committed (--no-commit)"
     )
     return out
@@ -395,7 +468,9 @@ __all__ = [
     "PROPOSALS_DIR",
     "RISK_CLASSES",
     "Proposal",
+    "ProposalNumberCollision",
     "ProposalRefused",
+    "existing_prop_numbers",
     "slugify",
     "next_number",
     "render",

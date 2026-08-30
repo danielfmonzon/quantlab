@@ -31,7 +31,10 @@ from quantlab.improve.implement import (
 )
 from quantlab.improve.propose import (
     Proposal,
+    ProposalNumberCollision,
+    existing_prop_numbers,
     next_number,
+    publish_proposal,
     render,
     slugify,
     write_proposal,
@@ -387,14 +390,19 @@ class RecordingRunner:
 
     The point of this double is negative: it lets a test assert that a code path never
     reached git at all, which is stronger than asserting it reached git and was rejected.
+
+    ``stdout`` is what every recorded call returns, for the cases that read from git
+    rather than write to it (PROP-7's ref enumeration). It defaults to empty, so the
+    PROP-3 guard tests below are unaffected.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, stdout: str = "") -> None:
         self.calls: list[list[str]] = []
+        self._stdout = stdout
 
     def __call__(self, cmd, cwd):  # noqa: ANN001, ANN204
         self.calls.append(list(cmd))
-        return subprocess.CompletedProcess(list(cmd), 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(list(cmd), 0, stdout=self._stdout, stderr="")
 
 
 @pytest.mark.parametrize(
@@ -477,3 +485,93 @@ def test_implement_opens_no_pull_request_when_a_gate_fails(repo: Path) -> None:
     assert not result.pushed
     assert result.pr_url == ""
     assert "no PR opened" in result.pr_detail
+
+
+# --------------------------------------------------------------------------- #
+# Global numbering, and a ref this command did not create (PROP-7)            #
+# --------------------------------------------------------------------------- #
+
+def test_a_taken_number_raises_before_any_git_command_runs(repo: Path) -> None:
+    """The 2026-08-30 failure, refused: prop/5 exists, so 5 is not handed out again.
+
+    `git branch --force prop/5 HEAD` destroyed the pointer to PROP-5's implemented work,
+    which survived only because it had already been pushed. Nothing may run before this
+    is refused — a commit made and then abandoned is still a commit on the operator's
+    branch.
+    """
+    runner = RecordingRunner()
+    path = repo / "docs" / "proposals" / "PROP-5-x.md"
+    path.write_text("# PROP-5\n", encoding="utf-8")
+
+    with pytest.raises(ProposalNumberCollision) as excinfo:
+        publish_proposal(path, 5, root=repo, runner=runner, taken_numbers={5})
+
+    assert excinfo.value.number == 5
+    assert runner.calls == []          # nothing committed, nothing pointed, nothing pushed
+
+
+def test_a_free_number_creates_the_branch_without_a_force_verb(repo: Path) -> None:
+    """`git branch` and not `git branch --force`: the ref is created, never moved.
+
+    Belt and braces behind the assertion above. If the check is ever defeated, the worst
+    a defeated check can do is fail loudly rather than overwrite another proposal's only
+    pointer to its work.
+    """
+    runner = RecordingRunner()
+    path = repo / "docs" / "proposals" / "PROP-9-x.md"
+    path.write_text("# PROP-9\n", encoding="utf-8")
+
+    publish_proposal(path, 9, root=repo, runner=runner, taken_numbers={5, 6})
+
+    branch_calls = [c for c in runner.calls if c[:2] == ["git", "branch"]]
+    assert branch_calls, f"no branch command issued; recorded {runner.calls}"
+    for call in branch_calls:
+        assert "--force" not in call
+        assert "-f" not in call
+    assert ["git", "branch", "prop/9", "HEAD"] in branch_calls
+
+
+def test_numbering_counts_refs_the_working_tree_cannot_see(tmp_path: Path) -> None:
+    """The exact shape of the collision: PROP-1 on disk, prop/5 on a branch -> next is 6.
+
+    Run from `main`, `docs/proposals` held PROP-1..4 while PROP-5 sat on its own branch,
+    so numbering from the directory alone returned 5 for a number already in use.
+    """
+    proposals = tmp_path / "proposals"
+    proposals.mkdir()
+    (proposals / "PROP-1-a.md").write_text("x", encoding="utf-8")
+
+    assert next_number(proposals) == 2                 # disk alone, unchanged
+    assert next_number(proposals, {5}) == 6            # a ref this branch cannot see
+    assert next_number(proposals, {5, 6, 7}) == 8
+
+
+def test_numbering_is_unchanged_when_no_prop_refs_exist(tmp_path: Path) -> None:
+    """A repository with no prop refs numbers exactly as it did before PROP-7."""
+    proposals = tmp_path / "proposals"
+    proposals.mkdir()
+    for n in (1, 2, 3):
+        (proposals / f"PROP-{n}-a.md").write_text("x", encoding="utf-8")
+    assert next_number(proposals, set()) == 4
+    assert next_number(proposals, None) == 4
+    assert next_number(proposals) == 4
+
+
+def test_existing_prop_numbers_reads_local_and_remote_refs(repo: Path) -> None:
+    """Both namespaces count: a number claimed on the remote is claimed."""
+    runner = RecordingRunner(
+        "refs/heads/prop/5\n"
+        "refs/heads/prop/6\n"
+        "refs/remotes/origin/prop/11\n"
+        "refs/remotes/origin/main\n"
+        "refs/heads/docs/something\n"
+    )
+    assert existing_prop_numbers(root=repo, runner=runner) == {5, 6, 11}
+
+
+def test_existing_prop_numbers_is_empty_when_git_fails(repo: Path) -> None:
+    """A git that cannot answer must not block writing a proposal."""
+    def failing(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(list(cmd), 128, "", "not a git repository")
+
+    assert existing_prop_numbers(root=repo, runner=failing) == set()
