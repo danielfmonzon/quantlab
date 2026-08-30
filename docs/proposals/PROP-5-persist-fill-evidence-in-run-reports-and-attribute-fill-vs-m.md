@@ -180,3 +180,41 @@ bar test.
 This change sits on `prop/5`. `main` is untouched. **Daniel merges via pull request after Quant
 Lead review.** Applying a firewall-refused proposal by hand removes the pipeline's automation, not
 its human gate — the gate is the only reason this path exists at all.
+
+---
+
+## Post-review amendments (Quant Lead, 2026-08-30)
+
+Approved with two amendments, applied on the same branch. Both narrow the blast radius of
+the three new fields; neither changes what they mean or what reads them.
+
+**1. `filled_at` gets the same tolerance as the numeric fields.** Two `mode="before"`
+field validators on `OrderInfo` make it structurally impossible for any of the three new
+fields to fail construction: `filled_qty` / `filled_avg_price` route through `_numeric`,
+and `filled_at` parses through a module-level `TypeAdapter(datetime | None)` that yields
+`None` where pydantic would have raised. Delegating to the adapter rather than
+hand-rolling a parser means every value that parsed before still parses identically — the
+tolerance can only widen what is accepted, never alter a good value.
+
+The guarantee lives on the **model**, not only in `_order_from_payload`, so it holds for
+every construction path. This matters because the poll that reads these fields stands
+between submitting sells and submitting the buys those sells fund: a `ValidationError`
+there does not lose a timestamp, it strands the account half-rebalanced.
+
+**2. `_numeric` rejects non-finite results.** `float("nan")` and `float("inf")` both
+succeed, so "unparseable → `None`" was not literally true. The consequence is downstream:
+`markphase.fill_vs_mark_bps` sums `filled_qty × filled_avg_price` across a window, and a
+single `nan` turns a whole week's attribution into `nan` while still type-checking as a
+float. A missing figure now reads as missing, which the attribution already handles by
+reporting the component absent.
+
+**Tests.** `filled_at="garbage"` yields `None` and the order still parses with its other
+fields intact; a parametrised case covers empty, whitespace, an impossible date, a list, a
+dict, a bare object and `nan`. `"nan"`, `"NaN"`, `"inf"`, `"-inf"`, `"Infinity"` and the
+float forms all return `None`; an end-to-end payload with `filled_qty="nan"` and
+`filled_avg_price="inf"` lands both as `None`. A teeth test pins that ordinary decimal
+strings still parse, and one more proves direct `OrderInfo(...)` construction cannot fail
+on the three fields.
+
+**Gates after amendment:** ruff PASS, mypy PASS (71 files), pytest **728 passed** (+21,
+none removed or weakened).

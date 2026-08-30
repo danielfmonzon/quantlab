@@ -1,0 +1,51 @@
+{
+  "run_id": "run_crypto_trend_20260826T052420Z",
+  "strategy": "crypto_trend",
+  "narration": "Run run_crypto_trend_20260826T052420Z: account crypto_trend executed at 2026-08-26T05:24:20.883203Z as a LIVE SUBMIT against the paper broker. The gated pipeline completed 9 stages without aborting. Account equity was read as $101,948.73. Rule: crypto_trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise. That rule produced a target of BTC-USD at 100.00%. No orders were planned: every holding was already inside the minimum-trade band, so the run left the account untouched. Estimated turnover for the plan was 0.0000 of equity. Branches the rule did not take: BTC-USD: NOT traded because drift was 0.04%, at or below the 1.00% minimum-trade band; had drift exceeded that band the runner would have re-traded it back to target.",
+  "rule_sentences": [
+    "Rule: crypto_trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise."
+  ],
+  "counterfactuals": [
+    "BTC-USD: NOT traded because drift was 0.04%, at or below the 1.00% minimum-trade band; had drift exceeded that band the runner would have re-traded it back to target."
+  ],
+  "facts": [
+    {
+      "rendered": "9",
+      "value": 9,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$101,948.73",
+      "value": 101948.73,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "rule_constant.crypto_trend.n_months"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.target_weights.BTC-USD"
+    },
+    {
+      "rendered": "0.04%",
+      "value": 0.0003587389857627743,
+      "source": "derived.abs(report.plan.skipped[0].diff)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "0.0000",
+      "value": 0.0,
+      "source": "report.plan.est_turnover"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}
