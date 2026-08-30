@@ -1,0 +1,71 @@
+{
+  "run_id": "run_crypto_trend_20260823T071154Z",
+  "strategy": "crypto_trend",
+  "narration": "Run run_crypto_trend_20260823T071154Z: account crypto_trend executed at 2026-08-23T07:11:54.696072Z as a LIVE SUBMIT against the paper broker. The gated pipeline completed 10 stages without aborting. Account equity was read as $98,406.23. Rule: crypto_trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise. That rule produced a target of BTC-USD at 100.00%. Planned orders: BUY BTC-USD for $1,879.09 notional moving weight from 98.09% to 100.00%. Estimated turnover for the plan was 0.0191 of equity. Submitted to the broker: buy BTC-USD for $1,879.09 \u2014 broker status 'pending_new'. Branches the rule did not take: BTC-USD: traded because drift was 1.91%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order.",
+  "rule_sentences": [
+    "Rule: crypto_trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise."
+  ],
+  "counterfactuals": [
+    "BTC-USD: traded because drift was 1.91%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order."
+  ],
+  "facts": [
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$98,406.23",
+      "value": 98406.23,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "rule_constant.crypto_trend.n_months"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.target_weights.BTC-USD"
+    },
+    {
+      "rendered": "$1,879.09",
+      "value": 1879.091130999989,
+      "source": "report.plan.intents[0].notional"
+    },
+    {
+      "rendered": "98.09%",
+      "value": 0.9809047543941071,
+      "source": "report.plan.intents[0].current_w"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.plan.intents[0].target_w"
+    },
+    {
+      "rendered": "1.91%",
+      "value": 0.01909524560589293,
+      "source": "derived.abs(report.plan.intents[0].target_w - report.plan.intents[0].current_w)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "0.0191",
+      "value": 0.01909524560589293,
+      "source": "report.plan.est_turnover"
+    },
+    {
+      "rendered": "$1,879.09",
+      "value": 1879.09,
+      "source": "report.submitted_orders[0].notional"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}
