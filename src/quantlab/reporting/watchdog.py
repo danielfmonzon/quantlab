@@ -27,6 +27,17 @@ NOT-YET-DUE IS NOT MISSING. The digest fires at 16:45 ET, before the crypto run 
 the weekly (17:00) and the refresh (17:30). A check that ignored the clock would report
 those three as missed every single weekday, and a watchdog that cries wolf daily is worse
 than none. Every expectation is therefore gated on its scheduled instant having passed.
+
+...AND NOT-YET-DUE MUST NOT BECOME NEVER-CHECKED (PROP-6). Skipping a firing today is only
+honest if something checks it later. The window used to open the day AFTER the previous
+digest, on the premise that that digest had already covered its own day — false for exactly
+the firings it skipped as not yet due, which then fell between two windows and were checked
+by nothing, ever. Both Friday jobs lived there. On 2026-08-28 the Glass Box refresh died
+after writing its snapshot, alerted nothing, and `digest_20260828` reported MISSED RUNS none
+over four checked firings while the published site went stale for eight days. The window now
+reaches back over the previous digest's own day when that digest ran before one of its
+firings was due (``previous_digest_instant``), so the skip defers the check instead of
+cancelling it.
 """
 
 from __future__ import annotations
@@ -202,6 +213,30 @@ def _refresh_alert_days(alerts_path: Path) -> set[date]:
     return days
 
 
+def previous_digest_instant(digests_dir: Path, day: date) -> datetime | None:
+    """When the digest dated ``day`` actually ran, read from its own JSON.
+
+    The DATE alone cannot say whether that digest was able to see a given firing; the
+    instant can. Returns None when the digest is absent, unreadable, or predates the
+    ``generated_at`` field, and the caller treats that as "cannot tell".
+    """
+    path = digests_dir / f"digest_{day:%Y%m%d}.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    stamp = payload.get("generated_at")
+    if not isinstance(stamp, str):
+        return None
+    try:
+        moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
 def previous_digest_date(digests_dir: Path, before: date) -> date | None:
     """Date of the most recent digest strictly before ``before``, if any."""
     if not digests_dir.exists():
@@ -250,42 +285,72 @@ def check_schedule(
     weekly_days = _weekly_review_days(weekly_dir)
     refresh_days = _refresh_alert_days(alerts_path)
 
-    missed: list[MissedRun] = []
-    checked = 0
+    # Every (day, task) this digest is answerable for, in order.
+    #
+    # The sweep from ``start`` is the window proper. DEFERRED is the PROP-6 half: the
+    # previous digest skipped some of its OWN day's firings as not-yet-due, correctly,
+    # and the window then begins the day after -- so nothing ever checked them. Both
+    # Friday jobs live there (the digest fires 20:45Z; `quantlab-weekly` is due 21:00Z
+    # and `quantlab-glassbox-refresh` 21:30Z), and on 2026-08-28 the refresh died
+    # silently inside that gap while `digest_20260828` reported MISSED RUNS none over
+    # four checked firings. Skipping now defers the check instead of cancelling it.
+    #
+    # Only the firings that were actually not-yet-due are picked up, never the whole
+    # day: the rest were already reported on, and re-reporting them would fire a second
+    # WARNING for one miss. When the previous digest's instant cannot be read the day is
+    # treated as fully deferred -- re-reporting a named miss is the cheaper error.
+    checks: list[tuple[date, ScheduledTask]] = []
     day = start
     while day <= today:
-        for task in SCHEDULE:
-            if not _runs_on(task, day, calendar):
-                continue
-            if _due_at(task, day) > now:
-                continue  # not yet due; silence here is not absence
-            if task.produces == PRODUCES_RUN_REPORT:
-                for label in _labels_for(task):
-                    checked += 1
-                    if day not in report_days.get(label, set()):
-                        missed.append(MissedRun(
-                            task=task.name, day=day, label=label,
-                            expected=f"no run report reports/paper/run_{label}_{day:%Y%m%d}*.json",
-                        ))
-            elif task.produces == PRODUCES_WEEKLY_REVIEW:
-                checked += 1
-                if day not in weekly_days:
-                    missed.append(MissedRun(
-                        task=task.name, day=day,
-                        expected=f"no weekly review reports/weekly/week_{day:%Y%m%d}.json",
-                    ))
-            elif task.produces == PRODUCES_REFRESH_ALERT:
-                checked += 1
-                if day not in refresh_days:
-                    missed.append(MissedRun(
-                        task=task.name, day=day,
-                        expected="no glassbox.refresh alert (the chain left no deploy-log entry)",
-                    ))
+        checks.extend(
+            (day, task) for task in SCHEDULE
+            if _runs_on(task, day, calendar) and _due_at(task, day) <= now
+        )
         day += timedelta(days=1)
+
+    deferred_from: date | None = None
+    if previous is not None and start > previous:
+        ran_at = previous_digest_instant(digests_dir, previous)
+        for task in SCHEDULE:
+            if not _runs_on(task, previous, calendar):
+                continue
+            due = _due_at(task, previous)
+            if due <= now and (ran_at is None or due > ran_at):
+                checks.append((previous, task))
+                deferred_from = previous
+
+    missed: list[MissedRun] = []
+    checked = 0
+    for day, task in checks:
+        if task.produces == PRODUCES_RUN_REPORT:
+            for label in _labels_for(task):
+                checked += 1
+                if day not in report_days.get(label, set()):
+                    missed.append(MissedRun(
+                        task=task.name, day=day, label=label,
+                        expected=f"no run report reports/paper/run_{label}_{day:%Y%m%d}*.json",
+                    ))
+        elif task.produces == PRODUCES_WEEKLY_REVIEW:
+            checked += 1
+            if day not in weekly_days:
+                missed.append(MissedRun(
+                    task=task.name, day=day,
+                    expected=f"no weekly review reports/weekly/week_{day:%Y%m%d}.json",
+                ))
+        elif task.produces == PRODUCES_REFRESH_ALERT:
+            checked += 1
+            if day not in refresh_days:
+                missed.append(MissedRun(
+                    task=task.name, day=day,
+                    expected="no glassbox.refresh alert (the chain left no deploy-log entry)",
+                ))
 
     missed.sort(key=lambda m: (m.day, m.task, m.label or ""))
     result = WatchdogReport(
-        window_start=start, window_end=today,
+        # The reported window names what was actually examined, deferred firings
+        # included -- a window line that hid them would understate the check.
+        window_start=min(start, deferred_from) if deferred_from else start,
+        window_end=today,
         anchored_to_previous_digest=anchored,
         firings_checked=checked, missed=missed,
     )
