@@ -502,9 +502,16 @@ def refresh(
     # SnapshotResult / DistVerifyResult, while the suite injects structural doubles.
     snapshot_fn: Callable[..., Any] | None = None,
     verify_fn: Callable[..., Any] | None = None,
-    # PROP-9. `record` is opt-out so the pre-existing suite, whose FakeRunner takes no
-    # env argument and would otherwise reach real git, keeps testing what it tested.
-    record: bool = True,
+    # PROP-9. OPT-IN, and deliberately so. An earlier draft defaulted this to True and
+    # guarded the one test file it was written alongside; `tests/test_repo_state.py`
+    # calls refresh() directly, reaches a successful deploy, and had no reason to know
+    # about a flag that did not exist when it was written -- so it used the REAL git and
+    # gh, created a branch and opened a pull request against this repository during a
+    # test run. The fix is not to guard that file too. A default that is only safe while
+    # every caller remembers a flag is not safe: the CLI opts in explicitly
+    # (`cmd_glassbox_refresh`), which is the one caller that should publish, and no test
+    # can reach real git by forgetting something.
+    record: bool = False,
     git_runner: GitRunner | None = None,
 ) -> RefreshResult:
     """Run the refresh chain. Returns the outcome; never raises for an expected failure.

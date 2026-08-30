@@ -151,8 +151,8 @@ def _run(*, runner: FakeRunner | None = None, report: SanitizationReport | None 
         runner=used_runner, alert_fn=lambda a: sink.append(a) or [],
         now=NOW, snapshot_fn=snapshot_fn, verify_fn=verify_fn,
         frontend_dir=tmp or Path("frontend"), dist_dir=(tmp or Path("frontend")) / "dist",
-        # PROP-9: the recording step runs only when a test injects a git double, so the
-        # pre-existing cases below never touch a real repository.
+        # PROP-9: opt in only when a test injects a git double. The default is already
+        # off, so this is belt-and-braces rather than the guarantee.
         record=git_runner is not None, git_runner=git_runner,  # type: ignore[arg-type]
     )
     return result, used_runner, sink, captured
@@ -682,3 +682,29 @@ def test_a_chain_that_aborts_before_deploy_never_records(tmp_path: Path) -> None
     assert result.deployed is False
     assert runner.calls == []
     assert result.snapshot_branch is None
+
+
+def test_recording_is_off_by_default_so_no_test_can_reach_real_git() -> None:
+    """The default must be safe, not merely guarded at the call sites we remembered.
+
+    An earlier draft defaulted this on.  calls refresh()
+    directly, reaches a successful deploy, and had no reason to know about a flag that
+    did not exist when it was written -- so it used the REAL git and gh, created a
+    branch and opened a pull request against this repository during a test run. That is
+    the failure this pins: a default that is only safe while every caller remembers a
+    flag is not safe.
+    """
+    import inspect
+
+    from quantlab.glassbox.refresh import refresh as refresh_fn
+
+    assert inspect.signature(refresh_fn).parameters["record"].default is False
+
+
+def test_a_deploy_without_opting_in_records_nothing(tmp_path: Path) -> None:
+    """Reaching a successful deploy is not enough to make it touch a repository."""
+    result, _runner, _alerts, _c = _run()
+    assert result.deployed is True
+    assert result.snapshot_branch is None
+    assert result.snapshot_record_note is None
+    assert not any(s.name == "record-snapshot" for s in result.steps)
