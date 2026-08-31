@@ -15,8 +15,11 @@ from pathlib import Path
 from quantlab.data.calendar import TradingCalendar
 from quantlab.reporting.watchdog import (
     DEFAULT_LOOKBACK_DAYS,
+    TaskResult,
     check_schedule,
+    parse_schtasks_list,
     previous_digest_date,
+    unexplained_task_deaths,
 )
 
 EQUITY = ("voltarget", "trend")
@@ -347,6 +350,10 @@ def test_digest_fires_exactly_one_warning_naming_every_miss(tmp_path: Path) -> N
         data_dir=tmp_path / "data", paper_reports_dir=t.paper,
         weekly_dir=t.weekly, alerts_path=t.alerts, digests_dir=t.digests,
         alert_fn=alerts.append,
+        # No scheduler in the test world (PROP-8). Without this the digest reads the
+        # REAL Task Scheduler on a Windows dev box and these become host-dependent --
+        # they assert about missed FIRINGS, not about task deaths.
+        task_results_available=False, task_reader=lambda: [],
     )
     assert digest.watchdog is not None
     assert len(digest.watchdog.missed) == 4
@@ -397,6 +404,10 @@ def test_digest_fires_no_alert_on_a_complete_window(tmp_path: Path) -> None:
         data_dir=tmp_path / "data", paper_reports_dir=t.paper,
         weekly_dir=t.weekly, alerts_path=t.alerts, digests_dir=t.digests,
         alert_fn=alerts.append,
+        # No scheduler in the test world (PROP-8). Without this the digest reads the
+        # REAL Task Scheduler on a Windows dev box and these become host-dependent --
+        # they assert about missed FIRINGS, not about task deaths.
+        task_results_available=False, task_reader=lambda: [],
     )
     assert digest.watchdog is not None and digest.watchdog.ok
     assert alerts == []
@@ -483,3 +494,209 @@ def test_an_ordinary_weekday_anchor_defers_nothing(tmp_path: Path) -> None:
     report = t.check(datetime(2026, 8, 28, 20, 45, tzinfo=UTC))
     assert report.window_start == friday          # not thursday: nothing was deferred
     assert report.missed == []
+
+
+# --------------------------------------------------------------------------- #
+# Task-death tripwire (PROP-8)                                                #
+# --------------------------------------------------------------------------- #
+
+ABORTED = -2147023829          # 0x8007042B ERROR_PROCESS_ABORTED, the 08-28 result
+
+
+def _results(*rows: tuple[str, int, datetime | None]) -> list[TaskResult]:
+    return [TaskResult(task=n, last_result=c, recorded_at=w) for n, c, w in rows]
+
+
+def _failure_record(t: Tree, day: date, source: str) -> None:
+    """An in-code failure record: the task alerting in its OWN voice."""
+    with t.alerts.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "timestamp": f"{day}T21:05:00+00:00", "level": "CRITICAL",
+            "title": "aborted", "body": "...", "source": source,
+        }) + "\n")
+
+
+def test_a_killed_task_with_no_in_code_record_is_named(tmp_path: Path) -> None:
+    """The 2026-08-28 case: the scheduler recorded a death and nothing else did.
+
+    ERROR_PROCESS_ABORTED with no alert and no error log is the signature of a process
+    killed outside its own error handling -- the abort path logs AND alerts, so the
+    absence of both is what identifies it.
+    """
+    t = Tree(tmp_path)
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-glassbox-refresh", ABORTED,
+                  datetime(2026, 8, 28, 17, 30))),
+        t.alerts, None,
+    )
+    assert len(deaths) == 1
+    assert deaths[0].task == "quantlab-glassbox-refresh"
+    assert deaths[0].result_code == ABORTED
+    assert deaths[0].hex_code == "0x8007042B"
+    assert "0x8007042B" in deaths[0].render()
+
+
+def test_a_nonzero_result_with_a_matching_record_raises_nothing_extra(
+    tmp_path: Path,
+) -> None:
+    """The task already alerted for itself. A second alert for one failure is noise.
+
+    This is the distinction the whole check turns on: a non-zero result is not by itself
+    interesting -- an abort produces one too, and has already been reported.
+    """
+    t = Tree(tmp_path)
+    _failure_record(t, date(2026, 8, 28), "paper.runner")
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-paper-run", 3, datetime(2026, 8, 28, 10, 0))),
+        t.alerts, None,
+    )
+    assert deaths == []
+
+
+def test_a_zero_result_is_silent(tmp_path: Path) -> None:
+    t = Tree(tmp_path)
+    deaths = unexplained_task_deaths(
+        _results(
+            ("quantlab-paper-run", 0, datetime(2026, 8, 28, 10, 0)),
+            ("quantlab-weekly", 0, datetime(2026, 8, 28, 17, 0)),
+            ("quantlab-glassbox-refresh", 0, datetime(2026, 8, 28, 17, 30)),
+        ),
+        t.alerts, None,
+    )
+    assert deaths == []
+
+
+def test_an_error_level_log_record_also_counts_as_the_task_speaking(
+    tmp_path: Path,
+) -> None:
+    """Either witness suffices: an alert OR an error-level log line from its logger."""
+    t = Tree(tmp_path)
+    log_path = tmp_path / "quantlab.jsonl"
+    log_path.write_text(json.dumps({
+        "timestamp": "2026-08-28T21:30:05.470Z", "level": "error",
+        "logger": "quantlab.glassbox.refresh", "event": "glassbox_refresh_aborted",
+    }) + "\n", encoding="utf-8")
+
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-glassbox-refresh", 1, datetime(2026, 8, 28, 17, 30))),
+        t.alerts, log_path,
+    )
+    assert deaths == []
+
+
+def test_a_record_from_a_different_task_does_not_excuse_this_one(
+    tmp_path: Path,
+) -> None:
+    """Attribution has teeth: the paper runner's abort says nothing about the refresh."""
+    t = Tree(tmp_path)
+    _failure_record(t, date(2026, 8, 28), "paper.runner")
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-glassbox-refresh", ABORTED,
+                  datetime(2026, 8, 28, 17, 30))),
+        t.alerts, None,
+    )
+    assert len(deaths) == 1
+    assert deaths[0].task == "quantlab-glassbox-refresh"
+
+
+def test_a_record_on_a_different_day_does_not_excuse_this_one(tmp_path: Path) -> None:
+    """Last week's abort is not this week's explanation."""
+    t = Tree(tmp_path)
+    _failure_record(t, date(2026, 8, 21), "glassbox.refresh")
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-glassbox-refresh", ABORTED,
+                  datetime(2026, 8, 28, 17, 30))),
+        t.alerts, None,
+    )
+    assert len(deaths) == 1
+
+
+def test_the_check_reports_unavailable_rather_than_clean_without_a_scheduler(
+    tmp_path: Path,
+) -> None:
+    """On the Linux CI runner there is no scheduler, and that is not a clean bill.
+
+    An empty result list and "there is nothing here to read" are different facts.
+    Reporting the second as the first is how a check that has stopped working starts
+    looking like one that is passing.
+    """
+    t = Tree(tmp_path)
+    report = t.check(
+        datetime(2026, 8, 28, 20, 45, tzinfo=UTC),
+        task_results_available=False,
+        task_reader=lambda: [],
+    )
+    assert report.task_results_available is False
+    assert report.deaths == []
+    rendered = "\n".join(report.render())
+    assert "unavailable on this host" in rendered
+    assert "TASK DEATHS: none" not in rendered
+
+
+def test_a_clean_scheduler_renders_the_section_as_clean(tmp_path: Path) -> None:
+    """The section always renders, so a check that stops running is visible."""
+    t = Tree(tmp_path)
+    report = t.check(
+        datetime(2026, 8, 28, 20, 45, tzinfo=UTC),
+        task_results_available=True,
+        task_reader=lambda: [
+            TaskResult(task="quantlab-paper-run", last_result=0,
+                       recorded_at=datetime(2026, 8, 28, 10, 0)),
+        ],
+    )
+    assert report.deaths == []
+    assert "TASK DEATHS: none" in "\n".join(report.render())
+
+
+def test_parse_schtasks_list_reads_only_quantlab_tasks() -> None:
+    """Parsing is unit-tested against captured output, so CI exercises it too."""
+    captured = "\r\n".join([
+        "TaskName:      \\quantlab-glassbox-refresh",
+        "Last Run Time: 8/28/2026 5:30:00 PM",
+        "Last Result:   -2147023829",
+        "",
+        "TaskName:      \\quantlab-paper-run",
+        "Last Run Time: 8/28/2026 10:00:00 AM",
+        "Last Result:   0",
+        "",
+        "TaskName:      \\SomeVendorUpdater",
+        "Last Run Time: 8/28/2026 3:00:00 AM",
+        "Last Result:   1",
+        "",
+    ])
+    parsed = parse_schtasks_list(captured)
+    assert [p.task for p in parsed] == [
+        "quantlab-glassbox-refresh", "quantlab-paper-run",
+    ]
+    assert parsed[0].last_result == ABORTED
+    assert parsed[0].recorded_at == datetime(2026, 8, 28, 17, 30)
+    assert parsed[1].last_result == 0
+
+
+def test_an_unparseable_block_is_skipped_not_guessed_at() -> None:
+    """A wrong code would fire a CRITICAL naming a failure that never happened."""
+    parsed = parse_schtasks_list("\r\n".join([
+        "TaskName:      \\quantlab-weekly",
+        "Last Run Time: N/A",
+        "Last Result:   not-a-number",
+        "",
+    ]))
+    assert parsed == []
+
+
+def test_the_missed_firing_check_is_unchanged_by_the_tripwire(tmp_path: Path) -> None:
+    """PROP-8 is additive: the PROP-6 window and its single WARNING are untouched."""
+    t = Tree(tmp_path)
+    t.digest(_FRIDAY)
+    t.weekly_review(_FRIDAY)
+    _seed_complete(t, [date(2026, 8, 29), date(2026, 8, 30), _MONDAY])
+
+    report = t.check(
+        datetime(2026, 8, 31, 20, 45, tzinfo=UTC),
+        task_results_available=True,
+        task_reader=lambda: [],
+    )
+    assert [(m.day, m.task) for m in report.missed] == [
+        (_FRIDAY, "quantlab-glassbox-refresh")
+    ]
+    assert report.deaths == []
