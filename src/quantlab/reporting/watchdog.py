@@ -38,6 +38,24 @@ over four checked firings while the published site went stale for eight days. Th
 reaches back over the previous digest's own day when that digest ran before one of its
 firings was due (``previous_digest_instant``), so the skip defers the check instead of
 cancelling it.
+
+WHAT A NON-ZERO RESULT IS ALLOWED TO MEAN (PROP-11). The task-death tripwire below fires
+at CRITICAL, and precision is the only thing a CRITICAL has. Its first two live firings,
+in `digest_20260831`, were both false, for three separate reasons now fixed here:
+
+* ``Last Result`` is two fields wearing one name. Usually it is the process exit code;
+  sometimes it is the scheduler describing the task's own STATE, and those values are the
+  ``SCHED_S_*`` family -- HRESULTs with the severity bit clear, i.e. SUCCESS codes. None
+  of them is an ending, so none of them is a death.
+* The digest cannot audit itself while it is in flight. It reads the scheduler from
+  inside its own run, so its own row reads ``SCHED_S_TASK_RUNNING`` every single time --
+  a CRITICAL raised by the digest against itself, daily, forever.
+* "Recurrence" is a claim about WHEN. The 2026-08-28 refresh death predates the battery
+  hardening applied on 2026-08-30 and was diagnosed by the ruling of that date; the alert
+  body said as much and fired on it anyway, because nothing compared the recorded instant
+  to that date. It is compared now, and a death that has been ruled on can be entered in
+  ``config/acknowledged_task_deaths.json`` so it stops re-firing without the check going
+  blind to it.
 """
 
 from __future__ import annotations
@@ -46,13 +64,14 @@ import json
 import platform
 import re
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from quantlab.config import APPROVED_STRATEGIES, account_asset_class
+from quantlab.constants import PROJECT_ROOT
 from quantlab.data.calendar import MarketCalendar
 from quantlab.logging_setup import get_logger
 from quantlab.scheduling.tasks import (
@@ -93,6 +112,42 @@ _FAILURE_LEVELS = frozenset({"error", "critical"})
 
 _TASK_NAME_PREFIX = "quantlab-"
 
+# The scheduler's STATUS family: HRESULTs whose severity bits are clear, which is to say
+# SUCCESS codes. They answer "what is this task doing" and never "how did this run end",
+# so none of them is a failure and none of them is a death (PROP-11). Listed by name
+# rather than as a range because the name is what makes a reader able to check the claim.
+SCHED_S_STATUS_CODES: dict[int, str] = {
+    0x00041300: "SCHED_S_TASK_READY",
+    0x00041301: "SCHED_S_TASK_RUNNING",
+    0x00041302: "SCHED_S_TASK_DISABLED",
+    0x00041303: "SCHED_S_TASK_HAS_NOT_RUN",
+    0x00041304: "SCHED_S_TASK_NO_MORE_RUNS",
+    0x00041305: "SCHED_S_TASK_NOT_SCHEDULED",
+    0x00041306: "SCHED_S_TASK_TERMINATED",
+}
+
+# The task this check runs inside. Everything the digest can see about its own task while
+# it is running describes the run doing the looking.
+SELF_TASK = "quantlab-digest"
+
+# When the battery settings were disarmed on all five tasks (ruling of 2026-08-30). A
+# death recorded after this is a genuinely new fact; one recorded before it belongs to the
+# class that ruling closed, and saying "recurrence" over it is false.
+#
+# NAIVE AND LOCAL, deliberately: it is compared against `TaskResult.recorded_at`, which
+# schtasks renders in the host's own wall clock with no zone, and comparing across frames
+# would be a worse error than the one this fixes.
+#
+# DAY PRECISION, biased EARLY. The record fixes the day the settings were applied and
+# verified, not the instant, so the constant takes the earliest instant of that day. That
+# direction is chosen: a death in the ambiguous window then reports as the LOUDER of the
+# two readings, and over-alerting on one already-past day is the cheaper error.
+BATTERY_HARDENING_APPLIED_AT = datetime(2026, 8, 30, 0, 0)
+
+# Deaths that have been diagnosed and ruled on. A ledger, not a mute button: an entry
+# here still renders in the report, it just stops dispatching.
+ACKNOWLEDGED_DEATHS_PATH: Path = PROJECT_ROOT / "config" / "acknowledged_task_deaths.json"
+
 # schtasks renders its own local timestamps; none of these carry a zone.
 _SCHTASKS_STAMP_FORMATS = (
     "%m/%d/%Y %I:%M:%S %p",
@@ -120,6 +175,12 @@ class TaskDeath(BaseModel):
     task: str
     result_code: int
     recorded_at: datetime | None = None
+    # Whether this death is a NEW fact (PROP-11). False means it was recorded before the
+    # battery hardening of 2026-08-30 and belongs to the class that ruling closed -- the
+    # difference between "escalate" and "we already know about this one".
+    post_hardening: bool = True
+    # Set when an entry in the acknowledged-deaths ledger matches this death exactly.
+    acknowledgement: str = ""
 
     @property
     def hex_code(self) -> str:
@@ -128,7 +189,61 @@ class TaskDeath(BaseModel):
 
     def render(self) -> str:
         when = self.recorded_at.isoformat() if self.recorded_at else "unknown instant"
-        return f"{self.task} - result {self.result_code} ({self.hex_code}) at {when}"
+        line = f"{self.task} - result {self.result_code} ({self.hex_code}) at {when}"
+        if not self.post_hardening:
+            line += " [pre-hardening: known class, not a recurrence]"
+        if self.acknowledgement:
+            line += f" [acknowledged: {self.acknowledgement}]"
+        return line
+
+
+class AcknowledgedDeath(BaseModel):
+    """One death that has been diagnosed and ruled on, so it must stop re-firing.
+
+    All three identifying fields are required and all three must match. A ledger keyed on
+    the task alone would mute that task's next death as well, which is the failure mode
+    an acknowledgement file exists to avoid being.
+    """
+
+    task: str
+    result_code: int
+    recorded_at: datetime
+    ruling: str = ""
+
+    def matches(self, death: TaskDeath) -> bool:
+        return (
+            death.task == self.task
+            and death.result_code == self.result_code
+            and death.recorded_at == self.recorded_at
+        )
+
+
+def load_acknowledged_deaths(path: Path | None) -> list[AcknowledgedDeath]:
+    """Read the acknowledged-deaths ledger. Never raises.
+
+    FAILS TOWARD ALERTING. An absent, unreadable or malformed ledger acknowledges
+    NOTHING, and a single unreadable entry is dropped rather than taking its neighbours
+    with it. Every error here therefore costs an alert that has already been ruled on;
+    the opposite bias would let a typo silence a real death.
+    """
+    if path is None or not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        log.warning("acknowledged_deaths_unreadable", path=str(path))
+        return []
+    rows = payload.get("acknowledged") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        log.warning("acknowledged_deaths_malformed", path=str(path))
+        return []
+    out: list[AcknowledgedDeath] = []
+    for row in rows:
+        try:
+            out.append(AcknowledgedDeath.model_validate(row))
+        except (TypeError, ValueError):
+            log.warning("acknowledged_death_skipped", path=str(path), row=str(row))
+    return out
 
 
 # Injected so the parsing is testable with no scheduler present, and so the Linux CI
@@ -241,6 +356,10 @@ class WatchdogReport(BaseModel):
     # ``missed`` because they are the opposite failure: the task DID fire, and died
     # somewhere its own error handling could not reach.
     deaths: list[TaskDeath] = []
+    # Deaths matched by the acknowledged-deaths ledger (PROP-11). Held apart from
+    # ``deaths`` because they dispatch nothing -- but still rendered, because a ruling is
+    # a reason not to alert, never a reason to stop showing.
+    acknowledged_deaths: list[TaskDeath] = []
     # False when this host has no scheduler to read. The check then says so rather than
     # reporting an empty list as a clean bill of health.
     task_results_available: bool = True
@@ -248,6 +367,16 @@ class WatchdogReport(BaseModel):
     @property
     def ok(self) -> bool:
         return not self.missed
+
+    @property
+    def recurrences(self) -> list[TaskDeath]:
+        """Deaths recorded AFTER the battery hardening — the escalating kind."""
+        return [d for d in self.deaths if d.post_hardening]
+
+    @property
+    def known_deaths(self) -> list[TaskDeath]:
+        """Deaths recorded before it — the class the 2026-08-30 ruling already covers."""
+        return [d for d in self.deaths if not d.post_hardening]
 
     def render(self) -> list[str]:
         """Markdown lines. Always renders, so a clean window is visibly clean."""
@@ -284,12 +413,27 @@ class WatchdogReport(BaseModel):
         if not self.task_results_available:
             return ["- task-death tripwire: **unavailable on this host** "
                     "(no Windows Task Scheduler to read)"]
-        if not self.deaths:
+        lines: list[str] = []
+        if not self.deaths and not self.acknowledged_deaths:
             return ["- **TASK DEATHS: none** — every non-zero result was one the "
                     "system reported itself."]
-        lines = [f"- **TASK DEATHS ({len(self.deaths)}) — died outside their own "
-                 f"error handling**"]
-        lines.extend(f"  - {d.render()}" for d in self.deaths)
+        recurrences, known = self.recurrences, self.known_deaths
+        if recurrences:
+            lines.append(f"- **TASK DEATHS ({len(recurrences)}) — died outside their own "
+                         f"error handling, AFTER the battery hardening**")
+            lines.extend(f"  - {d.render()}" for d in recurrences)
+        if known:
+            lines.append(
+                f"- **KNOWN TASK DEATHS ({len(known)}) — recorded before the battery "
+                f"hardening of {BATTERY_HARDENING_APPLIED_AT:%Y-%m-%d}; not a recurrence**"
+            )
+            lines.extend(f"  - {d.render()}" for d in known)
+        if self.acknowledged_deaths:
+            lines.append(
+                f"- acknowledged and ruled ({len(self.acknowledged_deaths)}) — diagnosed "
+                f"already, so no alert is dispatched for these"
+            )
+            lines.extend(f"  - {d.render()}" for d in self.acknowledged_deaths)
         return lines
 
 
@@ -437,22 +581,97 @@ def _failure_record_days(
     return days
 
 
-def unexplained_task_deaths(
+def status_code_name(code: int) -> str | None:
+    """The ``SCHED_S_*`` name for ``code``, or None when it is not one of them.
+
+    Matched on the unsigned 32-bit value, because the same HRESULT reaches this module as
+    a signed int from ``schtasks`` and as an unsigned one from anything reading the COM
+    API, and a code that means "running" under one sign convention cannot be a death
+    under the other.
+    """
+    return SCHED_S_STATUS_CODES.get(code & 0xFFFFFFFF)
+
+
+def _local_naive(moment: datetime) -> datetime:
+    """``moment`` on the host's own wall clock, naive — the frame schtasks writes in."""
+    return (moment.astimezone() if moment.tzinfo is not None else moment).replace(
+        tzinfo=None
+    )
+
+
+def _is_own_in_flight_result(result: TaskResult, now: datetime | None) -> bool:
+    """Whether this row is the audit describing the run that is doing the auditing.
+
+    The digest reads the scheduler from inside its own firing, so the scheduler's answer
+    for ``quantlab-digest`` is about that firing and cannot be about how it ended -- it
+    has not ended. Scoped to the audit's OWN day rather than to the task: the digest fires
+    once daily, so today's row IS this run, while yesterday's death still carries
+    yesterday's date and is audited exactly as it was before.
+    """
+    if result.task != SELF_TASK or now is None or result.recorded_at is None:
+        return False
+    return result.recorded_at.date() == _local_naive(now).date()
+
+
+def _is_post_hardening(recorded_at: datetime | None) -> bool:
+    """Whether this death is a NEW fact rather than the class closed on 2026-08-30.
+
+    An unreadable instant counts as post-hardening. That is the louder of the two
+    readings, and when the instant is unknown the louder one is the safe direction --
+    a CRITICAL over a known death costs a human a minute, and a WARNING over a new one
+    costs the tripwire its whole purpose.
+    """
+    if recorded_at is None:
+        return True
+    return recorded_at > BATTERY_HARDENING_APPLIED_AT
+
+
+def _death_key(death: TaskDeath) -> tuple[str, int]:
+    return (death.task, death.result_code)
+
+
+class DeathAudit(BaseModel):
+    """What the tripwire made of the scheduler's results."""
+
+    # Unaccounted for and not yet ruled on: these dispatch.
+    deaths: list[TaskDeath] = []
+    # Matched by the ledger: these render and dispatch nothing.
+    acknowledged: list[TaskDeath] = []
+
+
+def audit_task_deaths(
     results: list[TaskResult],
     alerts_path: Path,
     log_path: Path | None,
-) -> list[TaskDeath]:
-    """Non-zero scheduler results with no in-code failure record to account for them.
+    *,
+    now: datetime | None = None,
+    acknowledged: Sequence[AcknowledgedDeath] = (),
+) -> DeathAudit:
+    """Classify every scheduler result into: not a death, a death, an acknowledged death.
 
-    A non-zero result WITH such a record raises nothing here: the task already alerted
-    for itself, and a second alert for one failure teaches its reader to discount both.
-    A zero result is silent. What is left is the case the 2026-08-28 non-publish fell
-    into — the scheduler recorded ``ERROR_PROCESS_ABORTED`` and the system recorded
-    nothing at all, because the process that would have written the record was gone.
+    Four things are NOT deaths, and each was a false CRITICAL before it was excluded:
+
+    * a zero result -- the run ended normally;
+    * a ``SCHED_S_*`` status code -- the scheduler describing state, not an ending
+      (PROP-11);
+    * the digest's own in-flight row -- this run, looked at from inside itself (PROP-11);
+    * a non-zero result WITH an in-code failure record -- the task already alerted for
+      itself, and a second alert for one failure teaches its reader to discount both
+      (PROP-8).
+
+    What is left is the case the 2026-08-28 non-publish fell into: the scheduler recorded
+    ``ERROR_PROCESS_ABORTED`` and the system recorded nothing at all, because the process
+    that would have written the record was gone. Each such death is then dated against the
+    battery hardening, and matched against the ledger of deaths already ruled on.
     """
     deaths: list[TaskDeath] = []
+    acknowledged_deaths: list[TaskDeath] = []
     for result in results:
         if result.last_result == 0:
+            continue
+        if status_code_name(result.last_result) is not None:
+            continue
+        if _is_own_in_flight_result(result, now):
             continue
         day = result.recorded_at.date() if result.recorded_at else None
         explained_on = _failure_record_days(result.task, alerts_path, log_path)
@@ -462,11 +681,35 @@ def unexplained_task_deaths(
             # No instant to match against; any record for this task is taken as
             # accounting for it rather than firing a CRITICAL on a guess.
             continue
-        deaths.append(TaskDeath(
+        death = TaskDeath(
             task=result.task, result_code=result.last_result,
             recorded_at=result.recorded_at,
-        ))
-    return sorted(deaths, key=lambda d: (d.task, d.result_code))
+            post_hardening=_is_post_hardening(result.recorded_at),
+        )
+        ruled = next((a for a in acknowledged if a.matches(death)), None)
+        if ruled is not None:
+            death.acknowledgement = ruled.ruling or "ruled on; see docs/decisions.md"
+            acknowledged_deaths.append(death)
+        else:
+            deaths.append(death)
+    return DeathAudit(
+        deaths=sorted(deaths, key=_death_key),
+        acknowledged=sorted(acknowledged_deaths, key=_death_key),
+    )
+
+
+def unexplained_task_deaths(
+    results: list[TaskResult],
+    alerts_path: Path,
+    log_path: Path | None,
+    *,
+    now: datetime | None = None,
+    acknowledged: Sequence[AcknowledgedDeath] = (),
+) -> list[TaskDeath]:
+    """The deaths that still need an alert: :func:`audit_task_deaths` minus the ruled."""
+    return audit_task_deaths(
+        results, alerts_path, log_path, now=now, acknowledged=acknowledged,
+    ).deaths
 
 
 def previous_digest_instant(digests_dir: Path, day: date) -> datetime | None:
@@ -520,6 +763,7 @@ def check_schedule(
     log_path: Path | None = None,
     task_reader: TaskResultReader | None = None,
     task_results_available: bool | None = None,
+    acknowledged_deaths_path: Path | None = None,
 ) -> WatchdogReport:
     """Find every scheduled firing since the last digest that left no artifact.
 
@@ -616,9 +860,17 @@ def check_schedule(
         else schtasks_available()
     )
     deaths: list[TaskDeath] = []
+    acknowledged_deaths: list[TaskDeath] = []
     if available:
         reader = task_reader if task_reader is not None else _default_task_reader
-        deaths = unexplained_task_deaths(reader(), alerts_path, log_path)
+        # `now` is threaded in so the audit can recognise its OWN in-flight row, and the
+        # ledger path is explicit rather than defaulted here: a check that silently read
+        # a repo file would make every caller's result depend on the checkout.
+        audit = audit_task_deaths(
+            reader(), alerts_path, log_path, now=now,
+            acknowledged=load_acknowledged_deaths(acknowledged_deaths_path),
+        )
+        deaths, acknowledged_deaths = audit.deaths, audit.acknowledged
 
     result = WatchdogReport(
         # The reported window names what was actually examined, deferred firings
@@ -627,11 +879,18 @@ def check_schedule(
         window_end=today,
         anchored_to_previous_digest=anchored,
         firings_checked=checked, missed=missed,
-        deaths=deaths, task_results_available=available,
+        deaths=deaths, acknowledged_deaths=acknowledged_deaths,
+        task_results_available=available,
     )
-    if deaths:
-        log.error("watchdog_task_deaths", count=len(deaths),
-                  deaths=[d.render() for d in deaths])
+    if result.recurrences:
+        log.error("watchdog_task_deaths", count=len(result.recurrences),
+                  deaths=[d.render() for d in result.recurrences])
+    if result.known_deaths:
+        log.warning("watchdog_known_task_deaths", count=len(result.known_deaths),
+                    deaths=[d.render() for d in result.known_deaths])
+    if acknowledged_deaths:
+        log.info("watchdog_acknowledged_task_deaths", count=len(acknowledged_deaths),
+                 deaths=[d.render() for d in acknowledged_deaths])
     if missed:
         log.warning("watchdog_missed_runs", count=len(missed),
                     missed=[m.render() for m in missed])
@@ -641,15 +900,24 @@ def check_schedule(
 
 
 __all__ = [
+    "ACKNOWLEDGED_DEATHS_PATH",
+    "BATTERY_HARDENING_APPLIED_AT",
     "DEFAULT_LOOKBACK_DAYS",
+    "SCHED_S_STATUS_CODES",
+    "SELF_TASK",
+    "AcknowledgedDeath",
+    "DeathAudit",
     "MissedRun",
     "TaskDeath",
     "TaskResult",
     "TaskResultReader",
     "WatchdogReport",
+    "audit_task_deaths",
     "check_schedule",
+    "load_acknowledged_deaths",
     "parse_schtasks_list",
     "previous_digest_date",
     "schtasks_available",
+    "status_code_name",
     "unexplained_task_deaths",
 ]

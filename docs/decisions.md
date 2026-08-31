@@ -6,6 +6,89 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-31 — RULING: PROP-6 is proven live, and the tripwire's first two firings were both false (PROP-11)
+
+**PROP-6 is demonstrated rather than asserted, and the 8-day liveness allowance stands.**
+The 2026-08-30 ruling made itself falsifiable on purpose: Monday's digest had to name
+`2026-08-28 quantlab-glassbox-refresh — no glassbox.refresh alert`, or the ruling was void and
+the allowance question reopened on PROP-6's failure. `reports/digests/digest_20260831.md` names
+it, in window `2026-08-28 -> 2026-08-31 (since the previous digest)`, over 10 checked firings.
+That is the one-business-day claim, met exactly, against a real missed Friday.
+
+The deferred check is what caught it. Before PROP-6 that Friday fell between two windows — its
+own digest correctly skipped the 21:30Z refresh as not yet due, and the next window opened on the
+Saturday — so nothing ever looked at it, and the published site went stale for eight days with the
+watchdog reporting MISSED RUNS none throughout. **#18's ruling therefore stands on evidence:** the
+out-of-band liveness probe keeps its 8-day allowance and its role as the last thing still watching,
+because the fast local detector has now been shown to do the fast local job.
+
+**The same digest also fired one CRITICAL, and it was wrong twice over.**
+
+```
+TASK DEATHS (2) — died outside their own error handling
+  quantlab-digest           - result 267009 (0x00041301) at 2026-08-31T16:45:00
+  quantlab-glassbox-refresh - result -2147023829 (0x8007042B) at 2026-08-28T17:30:00
+```
+
+Neither entry is a recurrence, and the alert that carried them named the Quant Lead.
+
+**Defect 1: `Last Result` is two fields wearing one name.** Usually it is the process exit code.
+Sometimes it is the scheduler describing the task's own *state*, and those values are the
+`SCHED_S_*` family (`0x00041300`–`0x00041306`) — HRESULTs with the severity bit clear, which is to
+say **success** codes. `0x00041301` is `SCHED_S_TASK_RUNNING`: not an ending, and in this case not
+even someone else's ending. The digest reads the scheduler from inside its own firing, so the row
+it read was itself, mid-run. That is a CRITICAL at 16:45 every single day, forever — the tripwire
+would have alerted on its own heartbeat until someone turned it off.
+
+**Defect 2: "recurrence" was asserted in the alert body and enforced nowhere.** The CRITICAL's
+text explains that the battery settings "were disarmed on all five tasks on 2026-08-30, so a
+recurrence is a new fact and not the known one" — and then fires on the known one, because no line
+of code compared the recorded instant against that date. The second entry *is* the 2026-08-28
+non-publish: the incident this tripwire was built for, diagnosed the day before it shipped.
+**Prose in an alert body is not a gate.** If a claim about *when* decides the severity, the
+comparison has to be in the code that chooses the severity.
+
+**PROP-11, then, is three narrowings and a ledger** (`prop/11`, awaiting review):
+
+1. A `SCHED_S_*` result is never a failure, and — separately, so neither rule leans on the other —
+   the audit skips its own task's in-flight row for the day it is running. A death of *yesterday's*
+   digest still carries yesterday's date and is audited exactly as before.
+2. Deaths are dated against `BATTERY_HARDENING_APPLIED_AT`. After it: the CRITICAL, verbatim.
+   Before it: WARNING, named as the known pre-hardening class. No readable instant: treated as a
+   recurrence, because when the instant is unknown the louder reading is the safe one.
+3. `config/acknowledged_task_deaths.json` — task, result, recorded instant, and the ruling that
+   closed it. All three fields must match. An acknowledged death still **renders** in the digest and
+   simply dispatches nothing, and the file ships seeded with the 08-28 refresh death.
+
+**The constant is day-precision and biased early, deliberately.** The record fixes the day the two
+settings were disarmed and verified, not the instant, so the constant is that day's earliest
+instant. A death inside the ambiguous window therefore reports as the *louder* of the two readings.
+Over-alerting on one already-past day is the cheaper error; under-alerting on a real one is the
+error that costs the tripwire its purpose.
+
+**Why a ledger and not a mute.** The obvious repairs were both worse. Suppressing by task name
+would silence that task's *next* death too — the exact failure an acknowledgement file exists to
+avoid being. Dropping the death from the report once ruled on would make the section quieter every
+time it was right, which is the same argument that keeps `MISSED RUNS: none` rendering on a clean
+window: a check whose output only appears on failure is one nobody notices has stopped working. An
+entry is a reason not to *alert*, never a reason to stop *showing*.
+
+**The lesson, which is not specific to this tripwire.** *A detector's first live firing is data
+about the detector.* Both of this one's were false, and both were false for reasons no fixture
+written from the incident report could have contained — the digest's own `SCHED_S_TASK_RUNNING` row
+only exists *while the digest is running*, so it cannot appear in captured output taken after the
+fact. **A watchdog that runs inside the system it watches will eventually read itself, and the
+first thing it reports may well be its own reflection.** PROP-8 shipped with five fixtures and full
+gates and was still wrong about the two records it met on day one; the missed-firing half of the
+same check, which had been in production since 2026-08-10, was right on the same day. Neither fact
+is an argument against the other: the tripwire is worth keeping, and its precision is the whole of
+its value.
+
+**Boundary.** The missed-firing half — PROP-6's window, its deferral, and its single WARNING — is
+not touched by any of this, and a regression fixture asserts so.
+
+---
+
 ## 2026-08-31 — Two notes on the remote-call guard (#23)
 
 **#23 was opened directly, outside the pipeline, by ruling.** It is test infrastructure —

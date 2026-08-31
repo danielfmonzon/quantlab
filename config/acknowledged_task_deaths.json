@@ -1,0 +1,13 @@
+{
+  "_what": "Task deaths that have been diagnosed and ruled on. An entry here is rendered in the digest's watchdog section and dispatches NO alert, so a death that has already been explained stops re-firing without the tripwire going blind to it (PROP-11).",
+  "_matching": "All three of task, result_code and recorded_at must match for an entry to apply. recorded_at is the instant Windows Task Scheduler recorded, naive and in the host's local wall clock, exactly as it appears in the digest. A ledger keyed on the task alone would also mute that task's NEXT death, which is the failure this file must not become.",
+  "_adding": "Add an entry only after the death has a dated ruling in docs/decisions.md, and name that ruling in `ruling`.",
+  "acknowledged": [
+    {
+      "task": "quantlab-glassbox-refresh",
+      "result_code": -2147023829,
+      "recorded_at": "2026-08-28T17:30:00",
+      "ruling": "2026-08-30 ruling — the Glass Box refresh died after writing its snapshot (ERROR_PROCESS_ABORTED); diagnosed, pre-hardening, and the incident this tripwire was built for"
+    }
+  ]
+}

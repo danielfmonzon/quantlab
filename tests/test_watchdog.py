@@ -14,9 +14,15 @@ from pathlib import Path
 
 from quantlab.data.calendar import TradingCalendar
 from quantlab.reporting.watchdog import (
+    ACKNOWLEDGED_DEATHS_PATH,
+    BATTERY_HARDENING_APPLIED_AT,
     DEFAULT_LOOKBACK_DAYS,
+    SCHED_S_STATUS_CODES,
+    AcknowledgedDeath,
     TaskResult,
+    audit_task_deaths,
     check_schedule,
+    load_acknowledged_deaths,
     parse_schtasks_list,
     previous_digest_date,
     unexplained_task_deaths,
@@ -700,3 +706,308 @@ def test_the_missed_firing_check_is_unchanged_by_the_tripwire(tmp_path: Path) ->
         (_FRIDAY, "quantlab-glassbox-refresh")
     ]
     assert report.deaths == []
+
+
+# --------------------------------------------------------------------------- #
+# Tripwire precision (PROP-11)                                                #
+# --------------------------------------------------------------------------- #
+#
+# The tripwire's first two live firings, in `digest_20260831`, were both false. The
+# records below are that digest's, verbatim, and they are the fixture: one CRITICAL was
+# dispatched over a status code the digest read about itself mid-run, and over the known
+# 2026-08-28 death that the alert's own body explained was not a recurrence.
+
+RUNNING = 267009                 # 0x00041301 SCHED_S_TASK_RUNNING
+_NOW_MONDAY = datetime(2026, 8, 31, 20, 45, 4, tzinfo=UTC)
+
+
+def _todays_records() -> list[TaskResult]:
+    """The two rows Windows Task Scheduler carried when digest_20260831 ran."""
+    return _results(
+        ("quantlab-digest", RUNNING, datetime(2026, 8, 31, 16, 45)),
+        ("quantlab-glassbox-refresh", ABORTED, datetime(2026, 8, 28, 17, 30)),
+    )
+
+
+def _clean_window(t: Tree) -> None:
+    """A window with no missed firing, so the only alerts possible are death alerts.
+
+    Anchored on the SUNDAY digest rather than the Friday one, deliberately. Anchoring on
+    the Friday would require seeding that Friday's `glassbox.refresh` alert to keep the
+    window clean -- and under PROP-8 that same alert is an in-code record accounting for
+    the 08-28 death, which would explain the death away and leave this fixture asserting
+    silence for the wrong reason.
+    """
+    t.digest(date(2026, 8, 30))
+    _seed_complete(t, [date(2026, 8, 30), _MONDAY])
+
+
+def _digest_alerts(
+    t: Tree, records: list[TaskResult], **kw: object
+) -> tuple[list, object]:
+    """Run the real `build_digest` over ``records`` and collect what it dispatched."""
+    import numpy as np
+    import pandas as pd
+
+    from quantlab.reporting.digest import build_digest
+
+    class FakeStore:
+        def load(self, symbol: str, start: object = None, end: object = None):
+            dates = pd.bdate_range("2026-06-01", periods=40)
+            return pd.DataFrame({"date": dates, "adj_close": np.full(40, 100.0)})
+
+        def load_metadata(self, symbol: str) -> None:
+            return None
+
+    alerts: list = []
+    digest = build_digest(
+        {"voltarget": None, "trend": None}, FakeStore(), TradingCalendar(),  # type: ignore[arg-type]
+        _NOW_MONDAY,
+        data_dir=t.paper.parent / "data", paper_reports_dir=t.paper,
+        weekly_dir=t.weekly, alerts_path=t.alerts, digests_dir=t.digests,
+        alert_fn=alerts.append,
+        task_results_available=True, task_reader=lambda: records,
+        **kw,  # type: ignore[arg-type]
+    )
+    return alerts, digest
+
+
+def test_todays_two_records_fire_no_critical_and_one_known_warning(
+    tmp_path: Path,
+) -> None:
+    """The live fixture: exactly what the 2026-08-31 digest saw, and what it should say.
+
+    Zero CRITICAL. One WARNING, and only for the 2026-08-28 refresh, named as the known
+    pre-hardening death rather than as a recurrence. The digest's own SCHED_S_TASK_RUNNING
+    row is not a death at all and must not appear anywhere.
+
+    The ledger is deliberately absent here: this fixture pins the status-code and dating
+    rules on their own, so a later change to the ledger cannot make it pass vacuously.
+    """
+    t = Tree(tmp_path)
+    _clean_window(t)
+
+    alerts, digest = _digest_alerts(
+        t, _todays_records(), acknowledged_deaths_path=tmp_path / "no-ledger.json",
+    )
+
+    assert [a.level for a in alerts] == ["WARNING"]          # zero CRITICAL
+    alert = alerts[0]
+    assert alert.source == "reporting.watchdog"
+    assert "not a recurrence" in alert.title
+    assert "quantlab-glassbox-refresh" in alert.body
+    assert "0x8007042B" in alert.body
+    # The digest's own in-flight row is nowhere: not in the alert, not in the report.
+    assert "quantlab-digest" not in alert.body
+    assert "267009" not in alert.body
+
+    assert digest.watchdog is not None
+    assert digest.watchdog.recurrences == []
+    assert [d.task for d in digest.watchdog.known_deaths] == ["quantlab-glassbox-refresh"]
+    rendered = "\n".join(digest.watchdog.render())
+    assert "KNOWN TASK DEATHS (1)" in rendered
+    assert "pre-hardening" in rendered
+    assert "MISSED RUNS: none" in rendered                   # PROP-6 half untouched
+
+
+def test_the_same_two_records_are_silent_against_the_shipped_ledger(
+    tmp_path: Path,
+) -> None:
+    """With the 08-28 death acknowledged, the digest dispatches nothing and still shows it.
+
+    This reads the ledger the repository actually ships, so it also asserts the seed: a
+    ruling that was recorded but never entered would fail here.
+    """
+    t = Tree(tmp_path)
+    _clean_window(t)
+
+    alerts, digest = _digest_alerts(
+        t, _todays_records(), acknowledged_deaths_path=ACKNOWLEDGED_DEATHS_PATH,
+    )
+
+    assert alerts == []
+    assert digest.watchdog is not None
+    assert digest.watchdog.deaths == []
+    assert [d.task for d in digest.watchdog.acknowledged_deaths] == [
+        "quantlab-glassbox-refresh"
+    ]
+    rendered = "\n".join(digest.watchdog.render())
+    assert "acknowledged and ruled (1)" in rendered
+    assert "0x8007042B" in rendered            # silenced, never hidden
+    assert "TASK DEATHS: none" not in rendered
+
+
+def test_a_post_hardening_death_still_fires_exactly_one_critical(
+    tmp_path: Path,
+) -> None:
+    """The case the tripwire exists for is untouched: a new death still escalates."""
+    t = Tree(tmp_path)
+    _clean_window(t)
+    records = _todays_records() + _results(
+        ("quantlab-paper-run", ABORTED, datetime(2026, 8, 31, 10, 0)),
+    )
+
+    alerts, digest = _digest_alerts(
+        t, records, acknowledged_deaths_path=ACKNOWLEDGED_DEATHS_PATH,
+    )
+
+    assert [a.level for a in alerts] == ["CRITICAL"]
+    alert = alerts[0]
+    assert "recurrence" in alert.title and "Quant Lead" in alert.title
+    assert "quantlab-paper-run" in alert.body
+    assert "0x8007042B" in alert.body
+    assert digest.watchdog is not None
+    assert [d.task for d in digest.watchdog.recurrences] == ["quantlab-paper-run"]
+    assert "AFTER the battery hardening" in "\n".join(digest.watchdog.render())
+
+
+def test_no_scheduler_status_code_is_ever_a_death(tmp_path: Path) -> None:
+    """All seven SCHED_S_* codes describe a task's state, not the end of a run."""
+    t = Tree(tmp_path)
+    for code, name in SCHED_S_STATUS_CODES.items():
+        deaths = unexplained_task_deaths(
+            _results(("quantlab-weekly", code, datetime(2026, 8, 28, 17, 0))),
+            t.alerts, None,
+        )
+        assert deaths == [], f"{name} ({code:#010x}) was read as a death"
+
+
+def test_the_status_family_is_not_a_blanket_mute(tmp_path: Path) -> None:
+    """A real death in the same read is still named; only the status rows are dropped."""
+    t = Tree(tmp_path)
+    deaths = unexplained_task_deaths(
+        _results(
+            ("quantlab-weekly", 0x00041303, datetime(2026, 8, 28, 17, 0)),
+            ("quantlab-glassbox-refresh", ABORTED, datetime(2026, 9, 4, 17, 30)),
+        ),
+        t.alerts, None,
+    )
+    assert [d.task for d in deaths] == ["quantlab-glassbox-refresh"]
+
+
+def test_the_digest_does_not_audit_its_own_in_flight_run(tmp_path: Path) -> None:
+    """Its own row describes the run doing the looking, whatever the code happens to be.
+
+    Asserted with ERROR_PROCESS_ABORTED rather than the status code, so this proves the
+    self rule on its own rather than borrowing the SCHED_S_* one.
+    """
+    t = Tree(tmp_path)
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-digest", ABORTED, datetime(2026, 8, 31, 16, 45))),
+        t.alerts, None, now=_NOW_MONDAY,
+    )
+    assert deaths == []
+
+
+def test_a_digest_death_on_a_previous_day_is_still_named(tmp_path: Path) -> None:
+    """The rule is scoped to the audit's own day. Yesterday's death is not in flight."""
+    t = Tree(tmp_path)
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-digest", ABORTED, datetime(2026, 8, 30, 16, 45))),
+        t.alerts, None, now=_NOW_MONDAY,
+    )
+    assert [d.task for d in deaths] == ["quantlab-digest"]
+
+
+def test_a_death_before_the_hardening_is_known_and_after_it_is_a_recurrence(
+    tmp_path: Path,
+) -> None:
+    """The whole distinction, on one task, one code, two instants."""
+    t = Tree(tmp_path)
+    before = BATTERY_HARDENING_APPLIED_AT - timedelta(days=2)
+    after = BATTERY_HARDENING_APPLIED_AT + timedelta(days=5)
+    audit = audit_task_deaths(
+        _results(
+            ("quantlab-glassbox-refresh", ABORTED, before),
+            ("quantlab-weekly", ABORTED, after),
+        ),
+        t.alerts, None,
+    )
+    by_task = {d.task: d.post_hardening for d in audit.deaths}
+    assert by_task == {"quantlab-glassbox-refresh": False, "quantlab-weekly": True}
+
+
+def test_a_death_with_no_readable_instant_is_treated_as_a_recurrence(
+    tmp_path: Path,
+) -> None:
+    """Unknown instant takes the louder reading; the quiet one would lose a real death."""
+    t = Tree(tmp_path)
+    deaths = unexplained_task_deaths(
+        _results(("quantlab-weekly", ABORTED, None)), t.alerts, None,
+    )
+    assert [d.post_hardening for d in deaths] == [True]
+
+
+def test_an_acknowledgement_must_match_task_result_and_instant_together(
+    tmp_path: Path,
+) -> None:
+    """A ledger keyed loosely would mute the NEXT death too, which is the point of it.
+
+    Same task, same result, one week later: not the death that was ruled on, and it
+    alerts.
+    """
+    t = Tree(tmp_path)
+    ruled = AcknowledgedDeath(
+        task="quantlab-glassbox-refresh", result_code=ABORTED,
+        recorded_at=datetime(2026, 8, 28, 17, 30), ruling="the 08-28 non-publish",
+    )
+    audit = audit_task_deaths(
+        _results(("quantlab-glassbox-refresh", ABORTED, datetime(2026, 9, 4, 17, 30))),
+        t.alerts, None, acknowledged=[ruled],
+    )
+    assert audit.acknowledged == []
+    assert [d.task for d in audit.deaths] == ["quantlab-glassbox-refresh"]
+
+
+def test_a_malformed_ledger_acknowledges_nothing(tmp_path: Path) -> None:
+    """Every failure to read the ledger costs an alert that was already ruled on.
+
+    The opposite bias -- a typo silencing a real death -- is the one that cannot be
+    allowed, so the loader fails toward alerting.
+    """
+    bad = tmp_path / "ledger.json"
+    bad.write_text("{ this is not json", encoding="utf-8")
+    assert load_acknowledged_deaths(bad) == []
+    assert load_acknowledged_deaths(tmp_path / "absent.json") == []
+
+    half = tmp_path / "half.json"
+    half.write_text(
+        json.dumps({"acknowledged": [
+            {"task": "quantlab-weekly"},                       # no result, no instant
+            {"task": "quantlab-weekly", "result_code": 1,
+             "recorded_at": "2026-09-04T17:00:00"},
+        ]}), encoding="utf-8",
+    )
+    # The unreadable row is dropped; its neighbour survives.
+    assert [a.task for a in load_acknowledged_deaths(half)] == ["quantlab-weekly"]
+
+
+def test_the_shipped_ledger_carries_the_08_28_refresh_death() -> None:
+    """The seed, asserted against the file the repository actually ships."""
+    entries = load_acknowledged_deaths(ACKNOWLEDGED_DEATHS_PATH)
+    assert any(
+        e.task == "quantlab-glassbox-refresh"
+        and e.result_code == ABORTED
+        and e.recorded_at == datetime(2026, 8, 28, 17, 30)
+        and e.ruling
+        for e in entries
+    )
+
+
+def test_the_missed_firing_half_is_unchanged_by_the_precision_work(
+    tmp_path: Path,
+) -> None:
+    """PROP-11 is subtractive on deaths only: PROP-6's window and WARNING are untouched."""
+    t = Tree(tmp_path)
+    t.digest(_FRIDAY)
+    t.weekly_review(_FRIDAY)
+    _seed_complete(t, [date(2026, 8, 29), date(2026, 8, 30), _MONDAY])
+
+    report = t.check(
+        _NOW_MONDAY, task_results_available=True, task_reader=_todays_records,
+    )
+    assert [(m.day, m.task) for m in report.missed] == [
+        (_FRIDAY, "quantlab-glassbox-refresh")
+    ]
+    assert report.recurrences == []
+    assert len(report.known_deaths) == 1
