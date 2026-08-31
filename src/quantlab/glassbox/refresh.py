@@ -32,11 +32,13 @@ allowed to publish one that needed cleaning.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -67,7 +69,34 @@ STEP_SNAPSHOT = "snapshot"
 STEP_BUILD = "build"
 STEP_VERIFY = "verify-dist"
 STEP_DEPLOY = "deploy"
-STEP_ORDER = (STEP_SNAPSHOT, STEP_BUILD, STEP_VERIFY, STEP_DEPLOY)
+# Runs ONLY after deploy has passed. It records what was published; it cannot publish,
+# and it cannot un-publish (see record_snapshot).
+STEP_RECORD = "record-snapshot"
+STEP_ORDER = (STEP_SNAPSHOT, STEP_BUILD, STEP_VERIFY, STEP_DEPLOY, STEP_RECORD)
+
+# The branch the published captures are recorded on. Generated from the date, never
+# taken from input, so there is no value a caller could supply that names something
+# else -- least of all the trunk.
+SNAPSHOT_BRANCH_PREFIX = "snapshot/deploy-"
+PROTECTED_BRANCH = "main"
+SNAPSHOT_PATH = "frontend/public/snapshot"
+
+
+class SnapshotBranchExists(RuntimeError):
+    """The day's branch is already there. Raised BEFORE any git command runs."""
+
+    def __init__(self, branch: str) -> None:
+        super().__init__(
+            f"{branch} already exists. The refresh records each publish once; a second "
+            f"run on the same day would have to move a reference it did not create, "
+            f"and this step never does that."
+        )
+        self.branch = branch
+
+
+def build_snapshot_branch(day: date) -> str:
+    """The branch name for ``day``'s publish. Pure, and the only source of the name."""
+    return f"{SNAPSHOT_BRANCH_PREFIX}{day:%Y%m%d}"
 
 # Netlify prints several URLs; this is the production one ("Website URL" on a --prod
 # deploy). Captured so the chain can report where the bytes actually landed rather than
@@ -133,6 +162,13 @@ class RefreshResult(BaseModel):
     deploy_url: str | None = None
     aborted_at: str | None = None
     abort_reason: str | None = None
+    # Where this publish was recorded, and the PR awaiting a human merge (PROP-9). Both
+    # None when the recording step did not run or did not get that far. Deliberately NOT
+    # part of ``ok``: the publish either happened or it did not, and how well it was
+    # written down afterwards cannot change that answer.
+    snapshot_branch: str | None = None
+    snapshot_pr_url: str | None = None
+    snapshot_record_note: str | None = None
     # Git provenance of the checkout that produced these bytes. Report-only: a dirty tree
     # warns and the chain proceeds (see repo_state for why blocking would be the wrong
     # trade), but the warning travels with the report so the claim is never silent.
@@ -193,6 +229,16 @@ class RefreshResult(BaseModel):
             lines.append(f"      {finding}")
         if self.deployed:
             lines.append(f"  DEPLOYED -> {self.deploy_url or CANONICAL_URL}")
+            if self.snapshot_branch:
+                lines.append(f"  RECORDED -> {self.snapshot_branch}"
+                             + (f"  (PR: {self.snapshot_pr_url})"
+                                if self.snapshot_pr_url else ""))
+                lines.append("  ^ one merge click closes the loop; the deploy is "
+                             "already live either way")
+            elif self.snapshot_record_note:
+                lines.append(f"  NOT RECORDED — {self.snapshot_record_note}")
+                lines.append("  ^ the publish SUCCEEDED; only the record of it did "
+                             "not. Commit the captures by hand.")
         elif self.aborted_at:
             lines.append(f"  NOT DEPLOYED — aborted at '{self.aborted_at}': "
                          f"{self.abort_reason}")
@@ -255,6 +301,131 @@ def _default_runner(cmd: Sequence[str], cwd: Path) -> subprocess.CompletedProces
     )
 
 
+GitRunner = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def _default_git_runner(
+    cmd: Sequence[str], cwd: Path, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run a git/gh command, optionally with extra environment.
+
+    Separate from ``_default_runner`` because this one needs ``GIT_INDEX_FILE``: the
+    recording step builds its commit through a TEMPORARY index so it never stages
+    anything in the operator's real index, never moves HEAD, and never disturbs the
+    working tree of an unattended trading machine mid-chain.
+    """
+    argv = list(cmd)
+    resolved = shutil.which(argv[0])
+    if resolved:
+        argv[0] = resolved
+    merged = {**os.environ, **(env or {})}
+    return subprocess.run(
+        argv, cwd=str(cwd), capture_output=True, text=True, shell=False, env=merged,
+    )
+
+
+def record_snapshot(
+    result: RefreshResult,
+    *,
+    root: Path,
+    day: date,
+    runner: GitRunner | None = None,
+) -> StepOutcome:
+    """Record the captures that were just published, on a branch, behind a human merge.
+
+    ONLY REACHED AFTER A SUCCESSFUL DEPLOY. The bytes are already live when this runs,
+    which fixes what this step is allowed to do to the chain's verdict: nothing. A
+    failure here cannot retroactively fail a publish that succeeded — saying the deploy
+    failed would simply be false — so it downgrades the run to a warning and leaves
+    every earlier step reading exactly as it did.
+
+    NEVER TOUCHES THE TRUNK, structurally rather than by care:
+
+    * the branch name is GENERATED from the date (``build_snapshot_branch``), so no
+      input reaches it;
+    * its absence is asserted before anything is written, and the assertion raises with
+      no git command issued;
+    * the branch is created with ``git branch`` and no force argument, so even a
+      defeated assertion cannot move a reference;
+    * the commit is built through a temporary index and ``commit-tree``, so HEAD, the
+      real index and the working tree are all untouched;
+    * the push names the generated branch explicitly and is refused outright if that
+      name is the protected branch.
+    """
+    run = runner if runner is not None else _default_git_runner
+    step = StepOutcome(name=STEP_RECORD, ran=True)
+    branch = build_snapshot_branch(day)
+
+    if branch == PROTECTED_BRANCH or not branch.startswith(SNAPSHOT_BRANCH_PREFIX):
+        raise SnapshotBranchExists(branch)
+
+    # ASSERT BEFORE CREATE. Both namespaces: a branch pushed by an earlier run exists
+    # remotely even after the local one is pruned.
+    local = run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], root)
+    remote = run(["git", "ls-remote", "--heads", "origin", branch], root)
+    if local.returncode == 0 or (remote.returncode == 0 and (remote.stdout or "").strip()):
+        raise SnapshotBranchExists(branch)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        index = str(Path(tmp) / "index")
+        env = {"GIT_INDEX_FILE": index}
+        for argv in (
+            ["git", "read-tree", "HEAD"],
+            ["git", "add", "--all", "--", SNAPSHOT_PATH],
+        ):
+            done = run(argv, root, env)
+            if done.returncode != 0:
+                step.detail = f"{' '.join(argv[:3])} failed: {_tail(done)}"
+                return step
+        tree = run(["git", "write-tree"], root, env)
+        if tree.returncode != 0:
+            step.detail = f"git write-tree failed: {_tail(tree)}"
+            return step
+        tree_sha = (tree.stdout or "").strip()
+
+    message = (
+        f"snapshot: captures from the {day:%Y-%m-%d} refresh\n\n"
+        f"Published to {result.deploy_url or CANONICAL_URL} by the automated chain. "
+        f"Recorded so main can answer what the site is serving; the site itself is "
+        f"deployed from frontend/dist by Netlify, not from git.\n"
+    )
+    commit = run(["git", "commit-tree", tree_sha, "-p", "HEAD", "-m", message], root)
+    if commit.returncode != 0:
+        step.detail = f"git commit-tree failed: {_tail(commit)}"
+        return step
+    commit_sha = (commit.stdout or "").strip()
+
+    made = run(["git", "branch", branch, commit_sha], root)   # no --force, ever
+    if made.returncode != 0:
+        step.detail = f"could not create {branch}: {_tail(made)}"
+        return step
+
+    pushed = run(["git", "push", "--set-upstream", "origin", branch], root)
+    if pushed.returncode != 0:
+        step.detail = f"branch {branch} created but NOT pushed: {_tail(pushed)}"
+        return step
+
+    opened = run([
+        "gh", "pr", "create", "--base", PROTECTED_BRANCH, "--head", branch,
+        "--title", f"snapshot: captures from the {day:%Y-%m-%d} refresh",
+        "--body", message,
+    ], root)
+    if opened.returncode != 0:
+        step.detail = f"branch {branch} pushed but no PR opened: {_tail(opened)}"
+        return step
+
+    step.ok = True
+    result.snapshot_branch = branch
+    result.snapshot_pr_url = (opened.stdout or "").strip().splitlines()[-1] if opened.stdout else ""
+    step.detail = f"recorded on {branch}; PR opened for human merge"
+    return step
+
+
+def _tail(proc: subprocess.CompletedProcess[str]) -> str:
+    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+    return detail[-1] if detail else "unknown error"
+
+
 def extract_deploy_url(stdout: str) -> str | None:
     """The production URL Netlify reported, or None when its output did not name one."""
     for pattern in _DEPLOY_URL_PATTERNS:
@@ -292,7 +463,15 @@ def _alert(result: RefreshResult, alert_fn: AlertFn) -> None:
     The body is the whole report, not a summary: the point of mailing it every week is that
     the operator reads a real gate output rather than a green tick.
     """
-    if result.deployed:
+    if result.deployed and result.snapshot_record_note:
+        # Published, but the record of it did not land. WARNING, because the operator
+        # has one thing to do by hand -- and the report still says DEPLOYED, because
+        # it was.
+        level, title = (
+            "WARNING",
+            "glass box deployed, but the snapshot was NOT recorded",
+        )
+    elif result.deployed:
         level, title = "INFO", "glass box refreshed and deployed"
     elif result.ok:
         level, title = "INFO", "glass box refresh dry run — gates passed, not deployed"
@@ -323,6 +502,17 @@ def refresh(
     # SnapshotResult / DistVerifyResult, while the suite injects structural doubles.
     snapshot_fn: Callable[..., Any] | None = None,
     verify_fn: Callable[..., Any] | None = None,
+    # PROP-9. OPT-IN, and deliberately so. An earlier draft defaulted this to True and
+    # guarded the one test file it was written alongside; `tests/test_repo_state.py`
+    # calls refresh() directly, reaches a successful deploy, and had no reason to know
+    # about a flag that did not exist when it was written -- so it used the REAL git and
+    # gh, created a branch and opened a pull request against this repository during a
+    # test run. The fix is not to guard that file too. A default that is only safe while
+    # every caller remembers a flag is not safe: the CLI opts in explicitly
+    # (`cmd_glassbox_refresh`), which is the one caller that should publish, and no test
+    # can reach real git by forgetting something.
+    record: bool = False,
+    git_runner: GitRunner | None = None,
 ) -> RefreshResult:
     """Run the refresh chain. Returns the outcome; never raises for an expected failure.
 
@@ -494,6 +684,27 @@ def refresh(
     deploy.detail = f"published to {result.deploy_url}"
     log.info("glassbox_refresh_deployed", url=result.deploy_url,
              endpoints=snapshot.manifest.endpoint_count)
+
+    # -- 5. record what was published (PROP-9) -----------------------------
+    # After the publish, never before, and never able to undo it. Every failure mode
+    # here is caught: this step exists to improve the record, and a bookkeeping problem
+    # must not be able to report a successful publish as a failed one.
+    if record:
+        try:
+            step = record_snapshot(
+                result, root=PROJECT_ROOT, day=(now or datetime.now(UTC)).date(),
+                runner=git_runner,
+            )
+        except SnapshotBranchExists as exc:
+            step = StepOutcome(name=STEP_RECORD, ran=True, detail=str(exc))
+        except Exception as exc:  # noqa: BLE001 - see the docstring above
+            step = StepOutcome(name=STEP_RECORD, ran=True,
+                               detail=f"{type(exc).__name__}: {exc}")
+        result.steps.append(step)
+        if not step.ok:
+            result.snapshot_record_note = step.detail
+            log.warning("glassbox_snapshot_not_recorded", detail=step.detail)
+
     _alert(result, alert_fn)
     return result
 
@@ -505,8 +716,12 @@ __all__ = [
     "RefreshResult",
     "StepOutcome",
     "STEP_ORDER",
+    "SNAPSHOT_BRANCH_PREFIX",
+    "SnapshotBranchExists",
     "build_build_command",
     "build_deploy_command",
+    "build_snapshot_branch",
+    "record_snapshot",
     "extract_deploy_url",
     "refresh",
     "relativize_paths",
