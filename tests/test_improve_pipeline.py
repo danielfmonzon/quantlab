@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -710,3 +711,25 @@ def test_the_report_stat_covers_the_whole_series_not_the_last_commit(
     text = (proposals / proposal.filename).read_text(encoding="utf-8")
     assert f"`{PROTECTED_BRANCH}..{BRANCH_PREFIX}{proposal.number}`" in text
     assert "the whole series" in text
+
+
+def test_the_cli_refuses_the_console_script_without_printing_the_banner(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The refusal is the whole output: no banner claiming a run that will not happen.
+
+    The banner goes to stdout and the refusal to stderr, so a terminal showed them in the
+    wrong order — "branch -> apply -> gate -> report -> push" printed *after* the message
+    saying none of that would occur. Observed live on 2026-08-31 while verifying the guard.
+    """
+    import argparse
+
+    from quantlab.cli import cmd_implement
+
+    monkeypatch.setattr(sys, "argv", [_WINDOWS_CONSOLE_ARGV, "implement", "12"])
+    code = cmd_implement(argparse.Namespace(proposal="12", patch=None, no_push=True))
+
+    assert code == 3
+    out = capsys.readouterr()
+    assert SUPPORTED_INVOCATION in out.err
+    assert out.out == "", f"the banner printed on a refused run: {out.out!r}"

@@ -64,7 +64,11 @@ rather than rewritten, because the incident is the evidence for the fix.
 staged diff of the current invocation — those govern what *this* run applies, not what the branch
 contains. The branch guard, the push guard and the human merge gate are untouched. `propose`'s
 closing hint now names `python -m quantlab.cli implement N`, since the pipeline should not
-advertise an invocation it will refuse.
+advertise an invocation it will refuse. One wart surfaced by verifying the guard against the
+real console script rather than only in fixtures: the refusal goes to stderr and the command's
+banner to stdout, so the terminal printed `branch -> apply -> gate -> report -> push` *after*
+the message saying none of it would happen. The CLI now refuses before the banner — **a run
+that will not happen must not first announce the steps it would have taken.**
 
 ---
 

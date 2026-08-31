@@ -1257,8 +1257,19 @@ def cmd_implement(args: argparse.Namespace) -> int:
     from quantlab.improve.implement import (
         ConsoleScriptInvocation,
         NotOnBranch,
+        assert_not_console_script,
         implement,
     )
+
+    # Refuse BEFORE the banner (PROP-12). A run that will not happen must not first
+    # print the steps it would have taken -- the refusal goes to stderr and the banner to
+    # stdout, so the terminal showed them in the wrong order and the banner read as though
+    # branching had begun. `implement` checks this again for library callers.
+    try:
+        assert_not_console_script()
+    except ConsoleScriptInvocation as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
 
     raw = str(args.proposal).upper().removeprefix("PROP-")
     try:
@@ -1280,10 +1291,6 @@ def cmd_implement(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     except NotOnBranch as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 3
-    except ConsoleScriptInvocation as exc:
-        # A refusal, not a crash: nothing was branched, staged or gated (PROP-12).
         print(f"ERROR: {exc}", file=sys.stderr)
         return 3
 

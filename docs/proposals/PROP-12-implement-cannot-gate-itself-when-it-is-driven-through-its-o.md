@@ -69,18 +69,19 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 ## Implementation report
 
-_implemented 2026-08-31T23:13:26.884223Z  |  branch `prop/12`  |  status: **GATES PASSED**_
+_implemented 2026-08-31T23:17:59.615748Z  |  branch `prop/12`  |  status: **GATES PASSED**_
 
 ### Diff stat
 
 _`main..prop/12` — the whole series, not only this run's commit._
 
 ```
-docs/decisions.md                 |  62 +++++++++++++++++
- src/quantlab/cli.py               |  14 +++-
- src/quantlab/improve/implement.py | 119 +++++++++++++++++++++++++++++++--
- tests/test_improve_pipeline.py    | 135 ++++++++++++++++++++++++++++++++++++++
- 4 files changed, 322 insertions(+), 8 deletions(-)
+docs/decisions.md                                  |  66 +++++++++
+ ...-gate-itself-when-it-is-driven-through-its-o.md |  42 +++++-
+ src/quantlab/cli.py                                |  21 ++-
+ src/quantlab/improve/implement.py                  | 119 +++++++++++++++-
+ tests/test_improve_pipeline.py                     | 158 +++++++++++++++++++++
+ 5 files changed, 397 insertions(+), 9 deletions(-)
 ```
 
 ### Firewall re-check (against the actual diff)
@@ -95,7 +96,7 @@ FIREWALL PASS — no forbidden path or change class touched.
 |---|---|---|
 | `ruff` | PASS | All checks passed! |
 | `mypy` | PASS | Success: no issues found in 72 source files |
-| `pytest` | PASS | 837 passed, 1 warning in 157.39s (0:02:37) |
+| `pytest` | PASS | 838 passed, 1 warning in 153.71s (0:02:33) |
 | `frontend` | SKIP | no frontend/ path in the diff |
 | `verify-dist` | SKIP | site not touched |
 
