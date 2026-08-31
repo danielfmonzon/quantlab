@@ -6,6 +6,37 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-31 — Two notes on the remote-call guard (#23)
+
+**#23 was opened directly, outside the pipeline, by ruling.** It is test infrastructure —
+`tests/conftest.py`, `tests/test_remote_guard.py` and one marker registration — so it
+carries no PROP number and no proposal record, and `propose`/`implement` were not run. The
+convention that changes arrive through the pipeline is unchanged for everything else; this
+is a named exception, recorded so a later reader does not find a PR with no proposal behind
+it and assume the record was lost.
+
+**The POSIX path-split bug in that guard is the SECOND instance of Windows-authored path
+handling caught only by Linux CI.** `_program` used `Path(...).name` to reduce
+`C:\Program Files\Git\cmd\git.exe` to `git`. On POSIX `Path` does not treat `\` as a
+separator, so the name came back whole and the guard did not recognise the program — and
+the argv it failed to recognise is the one that opened PR #20. It passed on the Windows
+machine it was written on and failed on the first Linux CI run.
+
+This is the same defect class as **2026-08-15, cause 1**, where the firewall's `_normalise`
+built a `Path` from the caller's string and `Path(r"config\risk.yaml")` on POSIX was a
+single filename containing a backslash, so the firewall **allowed a frozen path**. That
+entry's lesson stands and now has a second data point: *a boundary whose verdict depends on
+which operating system evaluates it is not a boundary*, and the defect is structurally
+invisible to the machine it was written on. Both times Linux CI was the only thing in the
+system capable of finding it; both times the fix was to stop asking `pathlib` to decide what
+a separator is and normalise the string first.
+
+Worth stating plainly because the pattern will recur: **this project is authored on Windows
+and gated on Linux, so every path comparison written here is a platform-dependent verdict
+until proven otherwise.** Two for two.
+
+---
+
 ## 2026-08-30 — RULING: the liveness allowance stays at 8 days, deliberately
 
 **Decision.** The GitHub liveness probe's staleness allowance remains **8 days**. **No code

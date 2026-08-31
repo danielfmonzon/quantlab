@@ -67,6 +67,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "live: hits the real Tiingo API; requires TIINGO_API_KEY, skipped otherwise",
+    "allow_remote: this test may run git push / gh pr / gh api / gh issue. Opt-in only; see tests/conftest.py block_remote_calls",
 ]
 
 [tool.mypy]
