@@ -6,6 +6,89 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-30 — RULING: the liveness allowance stays at 8 days, deliberately
+
+**Decision.** The GitHub liveness probe's staleness allowance remains **8 days**. **No code
+change.** Approved by Quant Lead, 2026-08-30.
+
+**Why this is a decision and not an omission.** Divergence diagnosis #3 recorded the 8-day
+allowance as an open question: the Friday 2026-08-28 refresh died silently, and the Saturday
+probe reported `liveness ok -- snapshot is 6d 23h old` over a site that had stopped updating.
+An allowance looser than the cadence it guards cannot tell "published yesterday" from
+"published a week ago", and the obvious reflex is to tighten it.
+
+**The reflex is wrong, because the gap it was covering has been closed somewhere else.**
+PROP-6 fixed the defect that actually let the Friday miss go unreported: the digest watchdog
+now defers a not-yet-due firing into the next window instead of dropping it, so a missed
+Friday refresh is named by **Monday's digest — one business day**. Tightening the liveness
+allowance to chase the same miss would put both detectors on the same failure, at different
+speeds, and leave the slow one firing second and redundantly.
+
+**The two layers are kept because they fail in different domains, and that is the whole
+point.** The digest is fast and local: it runs on the trading machine, reads that machine's
+own artifacts, and is exactly as available as the machine is. The liveness probe is slow and
+out-of-band: it runs on GitHub's infrastructure, reads only the published manifest over the
+public internet, and is the one detector that survives the machine being off, orphaned, or
+lying. **A watchdog that shares a runtime with its subject shares its failure modes** — the
+2026-08-17 five-day silence is the entry that proved it, when every local entry point died
+at exit 103 together.
+
+So the layers are deliberately asymmetric:
+
+| | digest watchdog (local) | liveness probe (out-of-band) |
+|---|---|---|
+| runs on | the trading machine | GitHub Actions |
+| reads | local artifacts, alerts.jsonl | the published manifest, over HTTPS |
+| detects a missed Friday in | **one business day** | up to 8 days |
+| survives the machine being dead | **no** | **yes** |
+
+Tightening the backstop to a cadence-matched window would make it a second copy of the fast
+detector with none of its speed, and would trade its one real virtue — near-zero false
+positives on a system whose publish schedule legitimately varies — for coverage the digest
+already provides. The backstop's job is to be **the last thing still watching**, not the
+first thing to notice.
+
+**First live proof.** Monday **2026-08-31**'s digest is the first run of PROP-6's deferred
+check against a real missed Friday. If it names `2026-08-28 quantlab-glassbox-refresh — no
+glassbox.refresh alert`, the one-business-day claim above is demonstrated rather than
+asserted, and this ruling stands on evidence. If it does not, the ruling is void and the
+allowance question reopens immediately — on PROP-6's failure, not on the allowance.
+
+---
+
+## 2026-08-30 — Two operational lessons from the day, kept because both were expensive
+
+**`--delete-branch` on a stacked merge train destroys the train.** Merging a stack with
+branch deletion enabled deletes each PR's base branch out from under the PRs that depend on
+it, and **GitHub closes an orphaned PR rather than retargeting it**. Observed on 2026-08-30:
+six PRs, merged in order with deletion on, produced #12 merged, **#13 closed unmerged**, #14
+merged *into `prop/5`* rather than main, #15 merged, **#16 closed unmerged**, #17 merged
+*into `ops/battery-hardening`*. Main ended up with two of six approvals and no code at all;
+PROP-6's commits were sitting on `prop/5` and PROP-7's on `ops/battery-hardening`.
+
+It presented as a conflict and was not one. `git merge-tree` computed both "conflicting"
+merges as clean, exit 0, zero conflicting files — the branches shared their `docs/decisions.md`
+ancestry, so the entries merged additively. The `mergeable_state=dirty` GitHub reported was
+**a missing base branch**, not competing content. A closed PR cannot even be reopened while
+its base is gone; recovery required recreating each deleted base at the commit it had been
+merged at, reopening, repointing to main, and deleting the temporary branch again.
+
+**The rule: a stacked train merges bottom-up with branch deletion OFF, and branches are
+deleted only once the stack is flat.** Each merge should be followed by repointing the next
+PR's base to `main` explicitly, rather than relying on GitHub to retarget — which it does
+only when the base branch still exists.
+
+**Tool defaults are unreviewed diffs.** Building a fresh settings object where you meant to
+edit one field silently accepts every default that object carries. `New-ScheduledTaskSettingsSet`
+defaults `StartWhenAvailable` to `false`, so disarming the two battery settings that way
+would also have disabled the catch-up runs — the only mechanism by which a missed firing on
+a workstation ever recovers, and a cadence change smuggled in under a settings change. The
+battery hardening was applied by reading each task's existing `Settings` object and flipping
+exactly the two booleans (recorded in that entry). **Mutate the existing object; never
+construct a replacement for a partial edit.**
+
+---
+
 ## 2026-08-30 — RULING: the battery kill switches are disarmed on all five tasks
 
 **Decision.** `StopIfGoingOnBatteries` and `DisallowStartIfOnBatteries` are set **false** on all
