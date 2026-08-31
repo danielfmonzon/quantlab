@@ -1,6 +1,6 @@
 # PROP-11 — The task-death tripwire reads a status code as a death and the known Aug 28 death as a recurrence
 
-_proposed 2026-08-31T22:46:30.569083Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-08-31T22:46:30.569083Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -63,3 +63,42 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-08-31T22:57:01.705152Z  |  branch `prop/11`  |  status: **NEEDS ATTENTION**_
+
+### Diff stat
+
+```
+config/acknowledged_task_deaths.json |  13 ++
+ docs/decisions.md                    |  83 +++++++++
+ src/quantlab/reporting/digest.py     |  63 +++++--
+ src/quantlab/reporting/watchdog.py   | 314 ++++++++++++++++++++++++++++++++---
+ tests/test_watchdog.py               | 311 ++++++++++++++++++++++++++++++++++
+ 5 files changed, 750 insertions(+), 34 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | FAIL | error: failed to remove file `C:\Users\danmo\Dev\quantlab\.venv\Lib\site-packages\../../Scripts/quantlab.exe`: The process cannot access the file because it is being used by another process. (os error |
+| `mypy` | FAIL | error: failed to remove file `C:\Users\danmo\Dev\quantlab\.venv\Lib\site-packages\../../Scripts/quantlab.exe`: The process cannot access the file because it is being used by another process. (os error |
+| `pytest` | FAIL | error: failed to remove file `C:\Users\danmo\Dev\quantlab\.venv\Lib\site-packages\../../Scripts/quantlab.exe`: The process cannot access the file because it is being used by another process. (os error |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/11`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/11` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.

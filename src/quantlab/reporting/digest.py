@@ -35,6 +35,8 @@ from quantlab.paper.runner import (
 )
 from quantlab.reporting.alerts import ALERTS_JSONL, Alert, dispatch
 from quantlab.reporting.watchdog import (
+    ACKNOWLEDGED_DEATHS_PATH,
+    BATTERY_HARDENING_APPLIED_AT,
     TaskResultReader,
     WatchdogReport,
     check_schedule,
@@ -236,6 +238,9 @@ def build_digest(
     log_path: Path | None = None,
     task_reader: TaskResultReader | None = None,
     task_results_available: bool | None = None,
+    # PROP-11. Defaulted to the real ledger so production acknowledges what has been
+    # ruled on; tests point it at their own file, or at one that does not exist.
+    acknowledged_deaths_path: Path | None = ACKNOWLEDGED_DEATHS_PATH,
 ) -> Digest:
     """Assemble the digest across every approved account (missing keys -> skipped).
 
@@ -262,6 +267,7 @@ def build_digest(
             weekly_dir=weekly_dir, alerts_path=alerts_path, digests_dir=digests_dir,
             log_path=log_path, task_reader=task_reader,
             task_results_available=task_results_available,
+            acknowledged_deaths_path=acknowledged_deaths_path,
         )
         if watchdog.missed:
             emit = alert_fn if alert_fn is not None else dispatch
@@ -283,16 +289,23 @@ def build_digest(
                 ),
                 source="reporting.watchdog",
             ))
-        if watchdog.deaths:
-            # A SEPARATE alert, at CRITICAL, and never folded into the missed-firing
-            # WARNING above (PROP-8). The two describe opposite failures: a missed
-            # firing means the task never ran; a death means it ran and was killed
-            # somewhere its own error handling could not reach. They also demand
-            # different responses, and one alert carrying both would get the cheaper
-            # of the two.
+        # A SEPARATE alert from the missed-firing WARNING above, and never folded into
+        # it (PROP-8). The two describe opposite failures: a missed firing means the task
+        # never ran; a death means it ran and was killed somewhere its own error handling
+        # could not reach. They also demand different responses, and one alert carrying
+        # both would get the cheaper of the two.
+        #
+        # THE TWO KINDS OF DEATH ARE THEMSELVES DIFFERENT ALERTS (PROP-11). "Recurrence"
+        # is a claim about WHEN, and it is gated on when rather than asserted in the
+        # body: a death recorded after the battery hardening is the new fact this
+        # tripwire was built to catch and keeps the CRITICAL; one recorded before it
+        # belongs to the class the 2026-08-30 ruling already closed and reports at
+        # WARNING. A death matched by the acknowledged-deaths ledger dispatches nothing
+        # at all, and is rendered in the report instead.
+        if watchdog.recurrences:
             emit = alert_fn if alert_fn is not None else dispatch
-            death_detail = "\n".join(d.render() for d in watchdog.deaths)
-            death_tasks = ", ".join(sorted({d.task for d in watchdog.deaths}))
+            death_detail = "\n".join(d.render() for d in watchdog.recurrences)
+            death_tasks = ", ".join(sorted({d.task for d in watchdog.recurrences}))
             emit(Alert(
                 level="CRITICAL",
                 title=(
@@ -300,8 +313,9 @@ def build_digest(
                     "post-battery-hardening recurrence, escalate to Quant Lead"
                 ),
                 body=(
-                    f"{len(watchdog.deaths)} task(s) recorded a non-zero scheduler "
-                    f"result with NO matching in-code failure record.\n"
+                    f"{len(watchdog.recurrences)} task(s) recorded a non-zero scheduler "
+                    f"result with NO matching in-code failure record, AFTER the battery "
+                    f"hardening of {BATTERY_HARDENING_APPLIED_AT:%Y-%m-%d}.\n"
                     f"tasks: {death_tasks}\n\n"
                     f"{death_detail}\n\n"
                     "The task fired and then died somewhere its own abort path could "
@@ -310,6 +324,33 @@ def build_digest(
                     "the leading suspect for 2026-08-28 were disarmed on all five "
                     "tasks on 2026-08-30, so a recurrence is a new fact and not the "
                     "known one."
+                ),
+                source="reporting.watchdog",
+            ))
+        if watchdog.known_deaths:
+            emit = alert_fn if alert_fn is not None else dispatch
+            known_detail = "\n".join(d.render() for d in watchdog.known_deaths)
+            known_tasks = ", ".join(sorted({d.task for d in watchdog.known_deaths}))
+            emit(Alert(
+                level="WARNING",
+                title=(
+                    "task death predating the battery hardening — "
+                    "known class, not a recurrence"
+                ),
+                body=(
+                    f"{len(watchdog.known_deaths)} task death(s) recorded BEFORE the "
+                    f"battery hardening of "
+                    f"{BATTERY_HARDENING_APPLIED_AT:%Y-%m-%d}.\n"
+                    f"tasks: {known_tasks}\n\n"
+                    f"{known_detail}\n\n"
+                    "These belong to the class the 2026-08-30 ruling closed: a task "
+                    "killed by a power transition it could not alert about, on a host "
+                    "where that pair of settings was still armed. They are reported so "
+                    "the record stays visible, NOT as evidence of a new fault -- the "
+                    "hardening postdates them, so nothing here says it failed. Once a "
+                    "death has a dated ruling behind it, add it to "
+                    "config/acknowledged_task_deaths.json (task, result and the recorded "
+                    "instant) and it stops re-firing."
                 ),
                 source="reporting.watchdog",
             ))
