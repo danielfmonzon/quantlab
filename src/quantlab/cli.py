@@ -1239,7 +1239,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
 
     print(f"proposal written: {path}")
     print(f"proposal record   : {proposal.commit_status}")
-    print("\nNext: `quantlab implement " f"{proposal.number}` "
+    # Named as `python -m quantlab.cli`, never as the console script: `implement` now
+    # refuses that invocation, because its gates would have to replace it (PROP-12).
+    print(f"\nNext: `python -m quantlab.cli implement {proposal.number}` "
           "-- applies on a branch, gates it, pushes, and stops. Merge is human-only.")
     log.info("proposal_written", number=proposal.number, path=str(path))
     return 0
@@ -1252,7 +1254,22 @@ def cmd_implement(args: argparse.Namespace) -> int:
     and the report in place: the failure is evidence for the human reviewer, not a
     reason to hide the work.
     """
-    from quantlab.improve.implement import NotOnBranch, implement
+    from quantlab.improve.implement import (
+        ConsoleScriptInvocation,
+        NotOnBranch,
+        assert_not_console_script,
+        implement,
+    )
+
+    # Refuse BEFORE the banner (PROP-12). A run that will not happen must not first
+    # print the steps it would have taken -- the refusal goes to stderr and the banner to
+    # stdout, so the terminal showed them in the wrong order and the banner read as though
+    # branching had begun. `implement` checks this again for library callers.
+    try:
+        assert_not_console_script()
+    except ConsoleScriptInvocation as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
 
     raw = str(args.proposal).upper().removeprefix("PROP-")
     try:

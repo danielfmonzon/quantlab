@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -24,10 +25,15 @@ from quantlab.constants import PROJECT_ROOT
 from quantlab.improve import firewall
 from quantlab.improve.implement import (
     BRANCH_PREFIX,
+    CONSOLE_SCRIPT_NAME,
     PROTECTED_BRANCH,
+    SUPPORTED_INVOCATION,
+    ConsoleScriptInvocation,
     NotOnBranch,
+    assert_not_console_script,
     current_branch,
     implement,
+    program_name,
 )
 from quantlab.improve.propose import (
     Proposal,
@@ -575,3 +581,155 @@ def test_existing_prop_numbers_is_empty_when_git_fails(repo: Path) -> None:
         return subprocess.CompletedProcess(list(cmd), 128, "", "not a git repository")
 
     assert existing_prop_numbers(root=repo, runner=failing) == set()
+
+
+# ------------------------------------------- the gates cannot uninstall us (PROP-12)
+#
+# On 2026-08-31 `implement` was invoked as `.venv/Scripts/quantlab.exe implement 11` and
+# every gate reported FAIL with "The process cannot access the file because it is being
+# used by another process" (commit 256d3b9). `uv run` had tried to reinstall the editable
+# package -- replacing the very console script that was running the gates. The gates never
+# executed, over a diff that was green when re-run correctly.
+
+_WINDOWS_CONSOLE_ARGV = "C:\\Users\\danmo\\Dev\\quantlab\\.venv\\Scripts\\quantlab.exe"
+
+
+def test_every_uv_gate_passes_no_sync(repo: Path) -> None:
+    """The argv that WOULD have been issued, asserted without issuing it.
+
+    A recording double executes nothing, so this is a claim about the command line rather
+    than about whether some environment happened to tolerate it.
+    """
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+    (repo / "frontend" / "src" / "copy.ts").write_text("changed\n", encoding="utf-8")
+
+    real = lambda cmd, cwd: _run(list(cmd), cwd)  # noqa: E731
+    seen: list[list[str]] = []
+
+    def recording(cmd, cwd):  # noqa: ANN001, ANN202
+        seen.append(list(cmd))
+        if list(cmd)[:1] == ["git"]:
+            return real(cmd, cwd)          # git must really run; the gates must not
+        return subprocess.CompletedProcess(list(cmd), 0, stdout="", stderr="")
+
+    implement(proposal.number, root=repo, proposals_dir=proposals, push=False,
+              now=STAMP, runner=recording)
+
+    uv_calls = [c for c in seen if c[:1] == ["uv"]]
+    assert uv_calls, "precondition: the gates should have been invoked"
+    for call in uv_calls:
+        assert call[:3] == ["uv", "run", "--no-sync"], f"gate would resync: {call}"
+
+
+@pytest.mark.parametrize(
+    "argv0",
+    [
+        _WINDOWS_CONSOLE_ARGV,          # the exact invocation that broke 256d3b9
+        "quantlab.exe",
+        "quantlab",
+        "quantlab.cmd",
+        "/home/runner/work/quantlab/.venv/bin/quantlab",
+    ],
+)
+def test_the_console_script_invocation_raises_before_any_git_command(
+    repo: Path, argv0: str
+) -> None:
+    """Not "the gates failed and we noticed" -- git was never asked to do anything.
+
+    The Windows-style argv is in this list deliberately, and it is the one that matters on
+    the Linux runner: `Path(...).name` would return it whole there, so a host-dependent
+    split makes CI unable to verify the regression it exists for (2026-08-15, 2026-08-31).
+    """
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+    (repo / "frontend" / "src" / "copy.ts").write_text("changed\n", encoding="utf-8")
+
+    recorder = RecordingRunner()
+    with pytest.raises(ConsoleScriptInvocation) as raised:
+        implement(proposal.number, root=repo, proposals_dir=proposals, push=False,
+                  now=STAMP, runner=recorder, argv0=argv0)
+
+    assert recorder.calls == [], "the guard ran after git had already been reached"
+    assert SUPPORTED_INVOCATION in str(raised.value)
+    assert CONSOLE_SCRIPT_NAME in str(raised.value)
+    # And the branch was never created, so a refusal costs nothing to undo.
+    assert current_branch(lambda cmd, cwd: _run(list(cmd), cwd), repo) == PROTECTED_BRANCH
+
+
+@pytest.mark.parametrize(
+    "argv0",
+    ["/usr/bin/python3", "C:/x/.venv/Scripts/python.exe", "python", "pytest",
+     "C:\\x\\src\\quantlab\\cli.py"],
+)
+def test_an_ordinary_interpreter_invocation_is_allowed(argv0: str) -> None:
+    """The guard must not refuse the invocation it is telling people to use."""
+    assert_not_console_script(argv0)          # does not raise
+
+
+def test_program_name_splits_on_both_separators() -> None:
+    """The normalisation itself, since its verdict must not depend on the host."""
+    assert program_name(_WINDOWS_CONSOLE_ARGV) == "quantlab"
+    assert program_name("/home/x/bin/quantlab") == "quantlab"
+    assert program_name("QUANTLAB.EXE") == "quantlab"
+    assert program_name("quantlabber.exe") == "quantlabber"     # no prefix matching
+
+
+def test_the_report_stat_covers_the_whole_series_not_the_last_commit(
+    repo: Path,
+) -> None:
+    """PROP-11's surviving report said "1 file changed" for a change of six.
+
+    A branch whose first commit touched a file the second does not touch has to have BOTH
+    files in its stat, which is exactly what the staged-only diff cannot show.
+    """
+    proposals = repo / "docs" / "proposals"
+    proposal = _proposal(affected_paths=["frontend/src/copy.ts"], risk_class="content")
+    write_proposal(proposal, proposals_dir=proposals, generated_at=STAMP, root=repo)
+    real = lambda cmd, cwd: _run(list(cmd), cwd)  # noqa: E731
+
+    # First run: commits `first.txt` on prop/{n}.
+    (repo / "first.txt").write_text("one\n", encoding="utf-8")
+    first = implement(proposal.number, root=repo, proposals_dir=proposals, push=False,
+                      now=STAMP, runner=real)
+    assert first.committed, "precondition: the first run should have committed"
+
+    # Second run on the same branch: touches only `second.txt`.
+    (repo / "second.txt").write_text("two\n", encoding="utf-8")
+    second = implement(proposal.number, root=repo, proposals_dir=proposals, push=False,
+                       now=STAMP, runner=real)
+
+    assert second.committed
+    assert "second.txt" in second.diffstat
+    assert "first.txt" in second.diffstat, (
+        "the stat covers only this run's commit and understates the branch"
+    )
+    assert second.diffstat_range == f"{PROTECTED_BRANCH}..{BRANCH_PREFIX}{proposal.number}"
+    # And the report says what it is showing, so the number cannot be misread again.
+    text = (proposals / proposal.filename).read_text(encoding="utf-8")
+    assert f"`{PROTECTED_BRANCH}..{BRANCH_PREFIX}{proposal.number}`" in text
+    assert "the whole series" in text
+
+
+def test_the_cli_refuses_the_console_script_without_printing_the_banner(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The refusal is the whole output: no banner claiming a run that will not happen.
+
+    The banner goes to stdout and the refusal to stderr, so a terminal showed them in the
+    wrong order — "branch -> apply -> gate -> report -> push" printed *after* the message
+    saying none of that would occur. Observed live on 2026-08-31 while verifying the guard.
+    """
+    import argparse
+
+    from quantlab.cli import cmd_implement
+
+    monkeypatch.setattr(sys, "argv", [_WINDOWS_CONSOLE_ARGV, "implement", "12"])
+    code = cmd_implement(argparse.Namespace(proposal="12", patch=None, no_push=True))
+
+    assert code == 3
+    out = capsys.readouterr()
+    assert SUPPORTED_INVOCATION in out.err
+    assert out.out == "", f"the banner printed on a refused run: {out.out!r}"

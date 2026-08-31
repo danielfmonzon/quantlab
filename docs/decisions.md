@@ -6,6 +6,72 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-08-31 — The gate battery could uninstall the process running it (PROP-12)
+
+**What happened.** `quantlab implement 11` was invoked as `.venv/Scripts/quantlab.exe implement 11`
+and reported every gate FAILED, all three with the same detail:
+
+```
+error: failed to remove file `...\.venv\Lib\site-packages\../../Scripts/quantlab.exe`:
+The process cannot access the file because it is being used by another process.
+```
+
+Nothing was wrong with the diff. The gates shell out through `uv run`, which resynchronises the
+project before executing anything — including reinstalling the editable package, which means
+replacing `Scripts/quantlab.exe`. On Windows that file cannot be replaced while it is executing,
+and it was executing: it was `implement` itself. **The gates did not fail; they never ran.** The
+same work re-run as `python -m quantlab.cli implement 11` passed all three and opened PR #24.
+
+**Why this was cheap, and what would have made it expensive.** The pipeline behaved exactly as
+designed: it refused to open a pull request on a red report, pushed the branch as evidence, and
+stopped. That rule — *a red branch stays a branch, visible but not queued* — is what turned a
+self-inflicted infrastructure fault into a re-run. Note the asymmetry it exploits: **a false red
+costs a re-run; a false green costs a merge.** A gate that can fail for reasons unrelated to the
+code under test is tolerable only while nothing downstream treats its verdict as evidence of
+anything else.
+
+**The second defect is quieter, and it survived into the record.** `implement` computed its diff
+stat from the staged diff — the work of *that* invocation. Because the code had already been
+committed by the first attempt, the surviving report reads `1 file changed, 1 insertion(+), 40
+deletions(-)` for a change that was **6 files and 786 insertions**. The gate table beside it says
+GATES PASSED, and that is true: `ruff .`, `mypy src/quantlab` and `pytest -q` each ran over the
+whole tree, not over the diff. But a reviewer reading the durable artifact sees a stat that
+understates what was gated by two orders of magnitude, and **any** re-run of `implement` on an
+existing branch reproduces it. It is `256d3b9` and `3c58485` on `prop/11`, kept as they were
+rather than rewritten, because the incident is the evidence for the fix.
+
+**Three lessons, in descending order of generality.**
+
+1. **A verification step must not be able to mutate its own preconditions.** `uv run` is a
+   provisioning command wearing a verification command's clothes: the ergonomics of "just run the
+   tool" hide a sync that can reach anything in the environment, up to and including the binary
+   evaluating the gate. The gates now pass `--no-sync`, and `implement` additionally refuses to
+   start when its own `argv[0]` resolves to the console script — belt and braces, because the flag
+   holds only until someone re-adds a sync for a good reason, while the refusal removes the
+   collision rather than the symptom.
+2. **A record computed from one invocation cannot describe a branch built by two.** The report's
+   stat now covers `main..prop/N`, read via the branch point, and *says so on the line above it*.
+   A stat that does not state what it covers is how this went unnoticed in the first place.
+3. **The Windows/Linux path lesson, applied for once before the defect rather than after it.**
+   The new guard normalises `argv[0]` by splitting on both separators and stripping an
+   `.exe`/`.cmd`/`.bat` suffix — the same normalisation the firewall needed after 2026-08-15 and
+   the remote-call guard needed after 2026-08-31, both of which were written on Windows, passed on
+   Windows, and were caught only by Linux CI. The fixture carries a real Windows `argv[0]` *because*
+   it runs on the Linux runner; `Path(...).name` would return it whole there, and a test that
+   cannot fail on the machine that gates it is not a test.
+
+**Boundary.** The firewall re-check and the frontend/verify-dist gate selection still read the
+staged diff of the current invocation — those govern what *this* run applies, not what the branch
+contains. The branch guard, the push guard and the human merge gate are untouched. `propose`'s
+closing hint now names `python -m quantlab.cli implement N`, since the pipeline should not
+advertise an invocation it will refuse. One wart surfaced by verifying the guard against the
+real console script rather than only in fixtures: the refusal goes to stderr and the command's
+banner to stdout, so the terminal printed `branch -> apply -> gate -> report -> push` *after*
+the message saying none of it would happen. The CLI now refuses before the banner — **a run
+that will not happen must not first announce the steps it would have taken.**
+
+---
+
 ## 2026-08-31 — RULING: PROP-6 is proven live, and the tripwire's first two firings were both false (PROP-11)
 
 **PROP-6 is demonstrated rather than asserted, and the 8-day liveness allowance stands.**
