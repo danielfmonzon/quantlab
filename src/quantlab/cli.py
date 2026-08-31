@@ -1170,6 +1170,10 @@ def cmd_glassbox_refresh(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         automated=not args.interactive,
         max_age_days=args.max_age_days,
+        # The ONE caller that should record what it published (PROP-9). Opting in here
+        # rather than defaulting in `refresh` is what keeps the step unreachable from a
+        # test that never heard of it.
+        record=True,
     )
     print(result.render())
     if not result.ok:

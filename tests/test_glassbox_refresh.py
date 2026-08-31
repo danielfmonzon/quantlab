@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -21,9 +21,14 @@ import pytest
 from quantlab.glassbox.refresh import (
     NETLIFY_SITE_ID,
     STEP_ORDER,
+    RefreshResult,
+    SnapshotBranchExists,
+    _alert,
     build_build_command,
     build_deploy_command,
+    build_snapshot_branch,
     extract_deploy_url,
+    record_snapshot,
     refresh,
 )
 from quantlab.glassbox.sanitize import (
@@ -126,7 +131,7 @@ def _run(*, runner: FakeRunner | None = None, report: SanitizationReport | None 
          verified: FakeVerified | None = None, dry_run: bool = False,
          automated: bool = True,
          snapshot_raises: SanitizationError | None = None, alerts: list[Alert] | None = None,
-         tmp: Path | None = None):
+         tmp: Path | None = None, git_runner: object | None = None):
     used_runner = runner or FakeRunner()
     sink = alerts if alerts is not None else []
     captured: dict[str, object] = {}
@@ -146,6 +151,9 @@ def _run(*, runner: FakeRunner | None = None, report: SanitizationReport | None 
         runner=used_runner, alert_fn=lambda a: sink.append(a) or [],
         now=NOW, snapshot_fn=snapshot_fn, verify_fn=verify_fn,
         frontend_dir=tmp or Path("frontend"), dist_dir=(tmp or Path("frontend")) / "dist",
+        # PROP-9: opt in only when a test injects a git double. The default is already
+        # off, so this is belt-and-braces rather than the guarantee.
+        record=git_runner is not None, git_runner=git_runner,  # type: ignore[arg-type]
     )
     return result, used_runner, sink, captured
 
@@ -191,7 +199,11 @@ def test_clean_chain_deploys_and_reports_the_url() -> None:
     assert result.ok and result.deployed
     assert result.deploy_url == "https://glassbox.danielmonzonautomation.com"
     assert runner.ran == ["build", "deploy"]
-    assert [s.name for s in result.steps] == list(STEP_ORDER)
+    # The four PUBLISH steps, in order. The fifth (record-snapshot, PROP-9) runs only
+    # after a successful deploy and only when a git runner is supplied, so it is absent
+    # here by design -- recording what was published cannot be a precondition of
+    # publishing it.
+    assert [s.name for s in result.steps] == list(STEP_ORDER[:4])
     assert all(s.ok for s in result.steps)
     # The gate measures freshness against the instant the chain started, not the clock.
     assert captured["now"] == NOW
@@ -504,3 +516,195 @@ def test_the_env_gate_is_reported_on_every_run_not_only_on_failure() -> None:
     """"The check ran" should be confirmable, not inferred from the absence of a note."""
     assert "env-secret check" in _run()[0].render()
     assert "env-secret check" in _run(dry_run=True)[0].render()
+
+
+# --------------------------------------------------------------------------- #
+# Recording the published snapshot (PROP-9)                                    #
+# --------------------------------------------------------------------------- #
+
+class GitRecorder:
+    """Records every git/gh invocation and executes NONE of them.
+
+    The point of this double is negative, as in PROP-3 and PROP-7: it lets a test assert
+    that a code path never reached git at all, which is stronger than asserting it
+    reached git and was rejected.
+    """
+
+    def __init__(self, fail: str | None = None, exists: bool = False) -> None:
+        self.calls: list[list[str]] = []
+        self._fail = fail
+        self._exists = exists
+
+    def __call__(self, cmd, cwd, env=None):  # noqa: ANN001, ANN204
+        argv = list(cmd)
+        self.calls.append(argv)
+        joined = " ".join(argv)
+        if argv[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(argv, 0 if self._exists else 1, "", "")
+        if argv[:2] == ["git", "ls-remote"]:
+            out = "abc123\trefs/heads/x\n" if self._exists else ""
+            return subprocess.CompletedProcess(argv, 0, out, "")
+        if self._fail and self._fail in joined:
+            return subprocess.CompletedProcess(argv, 1, "", "boom")
+        if argv[:2] == ["git", "write-tree"]:
+            return subprocess.CompletedProcess(argv, 0, "treesha\n", "")
+        if argv[:2] == ["git", "commit-tree"]:
+            return subprocess.CompletedProcess(argv, 0, "commitsha\n", "")
+        if argv[:3] == ["gh", "pr", "create"]:
+            return subprocess.CompletedProcess(
+                argv, 0, "https://github.com/o/r/pull/99\n", "")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    def argv_for(self, *prefix: str) -> list[list[str]]:
+        n = len(prefix)
+        return [c for c in self.calls if c[:n] == list(prefix)]
+
+
+def _deployed_result() -> RefreshResult:
+    r = RefreshResult(started_at=datetime(2026, 9, 4, 21, 30, tzinfo=UTC))
+    r.deployed = True
+    r.deploy_url = "https://glassbox.danielmonzonautomation.com"
+    return r
+
+
+DAY = date(2026, 9, 4)
+
+
+def test_the_branch_name_is_generated_from_the_date_and_nothing_else() -> None:
+    assert build_snapshot_branch(DAY) == "snapshot/deploy-20260904"
+    assert build_snapshot_branch(date(2026, 12, 31)) == "snapshot/deploy-20261231"
+
+
+def test_a_clean_deploy_records_pushes_and_opens_a_pr(tmp_path: Path) -> None:
+    """The happy path: branch created, pushed, PR opened for a human to merge."""
+    runner = GitRecorder()
+    result = _deployed_result()
+    step = record_snapshot(result, root=tmp_path, day=DAY, runner=runner)
+
+    assert step.ok
+    assert result.snapshot_branch == "snapshot/deploy-20260904"
+    assert result.snapshot_pr_url == "https://github.com/o/r/pull/99"
+
+    branch_calls = runner.argv_for("git", "branch")
+    assert branch_calls == [["git", "branch", "snapshot/deploy-20260904", "commitsha"]]
+    for call in branch_calls:
+        assert "--force" not in call and "-f" not in call
+
+    push = runner.argv_for("git", "push")[0]
+    assert "snapshot/deploy-20260904" in push
+    assert "main" not in push
+
+    pr = runner.argv_for("gh", "pr", "create")[0]
+    assert "snapshot: captures from the 2026-09-04 refresh" in pr
+    assert pr[pr.index("--base") + 1] == "main"
+
+
+def test_nothing_touches_the_trunk(tmp_path: Path) -> None:
+    """No recorded command may name `main` as something to write to."""
+    runner = GitRecorder()
+    record_snapshot(_deployed_result(), root=tmp_path, day=DAY, runner=runner)
+    for call in runner.calls:
+        if call[:2] in (["git", "branch"], ["git", "push"], ["git", "checkout"]):
+            assert "main" not in call, call
+    assert runner.argv_for("git", "checkout") == []      # HEAD is never moved
+    assert runner.argv_for("git", "commit") == []        # the real index is never used
+
+
+def test_an_existing_branch_raises_before_any_git_command_runs(tmp_path: Path) -> None:
+    """Assert-before-create, and the assertion is what stops it.
+
+    Only the two existence probes may have run. Nothing is committed, nothing pushed,
+    no PR opened -- a branch this step did not create is never moved.
+    """
+    runner = GitRecorder(exists=True)
+    with pytest.raises(SnapshotBranchExists) as excinfo:
+        record_snapshot(_deployed_result(), root=tmp_path, day=DAY, runner=runner)
+
+    assert excinfo.value.branch == "snapshot/deploy-20260904"
+    assert runner.argv_for("git", "branch") == []
+    assert runner.argv_for("git", "push") == []
+    assert runner.argv_for("gh", "pr", "create") == []
+    assert runner.argv_for("git", "commit-tree") == []
+
+
+def test_a_failed_push_does_not_retroactively_fail_the_deploy(tmp_path: Path) -> None:
+    """The bytes are already live. Reporting the publish as failed would be false."""
+    runner = GitRecorder(fail="git push")
+    result = _deployed_result()
+    step = record_snapshot(result, root=tmp_path, day=DAY, runner=runner)
+
+    assert not step.ok
+    assert "NOT pushed" in step.detail
+    assert result.deployed is True                       # unchanged
+    assert result.deploy_url == "https://glassbox.danielmonzonautomation.com"
+    assert result.aborted_at is None                     # not an abort
+
+
+def test_a_recording_failure_downgrades_the_run_to_a_warning(tmp_path: Path) -> None:
+    """WARNING, not INFO and not an abort: one thing is owed, by hand."""
+    result = _deployed_result()
+    result.snapshot_record_note = "branch created but NOT pushed: boom"
+    alerts: list[Alert] = []
+    _alert(result, alerts.append)
+
+    assert len(alerts) == 1
+    assert alerts[0].level == "WARNING"
+    assert "NOT recorded" in alerts[0].title
+    rendered = result.render()
+    assert "DEPLOYED ->" in rendered                     # still says it published
+    assert "NOT RECORDED" in rendered
+
+
+def test_a_successful_record_keeps_the_run_at_info(tmp_path: Path) -> None:
+    result = _deployed_result()
+    result.snapshot_branch = "snapshot/deploy-20260904"
+    result.snapshot_pr_url = "https://github.com/o/r/pull/99"
+    alerts: list[Alert] = []
+    _alert(result, alerts.append)
+
+    assert alerts[0].level == "INFO"
+    assert "RECORDED -> snapshot/deploy-20260904" in result.render()
+
+
+def test_a_dry_run_never_reaches_the_recording_step(tmp_path: Path) -> None:
+    """Nothing was published, so there is nothing to record."""
+    runner = GitRecorder()
+    result, _r, _a, _c = _run(dry_run=True, git_runner=runner)
+    assert result.snapshot_branch is None
+    assert runner.calls == []
+    assert not any(s.name == "record-snapshot" for s in result.steps)
+
+
+def test_a_chain_that_aborts_before_deploy_never_records(tmp_path: Path) -> None:
+    """Fail-closed ordering holds: no publish, no record."""
+    runner = GitRecorder()
+    result, _r, _a, _c = _run(runner=FakeRunner(fail="netlify"), git_runner=runner)
+    assert result.deployed is False
+    assert runner.calls == []
+    assert result.snapshot_branch is None
+
+
+def test_recording_is_off_by_default_so_no_test_can_reach_real_git() -> None:
+    """The default must be safe, not merely guarded at the call sites we remembered.
+
+    An earlier draft defaulted this on.  calls refresh()
+    directly, reaches a successful deploy, and had no reason to know about a flag that
+    did not exist when it was written -- so it used the REAL git and gh, created a
+    branch and opened a pull request against this repository during a test run. That is
+    the failure this pins: a default that is only safe while every caller remembers a
+    flag is not safe.
+    """
+    import inspect
+
+    from quantlab.glassbox.refresh import refresh as refresh_fn
+
+    assert inspect.signature(refresh_fn).parameters["record"].default is False
+
+
+def test_a_deploy_without_opting_in_records_nothing(tmp_path: Path) -> None:
+    """Reaching a successful deploy is not enough to make it touch a repository."""
+    result, _runner, _alerts, _c = _run()
+    assert result.deployed is True
+    assert result.snapshot_branch is None
+    assert result.snapshot_record_note is None
+    assert not any(s.name == "record-snapshot" for s in result.steps)

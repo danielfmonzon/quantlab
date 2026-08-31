@@ -137,6 +137,29 @@ cd frontend
 netlify deploy --prod --dir=dist --site=be63f48c-4949-4603-b8dd-a6ccfdd996e7
 ```
 
+### 4. Merge the snapshot PR — the one manual step left in the Friday routine
+
+After a successful deploy the chain records what it published: it commits
+`frontend/public/snapshot/` to a branch named `snapshot/deploy-YYYYMMDD`, pushes it, and
+opens a PR titled **`snapshot: captures from the YYYY-MM-DD refresh`**. Merging it is the
+whole job.
+
+**Why this exists.** The site is deployed from `frontend/dist` by Netlify, **not from
+git**, so nothing structurally ties `main` to what the site is serving — and it drifted:
+between 2026-08-22 and 2026-08-30, `main` answered "what does the site say" with the
+08-22 captures while the site served 08-30. That was closed by hand once; this step keeps
+it closed.
+
+**What it will not do.** It never writes to `main`, and it cannot: the branch name is
+generated from the date, its absence is asserted before anything is written, and the
+branch is created with no force argument, so a second run on the same day refuses rather
+than moving a reference.
+
+**If it fails, the deploy still succeeded.** A problem here downgrades the run to a
+WARNING and says `NOT RECORDED` in the chain report — the site is live either way, and the
+only thing owed is committing the captures by hand. A publish that worked is never
+reported as a failure because the bookkeeping after it did not.
+
 `verify-dist` runs **after** the build, because its scope is the built output: compiled
 JS, CSS, HTML, SVG, the copied snapshot, and anything a human dropped into `public/`. A
 secret can reach the public through an inlined constant or a stray file without ever
