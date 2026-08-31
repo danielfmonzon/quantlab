@@ -65,17 +65,13 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 ## Implementation report
 
-_implemented 2026-08-31T22:57:01.705152Z  |  branch `prop/11`  |  status: **NEEDS ATTENTION**_
+_implemented 2026-08-31T22:57:58.421256Z  |  branch `prop/11`  |  status: **GATES PASSED**_
 
 ### Diff stat
 
 ```
-config/acknowledged_task_deaths.json |  13 ++
- docs/decisions.md                    |  83 +++++++++
- src/quantlab/reporting/digest.py     |  63 +++++--
- src/quantlab/reporting/watchdog.py   | 314 ++++++++++++++++++++++++++++++++---
- tests/test_watchdog.py               | 311 ++++++++++++++++++++++++++++++++++
- 5 files changed, 750 insertions(+), 34 deletions(-)
+...ripwire-reads-a-status-code-as-a-death-and-t.md | 41 +---------------------
+ 1 file changed, 1 insertion(+), 40 deletions(-)
 ```
 
 ### Firewall re-check (against the actual diff)
@@ -88,9 +84,9 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 | gate | result | detail |
 |---|---|---|
-| `ruff` | FAIL | error: failed to remove file `C:\Users\danmo\Dev\quantlab\.venv\Lib\site-packages\../../Scripts/quantlab.exe`: The process cannot access the file because it is being used by another process. (os error |
-| `mypy` | FAIL | error: failed to remove file `C:\Users\danmo\Dev\quantlab\.venv\Lib\site-packages\../../Scripts/quantlab.exe`: The process cannot access the file because it is being used by another process. (os error |
-| `pytest` | FAIL | error: failed to remove file `C:\Users\danmo\Dev\quantlab\.venv\Lib\site-packages\../../Scripts/quantlab.exe`: The process cannot access the file because it is being used by another process. (os error |
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 72 source files |
+| `pytest` | PASS | 824 passed, 1 warning in 134.95s (0:02:14) |
 | `frontend` | SKIP | no frontend/ path in the diff |
 | `verify-dist` | SKIP | site not touched |
 
