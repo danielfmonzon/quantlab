@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 from collections.abc import Callable, Iterator, Sequence
@@ -109,8 +110,14 @@ def _program(arg0: str) -> str:
     ``shutil.which`` before spawning it, so by the time argv reaches subprocess it
     reads ``C:\\Program Files\\Git\\cmd\\git.exe``. Matching on argv[0] verbatim would
     have missed the exact call that opened PR #20.
+
+    SPLIT ON BOTH SEPARATORS, not on the host's. ``Path(...).name`` is
+    platform-dependent: on Linux it does not treat ``\\`` as a separator, so a Windows
+    argv comes back whole and the match silently fails. That matters here rather than
+    in theory -- the incident's argv IS a Windows path, and CI runs on Linux, so a
+    host-dependent split makes the regression test unable to verify the regression.
     """
-    name = Path(str(arg0)).name.lower()
+    name = re.split(r"[\\/]", str(arg0))[-1].lower()
     for suffix in (".exe", ".cmd", ".bat"):
         if name.endswith(suffix):
             return name[: -len(suffix)]
