@@ -18,12 +18,24 @@ writing the document. This re-runs the same check against the ACTUAL diff, becau
 document and the diff are different artifacts and only the second one becomes a commit.
 A patch that quietly edits `config/risk.yaml` while the proposal says it edits the
 frontend is caught here, at the point where it would otherwise matter.
+
+THE GATES MUST NOT BE ABLE TO UNINSTALL THE PROCESS RUNNING THEM (PROP-12). They go out
+through ``uv run``, which resynchronises the project before it executes anything -- and
+that includes reinstalling this editable package, which means replacing the ``quantlab``
+console script. On 2026-08-31 `implement` was invoked AS that console script, and all
+three gates reported failure with "The process cannot access the file because it is being
+used by another process" (commit 256d3b9). The gates had not failed; they had never run,
+over a diff that was in fact green. Two independent fixes, because the first is only true
+until someone re-adds a sync for a good reason: the gates pass ``--no-sync``, and this
+module refuses to start at all when its own argv[0] is that console script.
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -40,6 +52,60 @@ BRANCH_PREFIX = "prop/"
 PROTECTED_BRANCH = "main"
 
 REPORT_ANCHOR = "<!-- IMPLEMENTATION REPORT ANCHOR -->"
+
+# The console script this package installs, and the one invocation `implement` may not
+# be. See the module docstring: its own gates have to replace this file.
+CONSOLE_SCRIPT_NAME = "quantlab"
+
+# How to run it instead. Quoted verbatim in the refusal, so the fix is in the message
+# rather than in a document the operator has to go and find.
+SUPPORTED_INVOCATION = "python -m quantlab.cli implement N"
+
+_PROGRAM_SUFFIXES = (".exe", ".cmd", ".bat")
+
+
+class ConsoleScriptInvocation(RuntimeError):
+    """`implement` was started through the console script its gates must replace."""
+
+
+def program_name(arg0: str) -> str:
+    """The bare program name in ``arg0``, however the caller spelled it.
+
+    SPLIT ON BOTH SEPARATORS, never on the host's. ``Path(...).name`` is
+    platform-dependent -- on POSIX it does not treat a backslash as a separator, so a
+    Windows argv comes back whole and the comparison silently fails. This project is
+    authored on Windows and gated on Linux, and that asymmetry has already produced two
+    real defects (the firewall's path normalisation, 2026-08-15, and the remote-call
+    guard's, 2026-08-31). A comparison whose verdict depends on which operating system
+    evaluates it is not a comparison.
+    """
+    name = re.split(r"[\\/]", str(arg0))[-1].lower()
+    for suffix in _PROGRAM_SUFFIXES:
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
+def assert_not_console_script(argv0: str | None = None) -> None:
+    """Refuse when this process IS the console script the gates would have to replace.
+
+    Belt and braces alongside ``--no-sync`` on the gates, and deliberately so: that flag
+    holds only while nobody re-adds a sync, and a sync is exactly the kind of thing added
+    later for a good reason. This check removes the collision instead of the symptom, and
+    it raises before the branch exists, before anything is staged, and long before a gate
+    is invoked -- so a refusal leaves the repository untouched.
+    """
+    arg0 = sys.argv[0] if argv0 is None else argv0
+    if program_name(arg0) != CONSOLE_SCRIPT_NAME:
+        return
+    raise ConsoleScriptInvocation(
+        f"refusing to run: `implement` was started through the "
+        f"`{CONSOLE_SCRIPT_NAME}` console script (argv[0] = {arg0!r}).\n"
+        f"  Its gates run under `uv run`, which reinstalls this package and therefore "
+        f"has to replace that very file. On Windows it cannot, and every gate then "
+        f"fails for a reason that has nothing to do with the diff.\n"
+        f"  Run it as:  {SUPPORTED_INVOCATION}"
+    )
 
 
 class Runner(Protocol):
@@ -86,6 +152,9 @@ class ImplementResult:
     applied: bool = False
     apply_detail: str = ""
     diffstat: str = ""
+    # What ``diffstat`` compares, e.g. "main..prop/12". Empty when no common ancestor
+    # with the trunk could be found and the stat fell back to this run's staged diff.
+    diffstat_range: str = ""
     changed_paths: list[str] = field(default_factory=list)
     gates: list[Gate] = field(default_factory=list)
     firewall_text: str = ""
@@ -127,7 +196,13 @@ class ImplementResult:
         if self.aborted:
             lines += [f"**ABORTED:** {self.aborted}", ""]
 
-        lines += ["### Diff stat", "", "```", self.diffstat.strip() or "(no changes)", "```", ""]
+        scope = (
+            f"_`{self.diffstat_range}` — the whole series, not only this run's commit._"
+            if self.diffstat_range
+            else "_this run's staged diff — no common ancestor with the trunk was found._"
+        )
+        lines += ["### Diff stat", "", scope, "",
+                  "```", self.diffstat.strip() or "(no changes)", "```", ""]
 
         lines += ["### Firewall re-check (against the actual diff)", "", "```",
                   self.firewall_text.strip(), "```", ""]
@@ -204,8 +279,10 @@ def implement(
     runner: Runner | None = None,
     push: bool = True,
     now: datetime | None = None,
+    argv0: str | None = None,
 ) -> ImplementResult:
     """Branch, apply, gate, report, commit, push, stop."""
+    assert_not_console_script(argv0)  # <- first statement; nothing above it may run.
     run = runner if runner is not None else _default_runner
     repo = root if root is not None else PROJECT_ROOT
     started = now or datetime.now(UTC)
@@ -256,9 +333,30 @@ def implement(
         _git(run, repo, "add", "-A")
 
     # -- 3. what actually changed -----------------------------------------
-    result.diffstat = _git(run, repo, "diff", "--cached", "--stat").stdout.strip()
+    staged_stat = _git(run, repo, "diff", "--cached", "--stat").stdout.strip()
     names = _git(run, repo, "diff", "--cached", "--name-only").stdout.strip()
     result.changed_paths = [p for p in names.splitlines() if p]
+
+    # THE REPORT'S STAT COVERS THE WHOLE SERIES, not this invocation's staged diff
+    # (PROP-12). Re-running `implement` on a branch that already carries its work leaves
+    # a report describing only the last commit: PROP-11's surviving report read "1 file
+    # changed, 1 insertion(+), 40 deletions(-)" for a change that was 6 files and 786
+    # insertions, beside a gate table that had in fact covered all of it. The durable
+    # artifact a reviewer reads must not understate what it is reporting on.
+    #
+    # `git merge-base` READS a commit id and joins nothing -- it is not a merge, and the
+    # source-level test forbidding an automated merge path is unaffected.
+    base = _git(run, repo, "merge-base", PROTECTED_BRANCH, "HEAD").stdout.strip()
+    series_stat = (
+        _git(run, repo, "diff", "--cached", "--stat", base).stdout.strip() if base else ""
+    )
+    if series_stat:
+        result.diffstat = series_stat
+        result.diffstat_range = f"{PROTECTED_BRANCH}..{branch}"
+    else:
+        # No shared history with the trunk to measure against; say so rather than
+        # labelling a narrower stat as something it is not.
+        result.diffstat = staged_stat
 
     if not result.changed_paths:
         return abort("nothing to implement: the staged diff is empty")
@@ -383,9 +481,12 @@ def _run_gates(run: Runner, repo: Path, changed: Sequence[str]) -> list[Gate]:
         gate.detail = tail[-1][:200] if tail else f"exit {proc.returncode}"
         gates.append(gate)
 
-    add("ruff", ("uv", "run", "ruff", "check", "."))
-    add("mypy", ("uv", "run", "mypy", "src/quantlab"))
-    add("pytest", ("uv", "run", "pytest", "-q"))
+    # --no-sync on every one of these: a gate verifies a checkout, it does not provision
+    # one. Without it `uv run` reinstalls this package first, and the file it must replace
+    # is the console script that may well be the process running the gate (PROP-12).
+    add("ruff", ("uv", "run", "--no-sync", "ruff", "check", "."))
+    add("mypy", ("uv", "run", "--no-sync", "mypy", "src/quantlab"))
+    add("pytest", ("uv", "run", "--no-sync", "pytest", "-q"))
 
     frontend = repo / "frontend"
     npm = shutil.which("npm")
@@ -400,7 +501,8 @@ def _run_gates(run: Runner, repo: Path, changed: Sequence[str]) -> list[Gate]:
     # verify-dist only means something against a built site.
     if _frontend_touched(changed):
         if (frontend / "dist").is_dir():
-            add("verify-dist", ("uv", "run", "quantlab", "glassbox", "verify-dist"))
+            add("verify-dist",
+                ("uv", "run", "--no-sync", "quantlab", "glassbox", "verify-dist"))
         else:
             add("verify-dist", (), skip_reason="frontend/dist not built in this checkout")
     else:
@@ -430,13 +532,18 @@ def write_report(proposal_path: Path, result: ImplementResult) -> None:
 
 __all__ = [
     "BRANCH_PREFIX",
+    "CONSOLE_SCRIPT_NAME",
     "PROTECTED_BRANCH",
     "REPORT_ANCHOR",
+    "SUPPORTED_INVOCATION",
+    "ConsoleScriptInvocation",
     "Gate",
     "ImplementResult",
     "NotOnBranch",
     "Runner",
+    "assert_not_console_script",
     "current_branch",
     "implement",
+    "program_name",
     "write_report",
 ]

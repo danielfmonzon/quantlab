@@ -1,6 +1,6 @@
 # PROP-12 — implement cannot gate itself when it is driven through its own console script
 
-_proposed 2026-08-31T23:07:16.062723Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-08-31T23:07:16.062723Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -67,3 +67,43 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-08-31T23:13:26.884223Z  |  branch `prop/12`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+_`main..prop/12` — the whole series, not only this run's commit._
+
+```
+docs/decisions.md                 |  62 +++++++++++++++++
+ src/quantlab/cli.py               |  14 +++-
+ src/quantlab/improve/implement.py | 119 +++++++++++++++++++++++++++++++--
+ tests/test_improve_pipeline.py    | 135 ++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 322 insertions(+), 8 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 72 source files |
+| `pytest` | PASS | 837 passed, 1 warning in 157.39s (0:02:37) |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/12`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/12` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.
