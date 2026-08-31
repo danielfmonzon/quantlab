@@ -1027,6 +1027,19 @@ def cmd_validate_strategy(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fills(args: argparse.Namespace) -> int:
+    """Print the fill-vs-mark ledger. Read-only; reads recorded fills and nothing else.
+
+    This is the day-90 cost-model input: the figure that either replaces the shadow's
+    modeled 5 bps one-way rate or shows it cannot yet be replaced. Both are answers.
+    """
+    from quantlab.reporting.fills import build_fill_ledger
+
+    ledger = build_fill_ledger(labels=[args.label] if args.label else None)
+    print("\n".join(ledger.render()))
+    return 0
+
+
 def cmd_digest(args: argparse.Namespace) -> int:
     store = ParquetStore()
     calendar = TradingCalendar()
@@ -1687,6 +1700,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="dispatch a test alert through all active channels",
     )
     p_digest.set_defaults(func=cmd_digest)
+
+    p_fills = sub.add_parser(
+        "fills",
+        help="fill-vs-mark ledger: what every order actually cost, from recorded fills",
+    )
+    p_fills.add_argument(
+        "--label", default=None,
+        help="restrict to one account (default: every approved account)",
+    )
+    p_fills.set_defaults(func=cmd_fills)
 
     p_weekly = sub.add_parser(
         "weekly", help="build + write the weekly paper-vs-shadow review (report-only)"
