@@ -91,6 +91,20 @@ _BLOCKED_SUBCOMMANDS: dict[str, frozenset[str]] = {
     "gh": frozenset({"pr", "api", "issue"}),
 }
 
+# ONLY `git` GETS THE cwd EXEMPTION, and the asymmetry is the point.
+#
+# `git push` is bound to the repository it runs in, so a push inside a throwaway
+# repo under tmp_path cannot reach this one and must stay allowed -- several tests
+# depend on exactly that.
+#
+# `gh` is NOT bound to cwd. It resolves its target from `--repo`, from the `GH_REPO`
+# environment variable, and only then from the git remote of the working directory.
+# `gh pr create --repo danielfmonzon/quantlab` run from /tmp acts on this repository,
+# and so does a bare `gh pr create` with GH_REPO exported. Granting gh the same
+# exemption would have left the guard open in precisely the direction it was written
+# to close, so gh is refused wherever it is run from.
+_CWD_EXEMPT_PROGRAMS = frozenset({"git"})
+
 # `git -C <dir> push` and `git -c k=v push` put the subcommand past a flag AND its
 # value, so a naive argv[1] check misses exactly the form a wrapper is most likely
 # to build.
@@ -185,7 +199,14 @@ def _blocked_reason(args: object, cwd: object = None) -> str | None:
     if sub is None or sub not in blocked:
         return None
 
-    # Two ways to be dangerous, and a test push to a local bare repo is neither.
+    # gh is refused outright: it takes its target from --repo or GH_REPO before it
+    # ever looks at the working directory, so "where it ran" says nothing about what
+    # it would have touched.
+    if program not in _CWD_EXEMPT_PROGRAMS:
+        return f"{program} {sub} (targets a repository regardless of cwd)"
+
+    # git push is bound to its own repository, so two ways to be dangerous remain,
+    # and a push to a local bare repo under tmp_path is neither.
     if _inside_the_real_checkout(cwd):
         return f"{program} {sub} inside the real checkout"
     if _names_a_network_remote(argv):

@@ -176,3 +176,52 @@ def test_a_subdirectory_of_the_checkout_counts_as_the_checkout() -> None:
     assert _blocked_reason(
         ["git", "push", "origin", "main"], PROJECT_ROOT / "frontend"
     ) is not None
+
+
+# --------------------------------------------------------------------------- #
+# gh is not bound to cwd, so it gets no cwd exemption                         #
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        pytest.param(["gh", "pr", "create"], id="gh-pr"),
+        pytest.param(["gh", "api", "-X", "PATCH", "repos/o/r/pulls/1"], id="gh-api"),
+        pytest.param(["gh", "issue", "create", "--title", "x"], id="gh-issue"),
+        pytest.param(["gh", "pr", "create", "--repo", "danielfmonzon/quantlab"],
+                     id="gh-pr-explicitly-naming-this-repo"),
+    ],
+)
+@pytest.mark.parametrize(
+    "cwd",
+    [
+        pytest.param(None, id="cwd-inherited"),
+        pytest.param(PROJECT_ROOT, id="cwd-checkout"),
+        pytest.param(Path("/tmp/throwaway"), id="cwd-elsewhere"),
+    ],
+)
+def test_gh_is_blocked_regardless_of_cwd(argv: list[str], cwd: Path | None) -> None:
+    """`gh` resolves its target BEFORE it looks at the working directory.
+
+    It takes the repository from `--repo`, then from the `GH_REPO` environment
+    variable, and only then from the git remote of cwd. So `gh pr create --repo
+    danielfmonzon/quantlab` run from /tmp acts on this repository, and so does a bare
+    `gh pr create` with GH_REPO exported. Giving gh the same cwd exemption that
+    `git push` legitimately gets would leave the guard open in exactly the direction
+    it was written to close.
+    """
+    assert _blocked_reason(argv, cwd) is not None
+
+
+def test_only_git_push_carries_the_cwd_exemption(tmp_path: Path) -> None:
+    """The asymmetry stated as one assertion, so it cannot drift unnoticed."""
+    # git push is bound to the repo it runs in: a throwaway repo is harmless.
+    assert _blocked_reason(["git", "push", "-u", "origin", "main"], tmp_path) is None
+    # gh, from the same directory, is not.
+    assert _blocked_reason(["gh", "pr", "create"], tmp_path) is not None
+
+
+def test_the_gh_refusal_says_why_cwd_did_not_save_it(tmp_path: Path) -> None:
+    reason = _blocked_reason(["gh", "api", "repos/o/r"], tmp_path)
+    assert reason is not None
+    assert "regardless of cwd" in reason
