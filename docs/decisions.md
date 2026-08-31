@@ -731,11 +731,19 @@ Consistent with the human-merge-only rule: this makes merging *harder*, never au
 `quantlab implement` still cannot merge, and a green check is a precondition for a human
 merge rather than a trigger for an automatic one.
 
-**Amended 2026-08-22.** Merge *execution* may be delegated to Claude Code via `gh pr merge`,
-only on Daniel's explicit per-PR instruction naming the number, and only for PRs the Quant
-Lead has approved. The decision to merge stays human; what is delegated is the keystroke.
-`quantlab implement` retains no merge path — the delegation is to the assistant acting on a
-named instruction, never to the pipeline acting on its own gates.
+**Amended 2026-08-22, corrected 2026-08-31.** A merge executes **only on Daniel's explicit
+per-PR command naming the number, and only for PRs the Quant Lead has approved** — whether he
+runs `gh pr merge` himself or Claude Code runs it on that instruction. **The decision is the
+gate, not the terminal.** `quantlab implement` retains no merge path; the delegation is to the
+assistant acting on a named instruction, never to the pipeline acting on its own gates.
+
+**#25 is the case that showed the earlier wording overstated the rule.** It read as though
+which terminal typed the command were itself the boundary — as though a permission classifier
+sat underneath and caught the difference. That classifier is **inconsistent, not a gate**: it
+is not a reliable enforcement point, and nothing below this ruling enforces the rule at all.
+What holds is the named per-PR instruction from a human on an approved PR. Where the keystroke
+lands is incidental, and a rule stated as though tooling enforced it invites exactly the
+reliance the tooling cannot carry.
 
 ---
 
