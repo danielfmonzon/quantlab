@@ -5,7 +5,6 @@ Description=quantlab crypto paper run (gated, submits; 7 days a week) (timer)
 OnCalendar=*-*-* 20:30:00 America/New_York
 Persistent=true
 Unit=quantlab-crypto-paper-run.service
-AccuracySec=1s
 
 [Install]
 WantedBy=timers.target

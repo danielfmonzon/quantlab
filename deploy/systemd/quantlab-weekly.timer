@@ -5,7 +5,6 @@ Description=quantlab weekly paper-vs-shadow review (report-only) (timer)
 OnCalendar=Fri *-*-* 17:00:00 America/New_York
 Persistent=true
 Unit=quantlab-weekly.service
-AccuracySec=1s
 
 [Install]
 WantedBy=timers.target

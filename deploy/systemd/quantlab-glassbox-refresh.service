@@ -12,7 +12,7 @@ EnvironmentFile=/opt/quantlab/.env
 Environment=QUANTLAB_ENV_FILE=/opt/quantlab/.env
 ExecStart=/opt/quantlab/.venv/bin/quantlab glassbox refresh
 TimeoutStartSec=45min
-MemoryMax=3G
+MemoryMax=1500M
 Restart=no
 StandardOutput=journal
 StandardError=journal

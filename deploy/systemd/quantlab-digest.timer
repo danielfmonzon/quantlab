@@ -5,7 +5,6 @@ Description=quantlab daily paper digest and scheduled-task watchdog (timer)
 OnCalendar=Mon..Fri *-*-* 16:45:00 America/New_York
 Persistent=true
 Unit=quantlab-digest.service
-AccuracySec=1s
 
 [Install]
 WantedBy=timers.target

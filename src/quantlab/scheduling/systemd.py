@@ -147,7 +147,17 @@ def build_units() -> tuple[TimerUnit, ...]:
             # has died twice. 45 minutes is generous against the ~100s a healthy run takes,
             # which is the point: the ceiling exists to convert a HANG into a reported
             # ending, not to police normal duration.
-            timeout="45min", memory_max="3G",
+            #
+            # 1500M IS BELOW PHYSICAL RAM, and that is the whole value of the number
+            # (PROP-16). The provisioned host has 1,919 MiB, so the earlier 3G could never
+            # be reached by an allocation -- the machine would swap into a 4 GB swapfile
+            # and degrade quietly instead of ending, which is the silent failure this
+            # migration exists to remove, on the one job that has already died twice. A
+            # ceiling under RAM makes a runaway arrive as `Result=oom-kill`, a NAMED cause
+            # the death tripwire reads. Phase 0 measured the public build at 705 MiB
+            # committed, peak, so this leaves better than two times headroom over the
+            # real figure.
+            timeout="45min", memory_max="1500M",
         ),
         TimerUnit(
             task=TASK_CRYPTO_PAPER_RUN, local_time=_CRYPTO_RUN_TIME, days="",
@@ -219,9 +229,10 @@ def render_timer(unit: TimerUnit) -> str:
         f"OnCalendar={unit.on_calendar}",
         "Persistent=true",
         f"Unit={unit.service_name}",
-        # A catch-up firing runs as soon as the host is up; give the network a moment
-        # rather than failing on a DNS lookup one second into boot.
-        "AccuracySec=1s",
+        # NO `AccuracySec` (PROP-16). The default is a minute of slack, which is ample:
+        # what protects the mark instant is the absence of `RandomizedDelaySec`, not a
+        # tight wake-up, and a setting that reads as protective while protecting nothing
+        # is worse than no setting, because someone will eventually rely on it.
         "",
         "[Install]",
         "WantedBy=timers.target",
