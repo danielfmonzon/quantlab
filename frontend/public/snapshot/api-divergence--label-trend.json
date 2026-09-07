@@ -143,6 +143,23 @@
       "window_start": "2026-08-17",
       "window_end": "2026-08-27",
       "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-09-04",
+      "label": "trend",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.005526858383387845,
+      "shadow_week_return": 0.004969613291852193,
+      "divergence_bps": -104.96471675240038,
+      "cumulative_divergence_bps": -64.91435303336068,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-09-04"
+      ],
+      "window_start": "2026-08-28",
+      "window_end": "2026-09-03",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
     }
   ],
   "corrections": [
