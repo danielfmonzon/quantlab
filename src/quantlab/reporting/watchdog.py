@@ -78,6 +78,7 @@ from quantlab.scheduling.tasks import (
     DAYS_DAILY,
     DAYS_FRIDAY,
     DAYS_WEEKDAYS,
+    PRODUCES_DIGEST,
     PRODUCES_REFRESH_ALERT,
     PRODUCES_RUN_REPORT,
     PRODUCES_WEEKLY_REVIEW,
@@ -517,6 +518,24 @@ def _weekly_review_days(weekly_dir: Path) -> set[date]:
     return days
 
 
+def _digest_days(digests_dir: Path) -> set[date]:
+    """Days for which a digest artifact exists (PROP-15).
+
+    The same glob :func:`previous_digest_date` already performs, kept separate because the
+    two answer different questions -- that one asks which digest to anchor the window to,
+    this one asks which days had one at all.
+    """
+    days: set[date] = set()
+    if not digests_dir.exists():
+        return days
+    for path in digests_dir.glob("digest_*.json"):
+        try:
+            days.add(datetime.strptime(path.stem[len("digest_"):], "%Y%m%d").date())
+        except ValueError:
+            continue
+    return days
+
+
 def _refresh_alert_days(alerts_path: Path) -> set[date]:
     """Days carrying a ``glassbox.refresh`` alert — the chain's deploy-log entry.
 
@@ -865,6 +884,7 @@ def check_schedule(
     }
     weekly_days = _weekly_review_days(weekly_dir)
     refresh_days = _refresh_alert_days(alerts_path)
+    digest_days = _digest_days(digests_dir)
 
     # Every (day, task) this digest is answerable for, in order.
     #
@@ -961,6 +981,22 @@ def check_schedule(
             if day not in refresh_days:
                 record(day, task, None,
                        "no glassbox.refresh alert (the chain left no deploy-log entry)")
+        elif task.produces == PRODUCES_DIGEST:
+            # A DIGEST NEVER JUDGES ITS OWN DAY (PROP-15). It writes its artifact at the
+            # end of the run doing the looking, so on `today` the file is guaranteed
+            # absent and the check would indict itself at 20:45 every weekday, forever --
+            # the exact daily false alarm PROP-11 spent a proposal removing. Structural
+            # rather than left to PROP-14's in-flight deferral, which needs a readable
+            # scheduler and would let this fire on a host without one. Nothing is lost by
+            # the skip: `previous_digest_date` anchors the next window at the latest
+            # digest BEFORE its own day, so a day skipped here is inside the next
+            # digest's sweep and is examined then.
+            if day == today:
+                continue
+            checked += 1
+            if day not in digest_days:
+                record(day, task, None,
+                       f"no digest reports/digests/digest_{day:%Y%m%d}.json")
 
     def order(entry: MissedRun) -> tuple[date, str, str]:
         return (entry.day, entry.task, entry.label or "")

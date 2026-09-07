@@ -113,6 +113,7 @@ class ScheduledTask:
 PRODUCES_RUN_REPORT = "run_report"
 PRODUCES_WEEKLY_REVIEW = "weekly_review"
 PRODUCES_REFRESH_ALERT = "refresh_alert"
+PRODUCES_DIGEST = "digest"
 
 SCHEDULE: tuple[ScheduledTask, ...] = (
     ScheduledTask(TASK_PAPER_RUN, 14 * 60, DAYS_WEEKDAYS,
@@ -124,6 +125,13 @@ SCHEDULE: tuple[ScheduledTask, ...] = (
     ScheduledTask(TASK_WEEKLY, 21 * 60, DAYS_FRIDAY, PRODUCES_WEEKLY_REVIEW),
     ScheduledTask(TASK_GLASSBOX_REFRESH, 21 * 60 + 30, DAYS_FRIDAY,
                   PRODUCES_REFRESH_ALERT),
+    # The digest itself (PROP-15). Its absence was the one silence nothing listened for:
+    # `digest_20260903` never existed, and no alert ever said so, because the watchdog
+    # held no expectation for the task it runs inside. 20:45 UTC is `_DIGEST_TIME` (16:45
+    # ET) on the same EDT-era offsets every entry above uses -- READ OFF the constant
+    # already in this file, not chosen here. No cadence is introduced by this entry, and
+    # no entry above it is touched.
+    ScheduledTask(TASK_DIGEST, 20 * 60 + 45, DAYS_WEEKDAYS, PRODUCES_DIGEST),
 )
 
 

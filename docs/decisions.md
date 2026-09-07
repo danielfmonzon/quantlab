@@ -6,6 +6,60 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-09-07 — RULING: one added `SCHEDULE` entry for the digest, by exception (PROP-15)
+
+**Decision.** `src/quantlab/scheduling/tasks.py` gains a `PRODUCES_DIGEST` constant and **one**
+`ScheduledTask` entry — `ScheduledTask(TASK_DIGEST, 20 * 60 + 45, DAYS_WEEKDAYS, PRODUCES_DIGEST)`.
+No existing entry is touched and nothing else in the file changes. **Approved by Quant Lead as an
+exception to the firewall; relayed by Daniel, 2026-09-07.**
+
+**Why it needed a ruling.** `quantlab propose` **REFUSED** PROP-15 (exit 3):
+
+```
+FORBIDDEN PATH   src/quantlab/scheduling/tasks.py
+                 schedule cadences, which define what the paper mark interval means
+```
+
+The refusal was correct, and it is the second time the firewall has blocked a warranted change
+(PROP-5, 2026-08-30, was the first). It is worth recording *why* the refusal was right even though
+the change is: the firewall does not read intent, only the path, and it cannot distinguish "add an
+expectation for a task that already fires" from "move when the crypto run marks the book". That
+imprecision is the price of a gate that cannot be argued with, and it is the correct price.
+
+**What the entry does and does not do.** `20 * 60 + 45` is `_DIGEST_TIME` — 16:45 ET — expressed in
+the UTC form the four entries above it already use, and `_DIGEST_TIME` is what `build_install_commands`
+has always installed. **No cadence is introduced, chosen, or altered; nothing fires at a different
+instant than it did yesterday.** The entry only teaches the watchdog to notice when the digest does
+not run. A test asserts the two constants stay in step, so a future edit to one without the other
+fails loudly rather than letting the watchdog drift.
+
+**The cost of not having it.** `reports/digests/digest_20260903.json` does not exist. That digest
+never ran — the host was in Modern Standby across its 16:45 firing — and **nothing reported it, then
+or since**, because the watchdog held no expectation for the task it runs inside. A missing digest is
+worse than one missing report: the digest is what reports the *other four* tasks, so its silence
+suppresses a whole day of checks. The 2026-08-10 entry named the general form of this — a watchdog
+that shares a runtime with its subject shares its failure modes — and this is the narrowest instance
+of it that could still be fixed in place.
+
+**A variant was available and was refused on principle.** `_FAILURE_SOURCES_BY_TASK` lives in
+`reporting/watchdog.py` specifically because `tasks.py` is forbidden, and the same move would have
+held the digest's expectation there, passing the firewall with no exception needed. It was checked
+and it does pass. It was not taken, for the reason `tasks.py` states directly above `SCHEDULE`: *"that
+knowledge must not be duplicated"*. A firing instant duplicated into an ungated file drifts silently
+the first time the gated one is edited. More importantly, **choosing an ungated file because the
+correct one is gated is the reasoning the firewall exists to prevent an automated agent from reaching
+on its own** — so the choice was put to a human instead of made, which is exactly what the refusal
+text instructs.
+
+**Guard rails carried with the entry.** A digest never judges its own day: it writes its artifact at
+the end of the run doing the looking, so on `today` the file is guaranteed absent and naming it would
+fire a WARNING at 20:45 every weekday forever — the daily self-indictment PROP-11 removed once
+already. The skip is structural rather than left to PROP-14's in-flight deferral, which needs a
+readable scheduler and would let this fire on a host without one. Nothing is lost by it: the next
+digest's window opens at the latest digest *before* its own day, so a skipped day is swept then.
+
+---
+
 ## 2026-08-31 — The gate battery could uninstall the process running it (PROP-12)
 
 **What happened.** `quantlab implement 11` was invoked as `.venv/Scripts/quantlab.exe implement 11`
