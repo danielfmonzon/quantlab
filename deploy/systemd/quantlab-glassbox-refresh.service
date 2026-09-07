@@ -1,0 +1,18 @@
+[Unit]
+Description=quantlab Glass Box refresh: snapshot, build, gate, deploy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=quantlab
+Group=quantlab
+WorkingDirectory=/opt/quantlab
+EnvironmentFile=/opt/quantlab/.env
+Environment=QUANTLAB_ENV_FILE=/opt/quantlab/.env
+ExecStart=/opt/quantlab/.venv/bin/quantlab glassbox refresh
+TimeoutStartSec=45min
+MemoryMax=3G
+Restart=no
+StandardOutput=journal
+StandardError=journal

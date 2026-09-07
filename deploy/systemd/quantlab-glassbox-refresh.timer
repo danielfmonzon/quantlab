@@ -1,0 +1,11 @@
+[Unit]
+Description=quantlab Glass Box refresh: snapshot, build, gate, deploy (timer)
+
+[Timer]
+OnCalendar=Fri *-*-* 17:30:00 America/New_York
+Persistent=true
+Unit=quantlab-glassbox-refresh.service
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

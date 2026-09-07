@@ -22,6 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from quantlab.config import env_file_path
 from quantlab.constants import PROJECT_ROOT
 from quantlab.glassbox.completeness import (
     DEFAULT_MAX_AGE_DAYS,
@@ -145,7 +146,10 @@ def verify_dist(
     if not dist_dir.exists():
         raise FileNotFoundError(f"no such directory: {dist_dir}")
 
-    resolved_env = env_path if env_path is not None else DEFAULT_ENV_PATH
+    # Through `config.env_file_path()` so the override the service unit sets is
+    # honoured here too (PROP-13). `DEFAULT_ENV_PATH` remains this module's anchored
+    # default and is what that function returns when nothing is overridden.
+    resolved_env = env_path if env_path is not None else env_file_path()
     env = load_env_secret_prefixes(resolved_env)
 
     forbidden_counts: dict[str, int] = {}

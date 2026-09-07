@@ -63,6 +63,7 @@ from __future__ import annotations
 import json
 import platform
 import re
+import shutil
 import subprocess
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, time, timedelta
@@ -172,6 +173,17 @@ class TaskResult(BaseModel):
     task: str
     last_result: int
     recorded_at: datetime | None = None
+    # PLATFORM-NEUTRAL FACTS (PROP-13). Windows answers both questions with one integer;
+    # systemd answers them with separate fields, and separate is the correct shape -- the
+    # whole of PROP-11 exists because `Last Result` is a state and an ending wearing one
+    # name. Both default to None so a Windows row behaves exactly as it did, and the
+    # HRESULT remains the only witness there.
+    #
+    # `running` -- the scheduler says this task is in flight RIGHT NOW. Never an ending.
+    running: bool | None = None
+    # `result_kind` -- systemd's `Result=`: success, exit-code, signal, oom-kill, timeout,
+    # core-dump. It NAMES the cause, which an HRESULT never did.
+    result_kind: str | None = None
 
 
 class TaskDeath(BaseModel):
@@ -180,6 +192,10 @@ class TaskDeath(BaseModel):
     task: str
     result_code: int
     recorded_at: datetime | None = None
+    # systemd's `Result=` when the death came from there (PROP-13): signal, oom-kill,
+    # timeout, core-dump. None on Windows, where the HRESULT was the only witness and an
+    # operator had to go and look the number up.
+    result_kind: str | None = None
     # Whether this death is a NEW fact (PROP-11). False means it was recorded before the
     # battery hardening of 2026-08-30 and belongs to the class that ruling closed -- the
     # difference between "escalate" and "we already know about this one".
@@ -194,7 +210,15 @@ class TaskDeath(BaseModel):
 
     def render(self) -> str:
         when = self.recorded_at.isoformat() if self.recorded_at else "unknown instant"
-        line = f"{self.task} - result {self.result_code} ({self.hex_code}) at {when}"
+        if self.result_kind:
+            # NAME the cause when the scheduler gave one. "signal" is a fact an operator
+            # can act on; "0xC000013A" is a fact they have to go and look up, which on
+            # 2026-09-04 nobody did because nothing alerted in the first place.
+            line = (
+                f"{self.task} - {self.result_kind} (status {self.result_code}) at {when}"
+            )
+        else:
+            line = f"{self.task} - result {self.result_code} ({self.hex_code}) at {when}"
         if not self.post_hardening:
             line += " [pre-hardening: known class, not a recurrence]"
         if self.acknowledgement:
@@ -267,6 +291,28 @@ def schtasks_available() -> bool:
     return platform.system() == "Windows"
 
 
+def systemd_available() -> bool:
+    """Whether this host has systemd's scheduler to read (PROP-13).
+
+    The Linux half of the same predicate. `shutil.which` rather than a bare platform
+    check: a container without systemd is a Linux host with nothing to read, and calling
+    that AVAILABLE would report an empty audit as a clean bill of health.
+    """
+    return platform.system() == "Linux" and shutil.which("systemctl") is not None
+
+
+def task_scheduler_available() -> bool:
+    """Whether ANY scheduler this check knows how to read is present.
+
+    THE MIGRATION'S QUIETEST HAZARD (PROP-13). `schtasks_available()` alone returns False
+    on Linux, so moving the host without this would have switched the death tripwire off
+    and rendered "unavailable on this host" once a day forever -- trading a silent-outage
+    failure for a silent-MONITORING one, which is strictly worse because the report still
+    looks like a report. The predicate widens with the reader, in the same change.
+    """
+    return schtasks_available() or systemd_available()
+
+
 def _field(block: str, label: str) -> str | None:
     match = re.search(rf"^{re.escape(label)}:\s*(.*)$", block, re.MULTILINE)
     return match.group(1) if match else None
@@ -318,10 +364,95 @@ def parse_schtasks_list(text: str) -> list[TaskResult]:
     return results
 
 
-def _default_task_reader() -> list[TaskResult]:
-    """Every ``quantlab-*`` task's Last Result, read from Windows Task Scheduler."""
-    if not schtasks_available():
-        return []
+# The systemd properties the tripwire needs, in the order `systemctl show` is asked for
+# them. Named explicitly rather than taking the default dump: the default is hundreds of
+# lines per unit, and a parser that skims a firehose is a parser nobody can check.
+SYSTEMCTL_PROPERTIES = (
+    "Id", "Result", "ExecMainStatus", "ExecMainCode", "ExecMainExitTimestamp",
+    "ActiveState", "SubState",
+)
+
+# `Result=` values that are not an ending at all, or not a failing one.
+_SYSTEMD_OK_RESULTS = frozenset({"success"})
+
+# `SubState=`/`ActiveState=` values meaning the unit is mid-flight. A oneshot service
+# under way reports the PREVIOUS run's `Result`, so this must be read before it -- the
+# same trap `SCHED_S_TASK_RUNNING` set on Windows, in a different alphabet.
+_SYSTEMD_RUNNING_SUBSTATES = frozenset({"running", "start", "start-pre", "start-post"})
+_SYSTEMD_RUNNING_ACTIVESTATES = frozenset({"activating"})
+
+# systemd renders "Mon 2026-09-04 17:30:06 EDT": weekday, date, time, zone ABBREVIATION.
+# The abbreviation is not parseable back to an offset without a database lookup, and the
+# instant is compared against `BATTERY_HARDENING_APPLIED_AT`, which is naive and local by
+# deliberate choice. So the date and time are taken and the abbreviation dropped, landing
+# in exactly the frame `_local_naive` already works in.
+_SYSTEMD_STAMP = re.compile(
+    r"[A-Za-z]{3}\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})"
+)
+
+
+def _parse_systemd_stamp(raw: str | None) -> datetime | None:
+    """A systemd timestamp as a naive local datetime, or None. Never raises."""
+    if not raw or raw.strip() in {"", "n/a"}:
+        return None
+    match = _SYSTEMD_STAMP.search(raw)
+    if not match:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _systemd_field(block: str, label: str) -> str | None:
+    match = re.search(rf"^{re.escape(label)}=(.*)$", block, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def parse_systemctl_show(text: str) -> list[TaskResult]:
+    """Parse ``systemctl show`` output into one entry per quantlab unit (PROP-13).
+
+    The Linux counterpart of :func:`parse_schtasks_list`, and separate from the subprocess
+    call for the same reason: the parsing is then unit-testable against captured output on
+    any platform, which is the only way this can be written on Windows and trusted on
+    Linux.
+
+    A block whose ``Id`` or ``Result`` cannot be read is skipped rather than guessed at --
+    a fabricated result code would fire a CRITICAL naming a failure that never happened.
+    """
+    results: list[TaskResult] = []
+    for block in re.split(r"\n\s*\n", text.replace("\r\n", "\n")):
+        unit = _systemd_field(block, "Id")
+        if not unit:
+            continue
+        name = unit.strip().removesuffix(".service")
+        if not name.startswith(_TASK_NAME_PREFIX):
+            continue
+        kind = (_systemd_field(block, "Result") or "").strip()
+        if not kind:
+            continue
+        try:
+            status = int((_systemd_field(block, "ExecMainStatus") or "0").strip())
+        except ValueError:
+            continue
+        sub = (_systemd_field(block, "SubState") or "").strip()
+        active = (_systemd_field(block, "ActiveState") or "").strip()
+        results.append(TaskResult(
+            task=name,
+            last_result=status,
+            recorded_at=_parse_systemd_stamp(
+                _systemd_field(block, "ExecMainExitTimestamp")
+            ),
+            running=(
+                sub in _SYSTEMD_RUNNING_SUBSTATES
+                or active in _SYSTEMD_RUNNING_ACTIVESTATES
+            ),
+            result_kind=kind,
+        ))
+    return results
+
+
+def _read_schtasks() -> list[TaskResult]:
     try:
         proc = subprocess.run(
             ["schtasks", "/query", "/fo", "LIST", "/v"],
@@ -332,6 +463,37 @@ def _default_task_reader() -> list[TaskResult]:
     if proc.returncode != 0:
         return []
     return parse_schtasks_list(proc.stdout or "")
+
+
+def _read_systemd() -> list[TaskResult]:
+    """Read the quantlab units' recorded outcomes from systemd (PROP-13).
+
+    The units are named explicitly rather than globbed: `systemctl show` accepts a pattern
+    but reports nothing at all for one that matches no unit, which would be
+    indistinguishable from five healthy units. Naming them means a unit that is not
+    installed is visibly absent from the result.
+    """
+    units = [f"{task}.service" for task in _FAILURE_SOURCES_BY_TASK]
+    try:
+        proc = subprocess.run(
+            ["systemctl", "show", *units,
+             f"--property={','.join(SYSTEMCTL_PROPERTIES)}"],
+            capture_output=True, text=True, shell=False, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode != 0:
+        return []
+    return parse_systemctl_show(proc.stdout or "")
+
+
+def _default_task_reader() -> list[TaskResult]:
+    """Every ``quantlab-*`` task's recorded outcome, from whichever scheduler is here."""
+    if schtasks_available():
+        return _read_schtasks()
+    if systemd_available():
+        return _read_systemd()
+    return []
 
 
 class MissedRun(BaseModel):
@@ -434,7 +596,7 @@ class WatchdogReport(BaseModel):
         """
         if not self.task_results_available:
             return ["- task-death tripwire: **unavailable on this host** "
-                    "(no Windows Task Scheduler to read)"]
+                    "(neither Windows Task Scheduler nor systemd to read)"]
         lines: list[str] = []
         if not self.deaths and not self.acknowledged_deaths:
             return ["- **TASK DEATHS: none** — every non-zero result was one the "
@@ -629,10 +791,15 @@ def tasks_in_flight(results: Sequence[TaskResult]) -> set[str]:
     identical HRESULT arrives signed from ``schtasks`` and unsigned from the COM API, and a
     task that is running under one sign convention is not finished under the other.
     """
-    return {
-        result.task for result in results
-        if (result.last_result & 0xFFFFFFFF) == SCHED_S_TASK_RUNNING
-    }
+    out: set[str] = set()
+    for result in results:
+        if result.running is not None:
+            # systemd answers directly (PROP-13); no code arithmetic is involved.
+            if result.running:
+                out.add(result.task)
+        elif (result.last_result & 0xFFFFFFFF) == SCHED_S_TASK_RUNNING:
+            out.add(result.task)
+    return out
 
 
 def _local_naive(moment: datetime) -> datetime:
@@ -654,6 +821,32 @@ def _is_own_in_flight_result(result: TaskResult, now: datetime | None) -> bool:
     if result.task != SELF_TASK or now is None or result.recorded_at is None:
         return False
     return result.recorded_at.date() == _local_naive(now).date()
+
+
+def _is_ending_failure(result: TaskResult) -> bool:
+    """Whether this row describes a run that ENDED, and ended badly (PROP-13).
+
+    One question, two dialects. Windows says everything with a single integer, so a
+    ``SCHED_S_*`` value has to be excluded by hand or a state reads as a death -- the
+    defect PROP-11 fixed. systemd says it with ``Result=``, which never carries a state and
+    which NAMES the cause, so the exclusion is unnecessary there and the classification is
+    simply what the field says.
+
+    A `signal`, `oom-kill` or `timeout` is a death whatever the exit status says: the
+    2026-09-04 refresh was killed with an exit status that meant nothing on its own.
+    """
+    if result.result_kind is None:
+        # Windows: the HRESULT is the only witness, and PROP-11's exclusion applies.
+        if result.last_result == 0:
+            return False
+        return status_code_name(result.last_result) is None
+    kind = result.result_kind.strip().lower()
+    if kind in _SYSTEMD_OK_RESULTS:
+        return False
+    if kind == "exit-code":
+        return result.last_result != 0
+    # signal, oom-kill, timeout, core-dump, start-limit-hit, ... all endings, all bad.
+    return True
 
 
 def _is_post_hardening(recorded_at: datetime | None) -> bool:
@@ -710,9 +903,13 @@ def audit_task_deaths(
     deaths: list[TaskDeath] = []
     acknowledged_deaths: list[TaskDeath] = []
     for result in results:
-        if result.last_result == 0:
+        # IN FLIGHT IS NOT AN ENDING, and it is checked first. A systemd oneshot that is
+        # mid-run still reports the PREVIOUS run's `Result`, so reading the result before
+        # the state would classify the last run's outcome as this one's (PROP-13). The
+        # same trap `SCHED_S_TASK_RUNNING` set on Windows, in a different alphabet.
+        if result.running:
             continue
-        if status_code_name(result.last_result) is not None:
+        if not _is_ending_failure(result):
             continue
         if _is_own_in_flight_result(result, now):
             continue
@@ -728,6 +925,7 @@ def audit_task_deaths(
             task=result.task, result_code=result.last_result,
             recorded_at=result.recorded_at,
             post_hardening=_is_post_hardening(result.recorded_at),
+            result_kind=result.result_kind,
         )
         ruled = next((a for a in acknowledged if a.matches(death)), None)
         if ruled is not None:
@@ -924,7 +1122,7 @@ def check_schedule(
     # way to know that the task it was about to indict was still running.
     available = (
         task_results_available if task_results_available is not None
-        else schtasks_available()
+        else task_scheduler_available()
     )
     task_results: list[TaskResult] = []
     if available:
@@ -1025,6 +1223,7 @@ __all__ = [
     "BATTERY_HARDENING_APPLIED_AT",
     "DEFAULT_LOOKBACK_DAYS",
     "SCHED_S_STATUS_CODES",
+    "SYSTEMCTL_PROPERTIES",
     "SCHED_S_TASK_RUNNING",
     "SELF_TASK",
     "AcknowledgedDeath",
@@ -1038,9 +1237,12 @@ __all__ = [
     "check_schedule",
     "load_acknowledged_deaths",
     "parse_schtasks_list",
+    "parse_systemctl_show",
     "previous_digest_date",
     "previous_digest_deferrals",
     "schtasks_available",
+    "systemd_available",
+    "task_scheduler_available",
     "status_code_name",
     "tasks_in_flight",
     "unexplained_task_deaths",
