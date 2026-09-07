@@ -18,6 +18,7 @@ from quantlab.reporting.watchdog import (
     BATTERY_HARDENING_APPLIED_AT,
     DEFAULT_LOOKBACK_DAYS,
     SCHED_S_STATUS_CODES,
+    SCHED_S_TASK_RUNNING,
     AcknowledgedDeath,
     TaskResult,
     audit_task_deaths,
@@ -25,6 +26,8 @@ from quantlab.reporting.watchdog import (
     load_acknowledged_deaths,
     parse_schtasks_list,
     previous_digest_date,
+    previous_digest_deferrals,
+    tasks_in_flight,
     unexplained_task_deaths,
 )
 
@@ -84,6 +87,22 @@ class Tree:
         if day.weekday() == 4:
             self.weekly_review(day)
             self.refresh_alert(day)
+
+    def digest_with_deferrals(
+        self, day: date, entries: list[tuple[date, str]],
+        at: str = "20:45:04.370800+00:00",
+    ) -> None:
+        """A digest that RECORDED deferrals, in the shape the next one reads (PROP-14)."""
+        (self.digests / f"digest_{day:%Y%m%d}.json").write_text(
+            json.dumps({
+                "generated_at": f"{day}T{at}",
+                "watchdog": {"deferred": [
+                    {"task": task, "day": d.isoformat(), "label": None, "expected": ""}
+                    for d, task in entries
+                ]},
+            }),
+            encoding="utf-8",
+        )
 
     def check(self, now: datetime, **kw: object):
         return check_schedule(
@@ -1011,3 +1030,237 @@ def test_the_missed_firing_half_is_unchanged_by_the_precision_work(
     ]
     assert report.recurrences == []
     assert len(report.known_deaths) == 1
+
+
+# --------------------------------------------------------------------------- #
+# PROP-14 — an in-flight catch-up firing is not a missed one                   #
+# --------------------------------------------------------------------------- #
+#
+# The live fixture is the 2026-09-04 false WARNING. The host left Modern Standby at
+# 01:32:40 local and Windows released two catch-up firings together; the digest globbed
+# `reports/paper` while the crypto run was still mid-flight and named both of its accounts
+# as never having fired. Its reports were written 4.4s and 2.0s BEFORE the WARNING, and the
+# same check re-run at 20:45Z that day over the identical window reported no misses at all.
+
+_RACE_PREV_DIGEST = date(2026, 9, 2)
+_RACE_DAY = date(2026, 9, 4)
+_RACE_YESTERDAY = date(2026, 9, 3)
+# 05:35:39.850Z — the instant the false WARNING was written to alerts.jsonl.
+_RACE_NOW = datetime(2026, 9, 4, 5, 35, 39, 850439, tzinfo=UTC)
+
+_CRYPTO_TASK = "quantlab-crypto-paper-run"
+
+
+def _race_tree(tmp_path: Path) -> Tree:
+    """Everything present except the 2026-09-04 crypto reports, which are being written."""
+    t = Tree(tmp_path)
+    t.healthy_digest(_RACE_PREV_DIGEST)
+    _seed_complete(t, [_RACE_YESTERDAY])
+    return t
+
+
+def _running(*tasks: str) -> list[TaskResult]:
+    return [TaskResult(task=name, last_result=0x00041301) for name in tasks]
+
+
+def _settled(*tasks: str) -> list[TaskResult]:
+    return [TaskResult(task=name, last_result=0) for name in tasks]
+
+
+def test_an_in_flight_task_defers_its_firing_instead_of_naming_it_missed(
+    tmp_path: Path,
+) -> None:
+    """The 2026-09-04 race, replayed: zero misses, two deferrals, nothing dispatched."""
+    t = _race_tree(tmp_path)
+
+    report = t.check(
+        _RACE_NOW, task_results_available=True,
+        task_reader=lambda: _running(_CRYPTO_TASK),
+    )
+
+    assert report.missed == []
+    assert [(m.day, m.label) for m in report.deferred] == [
+        (_RACE_DAY, "crypto_trend"), (_RACE_DAY, "crypto_voltarget"),
+    ]
+    # `ok` gates the WARNING, so a deferral must not fire one.
+    assert report.ok
+    # The firings were CHECKED, not skipped — a deferral is an unresolved check, and a
+    # count that hid it would understate what the window covered.
+    assert report.firings_checked == 6
+
+
+def test_the_deferral_is_rendered_rather_than_silently_dropped(tmp_path: Path) -> None:
+    """A skipped check that leaves no trace is indistinguishable from one never expected."""
+    t = _race_tree(tmp_path)
+
+    rendered = "\n".join(t.check(
+        _RACE_NOW, task_results_available=True,
+        task_reader=lambda: _running(_CRYPTO_TASK),
+    ).render())
+
+    assert "MISSED RUNS: none" in rendered
+    assert "deferred (2)" in rendered
+    assert "crypto_trend" in rendered and "crypto_voltarget" in rendered
+
+
+def test_the_same_absence_is_still_missed_when_the_task_is_not_running(
+    tmp_path: Path,
+) -> None:
+    """Not a blanket mute: identical fixture, settled scheduler row, both named."""
+    t = _race_tree(tmp_path)
+
+    report = t.check(
+        _RACE_NOW, task_results_available=True,
+        task_reader=lambda: _settled(_CRYPTO_TASK),
+    )
+
+    assert [(m.day, m.label) for m in report.missed] == [
+        (_RACE_DAY, "crypto_trend"), (_RACE_DAY, "crypto_voltarget"),
+    ]
+    assert report.deferred == []
+    assert not report.ok
+
+
+def test_a_different_task_running_does_not_excuse_this_one(tmp_path: Path) -> None:
+    """The exclusion is per task, not global — in flight has to mean THIS task."""
+    t = _race_tree(tmp_path)
+
+    report = t.check(
+        _RACE_NOW, task_results_available=True,
+        task_reader=lambda: _running("quantlab-digest"),
+    )
+
+    assert len(report.missed) == 2
+    assert report.deferred == []
+
+
+def test_an_unreadable_scheduler_defers_nothing(tmp_path: Path) -> None:
+    """Failure direction stays toward alerting: no scheduler, no deferral, still named."""
+    t = _race_tree(tmp_path)
+
+    report = t.check(_RACE_NOW, task_results_available=False)
+
+    assert len(report.missed) == 2
+    assert report.deferred == []
+
+
+def test_a_deferred_firing_still_absent_is_named_by_the_next_digest(
+    tmp_path: Path,
+) -> None:
+    """PROP-6's rule, applied to PROP-14: a postponed check is not a cancelled one."""
+    t = _race_tree(tmp_path)
+    t.digest_with_deferrals(_RACE_DAY, [(_RACE_DAY, _CRYPTO_TASK)])
+    # 2026-09-04 is a Friday: its weekly and refresh fall due AFTER that digest ran and
+    # are deferred by PROP-6, so they have to be present or they mask what is under test.
+    t.weekly_review(_RACE_DAY)
+    t.refresh_alert(_RACE_DAY)
+    _seed_complete(t, [date(2026, 9, 5)])
+
+    report = t.check(
+        datetime(2026, 9, 5, 20, 45, tzinfo=UTC), task_results_available=True,
+        task_reader=lambda: _settled(_CRYPTO_TASK),
+    )
+
+    assert [(m.day, m.label) for m in report.missed] == [
+        (_RACE_DAY, "crypto_trend"), (_RACE_DAY, "crypto_voltarget"),
+    ]
+    # The window line has to admit it reached back, or it understates the check.
+    assert report.window_start == _RACE_DAY
+
+
+def test_a_deferred_firing_whose_artifact_arrived_is_not_named(tmp_path: Path) -> None:
+    """The ordinary outcome: the run finished seconds later, so there was never a miss."""
+    t = _race_tree(tmp_path)
+    t.digest_with_deferrals(_RACE_DAY, [(_RACE_DAY, _CRYPTO_TASK)])
+    for label in CRYPTO:                      # the reports the race was waiting on
+        t.run_report(label, _RACE_DAY, "053512")
+    t.weekly_review(_RACE_DAY)
+    t.refresh_alert(_RACE_DAY)
+    _seed_complete(t, [date(2026, 9, 5)])
+
+    report = t.check(
+        datetime(2026, 9, 5, 20, 45, tzinfo=UTC), task_results_available=True,
+        task_reader=lambda: _settled(_CRYPTO_TASK),
+    )
+
+    assert report.missed == []
+    assert report.deferred == []
+
+
+def test_a_rechecked_deferral_is_not_counted_or_named_twice(tmp_path: Path) -> None:
+    """A same-day re-run puts the deferral inside the window sweep as well."""
+    t = _race_tree(tmp_path)
+    t.digest_with_deferrals(_RACE_PREV_DIGEST, [(_RACE_YESTERDAY, _CRYPTO_TASK)])
+
+    report = t.check(
+        _RACE_NOW, task_results_available=True,
+        task_reader=lambda: _settled(_CRYPTO_TASK),
+    )
+
+    # 2026-09-03's crypto reports were seeded, so the re-check finds them and the day is
+    # counted exactly once despite being reachable by two routes.
+    assert report.firings_checked == 6
+    assert [(m.day, m.label) for m in report.missed] == [
+        (_RACE_DAY, "crypto_trend"), (_RACE_DAY, "crypto_voltarget"),
+    ]
+
+
+def test_deferrals_survive_the_digest_json_round_trip(tmp_path: Path) -> None:
+    """The persisted shape IS the contract between one digest and the next."""
+    t = _race_tree(tmp_path)
+    report = t.check(
+        _RACE_NOW, task_results_available=True,
+        task_reader=lambda: _running(_CRYPTO_TASK),
+    )
+    (t.digests / f"digest_{_RACE_DAY:%Y%m%d}.json").write_text(
+        json.dumps({
+            "generated_at": f"{_RACE_DAY}T05:35:39+00:00",
+            "watchdog": report.model_dump(mode="json"),
+        }),
+        encoding="utf-8",
+    )
+
+    assert previous_digest_deferrals(t.digests, _RACE_DAY) == {(_RACE_DAY, _CRYPTO_TASK)}
+
+
+def test_a_malformed_digest_yields_no_deferrals_rather_than_raising(
+    tmp_path: Path,
+) -> None:
+    """The same 'cannot tell' posture previous_digest_instant already takes."""
+    t = Tree(tmp_path)
+    (t.digests / "digest_20260904.json").write_text("{not json", encoding="utf-8")
+    assert previous_digest_deferrals(t.digests, _RACE_DAY) == set()
+
+    (t.digests / "digest_20260904.json").write_text(
+        json.dumps({"watchdog": {"deferred": ["nonsense", {"day": "not-a-date"}]}}),
+        encoding="utf-8",
+    )
+    assert previous_digest_deferrals(t.digests, _RACE_DAY) == set()
+
+
+def test_tasks_in_flight_reads_the_running_code_under_either_sign() -> None:
+    """The same HRESULT arrives signed from schtasks and unsigned from the COM API."""
+    signed = 0x00041301 - 2**32
+    assert tasks_in_flight([TaskResult(task="a", last_result=signed)]) == {"a"}
+    assert tasks_in_flight([TaskResult(task="a", last_result=0x00041301)]) == {"a"}
+    # Every OTHER status code describes a task at rest and must not defer anything.
+    at_rest = [
+        TaskResult(task=f"t{code:x}", last_result=code)
+        for code in SCHED_S_STATUS_CODES
+        if code != SCHED_S_TASK_RUNNING
+    ]
+    assert tasks_in_flight(at_rest) == set()
+
+
+def test_the_prop6_deferral_and_the_single_warning_are_unchanged(tmp_path: Path) -> None:
+    """Regression: PROP-14 adds a route into deferral, it does not alter the old one."""
+    t = Tree(tmp_path)
+    t.digest(_FRIDAY)
+    t.weekly_review(_FRIDAY)
+    _seed_complete(t, [date(2026, 8, 29), date(2026, 8, 30), _MONDAY])
+
+    alerts, _ = _digest_alerts(t, _todays_records())
+
+    warnings = [a for a in alerts if a.level == "WARNING"]
+    assert len(warnings) == 1
+    assert "quantlab-glassbox-refresh" in warnings[0].body

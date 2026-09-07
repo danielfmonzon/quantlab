@@ -126,6 +126,11 @@ SCHED_S_STATUS_CODES: dict[int, str] = {
     0x00041306: "SCHED_S_TASK_TERMINATED",
 }
 
+# The one member of that family the MISSED-FIRING half has any use for (PROP-14). The
+# others describe a task at rest; this one describes a task in flight, and "in flight"
+# is the single state under which "no artifact yet" does not mean "never fired".
+SCHED_S_TASK_RUNNING = 0x00041301
+
 # The task this check runs inside. Everything the digest can see about its own task while
 # it is running describes the run doing the looking.
 SELF_TASK = "quantlab-digest"
@@ -352,6 +357,13 @@ class WatchdogReport(BaseModel):
     anchored_to_previous_digest: bool = False
     firings_checked: int = 0
     missed: list[MissedRun] = []
+    # Firings whose artifact was absent but whose task was IN FLIGHT at check time
+    # (PROP-14). Held apart from ``missed`` because the two make opposite claims: a missed
+    # firing is one that never happened, a deferred one is happening right now. They are
+    # persisted here rather than only rendered because the NEXT digest reads them back and
+    # re-checks them -- PROP-6's rule that a skipped check must be a postponed check, not
+    # a cancelled one.
+    deferred: list[MissedRun] = []
     # Non-zero scheduler results the system never accounted for (PROP-8). Separate from
     # ``missed`` because they are the opposite failure: the task DID fire, and died
     # somewhere its own error handling could not reach.
@@ -399,6 +411,16 @@ class WatchdogReport(BaseModel):
             lines.append(f"- **MISSED RUNS ({len(self.missed)})**")
             for m in self.missed:
                 lines.append(f"  - {m.render()}")
+        if self.deferred:
+            # Rendered even though nothing is dispatched for it. A firing that was skipped
+            # invisibly is indistinguishable from one that was never expected, and that
+            # indistinguishability is the PROP-6 defect in a new place.
+            lines.append(
+                f"- deferred ({len(self.deferred)}) — the owning task was RUNNING at "
+                f"check time, so absence of an artifact proves nothing yet; re-checked "
+                f"by the next digest"
+            )
+            lines.extend(f"  - {m.render()}" for m in self.deferred)
         lines.extend(self._death_lines())
         lines.append("")
         return lines
@@ -592,6 +614,27 @@ def status_code_name(code: int) -> str | None:
     return SCHED_S_STATUS_CODES.get(code & 0xFFFFFFFF)
 
 
+def tasks_in_flight(results: Sequence[TaskResult]) -> set[str]:
+    """Names of the tasks the scheduler currently reports as RUNNING (PROP-14).
+
+    THE GENERALISATION OF ``_is_own_in_flight_result``. That function already knows that a
+    ``SCHED_S_TASK_RUNNING`` row describes a task in progress rather than one that ended --
+    it is why the digest stopped raising a CRITICAL against itself daily. But it applies
+    that knowledge to ONE task name, because the only in-flight row PROP-11 had to explain
+    was the digest's own. The 2026-09-04 false WARNING was the same fact about a different
+    task: the crypto run was mid-flight, its reports were seconds from being written, and
+    the artifact check called it a firing that never happened.
+
+    Matched on the unsigned value for the same reason :func:`status_code_name` is: the
+    identical HRESULT arrives signed from ``schtasks`` and unsigned from the COM API, and a
+    task that is running under one sign convention is not finished under the other.
+    """
+    return {
+        result.task for result in results
+        if (result.last_result & 0xFFFFFFFF) == SCHED_S_TASK_RUNNING
+    }
+
+
 def _local_naive(moment: datetime) -> datetime:
     """``moment`` on the host's own wall clock, naive — the frame schtasks writes in."""
     return (moment.astimezone() if moment.tzinfo is not None else moment).replace(
@@ -736,6 +779,41 @@ def previous_digest_instant(digests_dir: Path, day: date) -> datetime | None:
     return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
 
 
+def previous_digest_deferrals(digests_dir: Path, day: date) -> set[tuple[date, str]]:
+    """The ``(day, task)`` pairs the digest dated ``day`` deferred as in-flight (PROP-14).
+
+    Read back out of that digest's own JSON, which is what makes a deferral a POSTPONED
+    check rather than a cancelled one. A digest that cannot be read yields the empty set:
+    the firing then falls to the ordinary window rules, which is the same "cannot tell"
+    posture :func:`previous_digest_instant` already takes.
+    """
+    path = digests_dir / f"digest_{day:%Y%m%d}.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return set()
+    if not isinstance(payload, dict):
+        return set()
+    watchdog = payload.get("watchdog")
+    if not isinstance(watchdog, dict):
+        return set()
+    entries = watchdog.get("deferred")
+    if not isinstance(entries, list):
+        return set()
+    out: set[tuple[date, str]] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        raw_day, task = entry.get("day"), entry.get("task")
+        if not isinstance(raw_day, str) or not isinstance(task, str):
+            continue
+        try:
+            out.add((date.fromisoformat(raw_day), task))
+        except ValueError:
+            continue
+    return out
+
+
 def previous_digest_date(digests_dir: Path, before: date) -> date | None:
     """Date of the most recent digest strictly before ``before``, if any."""
     if not digests_dir.exists():
@@ -822,52 +900,92 @@ def check_schedule(
                 checks.append((previous, task))
                 deferred_from = previous
 
+    # THE OTHER HALF OF THE DEFERRAL (PROP-14). PROP-6 defers a firing that was not yet
+    # DUE when the previous digest ran; this defers one that was due, and running, and
+    # therefore equally unprovable at that moment. Both are postponed checks and both have
+    # to come back here, or the skip silently becomes a cancellation.
+    by_name = {task.name: task for task in SCHEDULE}
+    if previous is not None:
+        for deferred_day, name in sorted(previous_digest_deferrals(digests_dir, previous)):
+            scheduled = by_name.get(name)
+            if scheduled is None or _due_at(scheduled, deferred_day) > now:
+                continue
+            checks.append((deferred_day, scheduled))
+            if deferred_day < start:
+                deferred_from = min(deferred_from or deferred_day, deferred_day)
+
+    # A firing re-checked from a deferral may also be inside the window sweep -- when the
+    # digest re-runs on the same day, for instance. Counting it twice would inflate
+    # `firings_checked` and could name one absence in two entries.
+    checks = sorted(set(checks), key=lambda c: (c[0], c[1].name))
+
+    # Read the scheduler BEFORE judging any absence, not after (PROP-14). The order is
+    # the fix: `available`/`reader` used to be resolved below the loop, so the loop had no
+    # way to know that the task it was about to indict was still running.
+    available = (
+        task_results_available if task_results_available is not None
+        else schtasks_available()
+    )
+    task_results: list[TaskResult] = []
+    if available:
+        reader = task_reader if task_reader is not None else _default_task_reader
+        task_results = reader()
+    # Empty when the scheduler cannot be read, so an unreadable scheduler defers nothing
+    # and every absence is reported exactly as it is today -- the failure direction stays
+    # toward alerting.
+    in_flight = tasks_in_flight(task_results)
+
     missed: list[MissedRun] = []
+    deferred: list[MissedRun] = []
     checked = 0
+
+    def record(day: date, task: ScheduledTask, label: str | None, expected: str) -> None:
+        """File one absence as missed, or as deferred when its task is in flight."""
+        entry = MissedRun(task=task.name, day=day, label=label, expected=expected)
+        (deferred if task.name in in_flight else missed).append(entry)
+
     for day, task in checks:
         if task.produces == PRODUCES_RUN_REPORT:
             for label in _labels_for(task):
                 checked += 1
                 if day not in report_days.get(label, set()):
-                    missed.append(MissedRun(
-                        task=task.name, day=day, label=label,
-                        expected=f"no run report reports/paper/run_{label}_{day:%Y%m%d}*.json",
-                    ))
+                    record(day, task, label,
+                           f"no run report reports/paper/run_{label}_{day:%Y%m%d}*.json")
         elif task.produces == PRODUCES_WEEKLY_REVIEW:
             checked += 1
             if day not in weekly_days:
-                missed.append(MissedRun(
-                    task=task.name, day=day,
-                    expected=f"no weekly review reports/weekly/week_{day:%Y%m%d}.json",
-                ))
+                record(day, task, None,
+                       f"no weekly review reports/weekly/week_{day:%Y%m%d}.json")
         elif task.produces == PRODUCES_REFRESH_ALERT:
             checked += 1
             if day not in refresh_days:
-                missed.append(MissedRun(
-                    task=task.name, day=day,
-                    expected="no glassbox.refresh alert (the chain left no deploy-log entry)",
-                ))
+                record(day, task, None,
+                       "no glassbox.refresh alert (the chain left no deploy-log entry)")
 
-    missed.sort(key=lambda m: (m.day, m.task, m.label or ""))
+    def order(entry: MissedRun) -> tuple[date, str, str]:
+        return (entry.day, entry.task, entry.label or "")
+
+    missed.sort(key=order)
+    deferred.sort(key=order)
 
     # -- task-death tripwire (PROP-8) ---------------------------------------
     # Asks the opposite question to everything above: not "did the artifact appear"
     # but "did the scheduler record an ending the system never mentioned". A run that
     # is killed leaves no artifact AND no log line, so the artifact check alone reports
     # it as a missed firing with the wrong cause attached.
-    available = (
-        task_results_available if task_results_available is not None
-        else schtasks_available()
-    )
+    #
+    # Reads `task_results` captured above rather than calling the reader a second time
+    # (PROP-14): two reads would be two different instants, and the tripwire and the
+    # missed-firing check would then be answering from different pictures of the same
+    # scheduler -- which is the class of defect this proposal exists to remove.
     deaths: list[TaskDeath] = []
     acknowledged_deaths: list[TaskDeath] = []
     if available:
-        reader = task_reader if task_reader is not None else _default_task_reader
         # `now` is threaded in so the audit can recognise its OWN in-flight row, and the
         # ledger path is explicit rather than defaulted here: a check that silently read
         # a repo file would make every caller's result depend on the checkout.
         audit = audit_task_deaths(
-            reader(), alerts_path, log_path, now=now,
+            task_results, alerts_path, log_path, now=now,
             acknowledged=load_acknowledged_deaths(acknowledged_deaths_path),
         )
         deaths, acknowledged_deaths = audit.deaths, audit.acknowledged
@@ -878,7 +996,7 @@ def check_schedule(
         window_start=min(start, deferred_from) if deferred_from else start,
         window_end=today,
         anchored_to_previous_digest=anchored,
-        firings_checked=checked, missed=missed,
+        firings_checked=checked, missed=missed, deferred=deferred,
         deaths=deaths, acknowledged_deaths=acknowledged_deaths,
         task_results_available=available,
     )
@@ -891,6 +1009,9 @@ def check_schedule(
     if acknowledged_deaths:
         log.info("watchdog_acknowledged_task_deaths", count=len(acknowledged_deaths),
                  deaths=[d.render() for d in acknowledged_deaths])
+    if deferred:
+        log.info("watchdog_deferred_in_flight", count=len(deferred),
+                 deferred=[m.render() for m in deferred])
     if missed:
         log.warning("watchdog_missed_runs", count=len(missed),
                     missed=[m.render() for m in missed])
@@ -904,6 +1025,7 @@ __all__ = [
     "BATTERY_HARDENING_APPLIED_AT",
     "DEFAULT_LOOKBACK_DAYS",
     "SCHED_S_STATUS_CODES",
+    "SCHED_S_TASK_RUNNING",
     "SELF_TASK",
     "AcknowledgedDeath",
     "DeathAudit",
@@ -917,7 +1039,9 @@ __all__ = [
     "load_acknowledged_deaths",
     "parse_schtasks_list",
     "previous_digest_date",
+    "previous_digest_deferrals",
     "schtasks_available",
     "status_code_name",
+    "tasks_in_flight",
     "unexplained_task_deaths",
 ]
