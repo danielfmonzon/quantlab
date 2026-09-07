@@ -1,6 +1,6 @@
 # PROP-14 — The watchdog reports an in-flight catch-up firing as a missed one
 
-_proposed 2026-09-07T14:12:16.167325Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-09-07T14:12:16.167325Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -42,3 +42,41 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-09-07T14:19:39.457157Z  |  branch `prop/14`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+_`main..prop/14` — the whole series, not only this run's commit._
+
+```
+src/quantlab/reporting/watchdog.py | 164 +++++++++++++++++++++---
+ tests/test_watchdog.py             | 253 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 397 insertions(+), 20 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 72 source files |
+| `pytest` | PASS | 850 passed, 1 warning in 202.83s (0:03:22) |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/14`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/14` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.
