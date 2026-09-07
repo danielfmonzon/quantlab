@@ -143,6 +143,52 @@ def test_every_service_is_bounded_and_never_retried() -> None:
         assert "Restart=no" in text
 
 
+def _memory_max_mib(unit_text: str) -> int:
+    """The MemoryMax= of a rendered service, in MiB."""
+    line = next(ln for ln in unit_text.splitlines() if ln.startswith("MemoryMax="))
+    raw = line.split("=", 1)[1].strip()
+    if raw.endswith("G"):
+        return int(float(raw[:-1]) * 1024)
+    if raw.endswith("M"):
+        return int(float(raw[:-1]))
+    raise AssertionError(f"unhandled MemoryMax unit: {raw!r}")
+
+
+def test_no_unit_declares_a_ceiling_the_host_cannot_enforce() -> None:
+    """A ceiling above physical RAM is not a ceiling (PROP-16).
+
+    The provisioned host has 1,919 MiB. Above that the machine reaches for its 4 GB
+    swapfile and degrades quietly instead of ending, which turns `Result=oom-kill` --
+    a named cause the death tripwire reads -- back into the silent failure the whole
+    migration exists to remove. 2G is the assertion rather than 1919 MiB so the test
+    does not depend on one host's exact size, but it is low enough that raising a
+    ceiling past what a small VPS can enforce fails here rather than on a Friday.
+    """
+    for unit in build_units():
+        assert _memory_max_mib(render_service(unit)) <= 2048, unit.task
+
+
+def test_the_refresh_ceiling_is_the_measured_one() -> None:
+    """Phase 0 measured the public build at 705 MiB committed, peak.
+
+    1500M is under the host's 1,919 MiB and better than two times the real figure, so
+    it can actually fire without firing spuriously. Pinned because the number's value
+    is entirely in being below RAM, and nothing else in the file says so.
+    """
+    refresh = next(u for u in build_units() if u.task == TASK_GLASSBOX_REFRESH)
+    assert _memory_max_mib(render_service(refresh)) <= 1500
+
+
+def test_no_timer_pins_a_wakeup_accuracy() -> None:
+    """`AccuracySec` bought nothing and read as protective (PROP-16).
+
+    What protects the mark instant is the absence of `RandomizedDelaySec` -- asserted
+    separately above -- not a tight wake-up.
+    """
+    for unit in build_units():
+        assert "AccuracySec" not in render_timer(unit)
+
+
 def test_the_install_root_and_user_are_parameters_not_edits() -> None:
     """Wednesday's host details must not require touching this module."""
     text = render_service(build_units()[0], install_root="/srv/ql", user="ql")

@@ -1,6 +1,6 @@
 # PROP-16 — The refresh unit's memory ceiling is above physical RAM so an OOM cannot be reported as one
 
-_proposed 2026-09-07T16:25:16.397712Z  |  risk class: **infrastructure**  |  status: **AWAITING IMPLEMENTATION**_
+_proposed 2026-09-07T16:25:16.397712Z  |  risk class: **infrastructure**  |  status: **IMPLEMENTED — awaiting human merge**_
 
 ## Observation
 
@@ -43,3 +43,47 @@ FIREWALL PASS — no forbidden path or change class touched.
 
 <!-- IMPLEMENTATION REPORT ANCHOR -->
 
+## Implementation report
+
+_implemented 2026-09-07T16:26:06.068131Z  |  branch `prop/16`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+_`main..prop/16` — the whole series, not only this run's commit._
+
+```
+deploy/systemd/quantlab-crypto-paper-run.timer   |  1 -
+ deploy/systemd/quantlab-digest.timer             |  1 -
+ deploy/systemd/quantlab-glassbox-refresh.service |  2 +-
+ deploy/systemd/quantlab-glassbox-refresh.timer   |  1 -
+ deploy/systemd/quantlab-paper-run.timer          |  1 -
+ deploy/systemd/quantlab-weekly.timer             |  1 -
+ src/quantlab/scheduling/systemd.py               | 19 +++++++---
+ tests/test_systemd_migration.py                  | 46 ++++++++++++++++++++++++
+ 8 files changed, 62 insertions(+), 10 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 73 source files |
+| `pytest` | PASS | 906 passed, 1 skipped, 1 warning in 221.61s (0:03:41) |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/16`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/16` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.
