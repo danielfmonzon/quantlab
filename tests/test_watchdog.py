@@ -30,6 +30,7 @@ from quantlab.reporting.watchdog import (
     tasks_in_flight,
     unexplained_task_deaths,
 )
+from quantlab.scheduling.tasks import PRODUCES_DIGEST
 
 EQUITY = ("voltarget", "trend")
 CRYPTO = ("crypto_trend", "crypto_voltarget")
@@ -121,6 +122,10 @@ def _seed_complete(t: Tree, days: list[date], *, weekly_on: list[date] | None = 
         if d.weekday() <= 4 and cal.sessions_between(d, d):
             for label in EQUITY:
                 t.run_report(label, d)
+        if d.weekday() <= 4:
+            # The digest fires every weekday, market holidays included (PROP-15), so a
+            # day is not 'complete' without one.
+            t.digest(d)
         if d.weekday() == 4:  # Friday
             t.weekly_review(d)
             t.refresh_alert(d)
@@ -762,7 +767,7 @@ def _clean_window(t: Tree) -> None:
 
 
 def _digest_alerts(
-    t: Tree, records: list[TaskResult], **kw: object
+    t: Tree, records: list[TaskResult], *, now: datetime | None = None, **kw: object
 ) -> tuple[list, object]:
     """Run the real `build_digest` over ``records`` and collect what it dispatched."""
     import numpy as np
@@ -781,12 +786,11 @@ def _digest_alerts(
     alerts: list = []
     digest = build_digest(
         {"voltarget": None, "trend": None}, FakeStore(), TradingCalendar(),  # type: ignore[arg-type]
-        _NOW_MONDAY,
+        now or _NOW_MONDAY,
         data_dir=t.paper.parent / "data", paper_reports_dir=t.paper,
         weekly_dir=t.weekly, alerts_path=t.alerts, digests_dir=t.digests,
         alert_fn=alerts.append,
-        task_results_available=True, task_reader=lambda: records,
-        **kw,  # type: ignore[arg-type]
+        **{"task_results_available": True, "task_reader": (lambda: records), **kw},  # type: ignore[arg-type]
     )
     return alerts, digest
 
@@ -1086,7 +1090,7 @@ def test_an_in_flight_task_defers_its_firing_instead_of_naming_it_missed(
     assert report.ok
     # The firings were CHECKED, not skipped — a deferral is an unresolved check, and a
     # count that hid it would understate what the window covered.
-    assert report.firings_checked == 6
+    assert report.firings_checked == 2
 
 
 def test_the_deferral_is_rendered_rather_than_silently_dropped(tmp_path: Path) -> None:
@@ -1188,18 +1192,18 @@ def test_a_deferred_firing_whose_artifact_arrived_is_not_named(tmp_path: Path) -
 
 
 def test_a_rechecked_deferral_is_not_counted_or_named_twice(tmp_path: Path) -> None:
-    """A same-day re-run puts the deferral inside the window sweep as well."""
+    """A deferral for TODAY is reachable both from the sweep and from the previous digest."""
     t = _race_tree(tmp_path)
-    t.digest_with_deferrals(_RACE_PREV_DIGEST, [(_RACE_YESTERDAY, _CRYPTO_TASK)])
+    # The previous digest deferred a firing dated on the day this run is also sweeping.
+    t.digest_with_deferrals(_RACE_YESTERDAY, [(_RACE_DAY, _CRYPTO_TASK)])
 
     report = t.check(
         _RACE_NOW, task_results_available=True,
         task_reader=lambda: _settled(_CRYPTO_TASK),
     )
 
-    # 2026-09-03's crypto reports were seeded, so the re-check finds them and the day is
-    # counted exactly once despite being reachable by two routes.
-    assert report.firings_checked == 6
+    # Two crypto accounts, counted once each despite arriving by two routes.
+    assert report.firings_checked == 2
     assert [(m.day, m.label) for m in report.missed] == [
         (_RACE_DAY, "crypto_trend"), (_RACE_DAY, "crypto_voltarget"),
     ]
@@ -1264,3 +1268,208 @@ def test_the_prop6_deferral_and_the_single_warning_are_unchanged(tmp_path: Path)
     warnings = [a for a in alerts if a.level == "WARNING"]
     assert len(warnings) == 1
     assert "quantlab-glassbox-refresh" in warnings[0].body
+
+
+# --------------------------------------------------------------------------- #
+# PROP-15 — the digest is itself a scheduled task                              #
+# --------------------------------------------------------------------------- #
+#
+# `reports/digests/digest_20260903.json` does not exist. The 2026-09-03 digest never ran:
+# the host was in Modern Standby across its 16:45 ET firing, Windows released it as a
+# catch-up at 01:35 the next morning, and the regular 2026-09-04 digest then overwrote its
+# output. Nothing reported the absence and nothing could, because `SCHEDULE` carried four
+# entries and the digest was not one of them.
+
+_GAP_ANCHOR = date(2026, 9, 2)     # Wednesday — the digest that DID run
+_GAP_DAY = date(2026, 9, 3)        # Thursday  — the one that did not
+_GAP_TODAY = date(2026, 9, 4)      # Friday    — the digest that should notice
+_GAP_NOW = datetime(2026, 9, 4, 20, 45, 4, tzinfo=UTC)
+
+_DIGEST_TASK = "quantlab-digest"
+
+
+def _gap_tree(tmp_path: Path) -> Tree:
+    """Everything complete across 09-03 and 09-04 EXCEPT the 2026-09-03 digest."""
+    t = Tree(tmp_path)
+    t.digest(_GAP_ANCHOR)
+    _seed_complete(t, [_GAP_DAY, _GAP_TODAY])
+    (t.digests / f"digest_{_GAP_DAY:%Y%m%d}.json").unlink()
+    return t
+
+
+def test_the_missing_20260903_digest_is_named(tmp_path: Path) -> None:
+    """The gap that nothing has ever reported, reported."""
+    t = _gap_tree(tmp_path)
+
+    report = t.check(_GAP_NOW)
+
+    assert [(m.day, m.task) for m in report.missed] == [(_GAP_DAY, _DIGEST_TASK)]
+    assert "no digest reports/digests/digest_20260903.json" in report.missed[0].expected
+
+
+def test_the_missing_digest_dispatches_exactly_one_warning(tmp_path: Path) -> None:
+    """It joins the existing single WARNING rather than inventing an alert kind."""
+    t = _gap_tree(tmp_path)
+
+    alerts, _ = _digest_alerts(t, [], now=_GAP_NOW, task_results_available=False)
+
+    warnings = [a for a in alerts if a.level == "WARNING"]
+    assert len(warnings) == 1
+    assert "quantlab-digest" in warnings[0].body
+    assert "2026-09-03" in warnings[0].body
+
+
+def test_the_same_window_is_silent_when_the_digest_did_run(tmp_path: Path) -> None:
+    """Identical fixture with the artifact restored: nothing to say."""
+    t = _gap_tree(tmp_path)
+    t.digest(_GAP_DAY)
+
+    report = t.check(_GAP_NOW)
+
+    assert report.missed == []
+    assert report.ok
+
+
+def test_a_digest_never_names_its_own_day(tmp_path: Path) -> None:
+    """The daily false alarm this check could so easily have become.
+
+    A digest writes its artifact at the END of the run doing the looking, so on its own
+    day the file is guaranteed absent. Naming it would fire a WARNING at 20:45 every
+    weekday forever — precisely the self-indictment PROP-11 spent a proposal removing.
+    """
+    t = _gap_tree(tmp_path)
+    # 2026-09-04's own digest does not exist yet: this run is the one writing it.
+    (t.digests / f"digest_{_GAP_TODAY:%Y%m%d}.json").unlink()
+
+    report = t.check(_GAP_NOW)
+
+    assert (_GAP_TODAY, _DIGEST_TASK) not in [(m.day, m.task) for m in report.missed]
+    assert (_GAP_TODAY, _DIGEST_TASK) not in [(m.day, m.task) for m in report.deferred]
+
+
+def test_the_self_day_skip_does_not_need_a_readable_scheduler(tmp_path: Path) -> None:
+    """Structural, not leaning on PROP-14: a host with no scheduler must not self-indict."""
+    t = _gap_tree(tmp_path)
+    (t.digests / f"digest_{_GAP_TODAY:%Y%m%d}.json").unlink()
+
+    report = t.check(_GAP_NOW, task_results_available=False)
+
+    assert [(m.day, m.task) for m in report.missed] == [(_GAP_DAY, _DIGEST_TASK)]
+
+
+def test_a_weekend_day_carries_no_digest_expectation(tmp_path: Path) -> None:
+    """The digest runs Mon-Fri; a Saturday without one is not a miss."""
+    t = Tree(tmp_path)
+    t.digest(date(2026, 9, 4))                       # Friday anchor
+    _seed_complete(t, [date(2026, 9, 5), date(2026, 9, 6), date(2026, 9, 7)])
+    t.weekly_review(date(2026, 9, 4))
+    t.refresh_alert(date(2026, 9, 4))
+
+    report = t.check(datetime(2026, 9, 7, 20, 45, tzinfo=UTC))
+
+    named = [(m.day, m.task) for m in report.missed]
+    assert (date(2026, 9, 5), _DIGEST_TASK) not in named   # Saturday
+    assert (date(2026, 9, 6), _DIGEST_TASK) not in named   # Sunday
+
+
+def test_a_market_holiday_still_expects_a_digest(tmp_path: Path) -> None:
+    """Unlike the equity run, the digest fires on holidays — 2026-09-07 is Labor Day.
+
+    `_runs_on` narrows a weekday task to NYSE sessions only when it carries an
+    `asset_class`; the digest carries none, and the installed task really does fire. A
+    check that skipped holidays would go quiet on exactly the days the equity path is
+    silent for a legitimate reason.
+    """
+    t = Tree(tmp_path)
+    t.digest(date(2026, 9, 4))
+    _seed_complete(t, [date(2026, 9, 5), date(2026, 9, 6), date(2026, 9, 7),
+                       date(2026, 9, 8)])
+    t.weekly_review(date(2026, 9, 4))
+    t.refresh_alert(date(2026, 9, 4))
+    (t.digests / "digest_20260907.json").unlink()          # the holiday's digest
+
+    report = t.check(datetime(2026, 9, 8, 20, 45, tzinfo=UTC))
+
+    assert (date(2026, 9, 7), _DIGEST_TASK) in [(m.day, m.task) for m in report.missed]
+    # ...and the equity run on that same holiday is still correctly not expected.
+    assert not any(
+        m.task == "quantlab-paper-run" and m.day == date(2026, 9, 7) for m in report.missed
+    )
+
+
+def test_the_digest_adds_exactly_one_checked_firing_per_weekday(tmp_path: Path) -> None:
+    """`firings_checked` has to account for the new expectation, and only once."""
+    t = _gap_tree(tmp_path)          # window 2026-09-03..09-04, 09-03's digest absent
+
+    report = t.check(_GAP_NOW)
+
+    # 09-03: crypto x2 + equity x2 + digest x1 = 5.
+    # 09-04: crypto x2 + equity x2 = 4 — weekly (21:00Z) and refresh (21:30Z) are not yet
+    #        due at 20:45Z, and the digest does not judge its own day.
+    assert report.firings_checked == 9
+    assert [(m.day, m.task) for m in report.missed] == [(_GAP_DAY, _DIGEST_TASK)]
+
+    # Restoring the artifact re-anchors the window on 09-03 (that is what a present digest
+    # IS — the anchor), so the count legitimately shrinks rather than staying equal. What
+    # must hold either way is that the digest is no longer named.
+    t.digest(_GAP_DAY)
+    restored = t.check(_GAP_NOW)
+    assert restored.window_start == _GAP_TODAY
+    assert restored.missed == []
+
+
+def test_no_previous_digest_falls_to_the_lookback_not_the_whole_history(
+    tmp_path: Path,
+) -> None:
+    """An empty digests directory must not indict every weekday ever."""
+    t = Tree(tmp_path)
+    report = t.check(_GAP_NOW, task_results_available=False)
+
+    assert report.anchored_to_previous_digest is False
+    named = [m.day for m in report.missed if m.task == _DIGEST_TASK]
+    assert named  # it does report them
+    assert min(named) >= _GAP_NOW.date() - timedelta(days=DEFAULT_LOOKBACK_DAYS)
+
+
+def test_the_digest_expectation_is_read_off_the_installed_time() -> None:
+    """The SCHEDULE entry must not invent a firing instant (the firewall's concern).
+
+    16:45 in `_DIGEST_TIME` is what `schtasks` installs; 20:45 UTC is that same instant on
+    the EDT-era offsets every other entry uses. If someone edits one without the other,
+    this fails rather than the watchdog quietly drifting.
+    """
+    from quantlab.scheduling.tasks import (
+        _DIGEST_TIME,
+        SCHEDULE,
+        TASK_DIGEST,
+        build_install_commands,
+    )
+
+    entry = next(t for t in SCHEDULE if t.name == TASK_DIGEST)
+    hh, mm = (int(x) for x in _DIGEST_TIME.split(":"))
+    assert entry.utc_minute_of_day == (hh + 4) * 60 + mm
+    assert entry.produces == PRODUCES_DIGEST
+    assert entry.asset_class is None
+    # And the task really is installed, which is what made its absence a blind spot.
+    argv = build_install_commands("quantlab")
+    assert any(TASK_DIGEST in cmd for cmd in argv)
+
+
+def test_the_other_four_schedule_entries_are_untouched() -> None:
+    """The exception covered ONE added entry. This asserts nothing else moved."""
+    from quantlab.scheduling.tasks import (
+        SCHEDULE,
+        TASK_CRYPTO_PAPER_RUN,
+        TASK_GLASSBOX_REFRESH,
+        TASK_PAPER_RUN,
+        TASK_WEEKLY,
+    )
+
+    existing = {t.name: t for t in SCHEDULE}
+    assert existing[TASK_PAPER_RUN].utc_minute_of_day == 14 * 60
+    assert existing[TASK_PAPER_RUN].asset_class == "us_equity"
+    assert existing[TASK_CRYPTO_PAPER_RUN].utc_minute_of_day == 30
+    assert existing[TASK_CRYPTO_PAPER_RUN].asset_class == "crypto"
+    assert existing[TASK_WEEKLY].utc_minute_of_day == 21 * 60
+    assert existing[TASK_GLASSBOX_REFRESH].utc_minute_of_day == 21 * 60 + 30
+    assert len(SCHEDULE) == 5
