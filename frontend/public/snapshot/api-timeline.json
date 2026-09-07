@@ -1,6 +1,174 @@
 {
-  "count": 420,
+  "count": 441,
   "events": [
+    {
+      "at": "2026-09-04T21:00:03.599806Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-09-04: voltarget TRACKING",
+      "detail": "divergence -96 bps",
+      "level": null
+    },
+    {
+      "at": "2026-09-04T21:00:03.599806Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-09-04: trend TRACKING",
+      "detail": "divergence -105 bps",
+      "level": null
+    },
+    {
+      "at": "2026-09-04T21:00:03.599806Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_trend",
+      "title": "week 2026-09-04: crypto_trend TRACKING",
+      "detail": "divergence -45 bps",
+      "level": null
+    },
+    {
+      "at": "2026-09-04T21:00:03.599806Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_voltarget",
+      "title": "week 2026-09-04: crypto_voltarget TRACKING",
+      "detail": "divergence -24 bps",
+      "level": null
+    },
+    {
+      "at": "2026-09-04T05:35:39.850439Z",
+      "kind": "alert",
+      "label": null,
+      "title": "scheduled tasks: 2 missed firing(s)",
+      "detail": "No artifact found for 2 expected firing(s) between 2026-09-03 and 2026-09-04.\ntasks: quantlab-crypto-paper-run[crypto_trend], quantlab-crypto-paper-run[crypto_voltarget]\n\n2026-09-04  quantlab-crypto-paper-run [crypto_trend] \u2014 no run report reports/paper/run_crypto_trend_20260904*.json\n2026-09-04  quantlab-crypto-paper-run [crypto_voltarget] \u2014 no run report reports/paper/run_crypto_voltarget_20260904*.json\n\nA missed firing means the task never ran (host off, or the runtime itself broken), not that it failed -- a failure alerts on its own.",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-09-04T05:35:37.868753Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $2,725.79 notional",
+      "detail": "weights={'BTC-USD': 0.36794388156785535}; turnover=0.0223",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-09-04T05:35:37.710287Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $2,725.79",
+      "detail": "status=filled run=run_crypto_voltarget_20260904T053536Z",
+      "level": null
+    },
+    {
+      "at": "2026-09-01T14:00:16.183636Z",
+      "kind": "alert",
+      "label": "voltarget",
+      "title": "paper voltarget: 1 order(s) submitted, $5,213.46 notional",
+      "detail": "weights={'SPY': 1.0}; turnover=0.0515",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-09-01T14:00:09.049019Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "buy SPY $5,213.46",
+      "detail": "status=filled run=run_voltarget_20260901T140007Z",
+      "level": null
+    },
+    {
+      "at": "2026-08-31T20:45:09.494621Z",
+      "kind": "alert",
+      "label": null,
+      "title": "task died outside its error handling \u2014 post-battery-hardening recurrence, escalate to Quant Lead",
+      "detail": "2 task(s) recorded a non-zero scheduler result with NO matching in-code failure record.\ntasks: quantlab-digest, quantlab-glassbox-refresh\n\nquantlab-digest - result 267009 (0x00041301) at 2026-08-31T16:45:00\nquantlab-glassbox-refresh - result -2147023829 (0x8007042B) at 2026-08-28T17:30:00\n\nThe task fired and then died somewhere its own abort path could not reach -- that path logs and then alerts, so the absence of both is what identifies this case. The battery settings that were the leading suspect for 2026-08-28 were disarmed on all five tasks on 2026-08-30, so a recurrence is a new fact and not the known one.",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-08-31T20:45:07.887250Z",
+      "kind": "alert",
+      "label": null,
+      "title": "scheduled tasks: 1 missed firing(s)",
+      "detail": "No artifact found for 1 expected firing(s) between 2026-08-28 and 2026-08-31.\ntasks: quantlab-glassbox-refresh\n\n2026-08-28  quantlab-glassbox-refresh \u2014 no glassbox.refresh alert (the chain left no deploy-log entry)\n\nA missed firing means the task never ran (host off, or the runtime itself broken), not that it failed -- a failure alerts on its own.",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-08-31T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "The gate battery could uninstall the process running it (PROP-12)",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-31T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "RULING: PROP-6 is proven live, and the tripwire's first two firings were both false (PROP-11)",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-31T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Two notes on the remote-call guard (#23)",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-30T20:23:34.961001Z",
+      "kind": "alert",
+      "label": null,
+      "title": "glass box refreshed and deployed",
+      "detail": "========================================================================\nGLASS BOX REFRESH \u2014 CHAIN REPORT\n========================================================================\nstarted    : 2026-08-30T20:21:53.738306+00:00\nmode       : LIVE\nsite       : monzonautomation-glassbox (be63f48c-4949-4603-b8dd-a6ccfdd996e7)\n\nCHAIN (each step runs only if every earlier step passed)\n------------------------------------------------------------------------\n  snapshot     PASS     187 endpoint(s) captured, 188 file(s) written, 0 redaction(s)\n  build        PASS     public bundle built into frontend/dist\n  verify-dist  PASS     212 published file(s) scanned, 0 forbidden, 0 redactable finding(s)\n  deploy       PASS     published to https://glassbox.danielmonzonautomation.com\n\nPROVENANCE\n------------------------------------------------------------------------\n  repo state    : WARNING\n                  working tree is DIRTY: 42 path(s) differ from HEAD [frontend/public/snapshot/api-decisions.json, frontend/public/snapshot/api-divergence--label-crypto_trend.json, frontend/public/snapshot/api-divergence--label-crypto_voltarget.json, frontend/public/snapshot/api-divergence--label-trend.json, frontend/public/snapshot/api-divergence--label-voltarget.json (+37 more)] \u2014 artifacts will record a commit that does not contain them\n\nDEPLOY DECISION\n------------------------------------------------------------------------\n  forbidden matches : 0 ok\n  redactions        : 0 ok\n  redactable found  : 0 ok\n  env-secret check  : ran\n  DEPLOYED -> https://glassbox.danielmonzonautomation.com\n\nSNAPSHOT SANITIZATION REPORT\n------------------------------------------------------------------------\n========================================================================\nGLASS BOX SNAPSHOT \u2014 SANITIZATION REPORT\n========================================================================\nfiles scanned : 188\nbytes scanned : 1,617,374\nverdict       : PASS\n\nFORBIDDEN PATTERNS (zero matches required to pass)\n------------------------------------------------------------------------\n  alpaca_account_id                                     0  ok\n  email_address                                         0  ok\n  apca_api_header                                       0  ok\n  authorization_header                                  0  ok\n  env_secret_prefix:ALPACA_API_KEY                      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok\n  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok\n  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok\n  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok\n  env_secret_prefix:SMTP_PASS                           0  ok\n  env_secret_prefix:TIINGO_API_KEY                      0  ok\n\nENV-SECRET CHECK\n------------------------------------------------------------------------\n  .env read locally; 10 value(s) reduced to 8-char prefixes and searched.\n  keys checked: ALPACA_API_KEY, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, SMTP_PASS, TIINGO_API_KEY\n  keys EXCLUDED as non-secret: ALERT_EMAIL_TO, ALPACA_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER\n  (public URLs and documented endpoints; see is_secret_bearing)\n  (prefixes themselves are never printed or stored)\n\nREDACTIONS PERFORMED (0)\n------------------------------------------------------------------------\n  (none)\n\n========================================================================\nPASS \u2014 no forbidden pattern matched. Snapshot may be written.\n========================================================================\n\nPUBLISHED-BYTES GATE (verify-dist)\n------------------------------------------------------------------------\n========================================================================\nGLASS BOX DIST VERIFICATION \u2014 published bytes\n========================================================================\ndirectory      : .\\frontend\\dist\ntext files     : 212 scanned\nbinary files   : 12 skipped (not text-scannable)\n                 assets/fraunces-latin-ext-standard-italic-CGbN9UgK.woff2, assets/fraunces-latin-ext-standard-normal-CJcjJNj7.woff2, assets/fraunces-latin-standard-italic-lSdLDfvT.woff2, assets/fraunces-latin-standard-normal-DihXLNYH.woff2, assets/fraunces-vietnamese-standard-italic-DxWqP7Ku.woff2, assets/fraunces-vietnamese-standard-normal-Czevyj-6.woff2, assets/hanken-grotesk-cyrillic-ext-wght-normal-D_UHSL_T.woff2, assets/hanken-grotesk-latin-ext-wght-normal-Dg-wlmqe.woff2, assets/hanken-grotesk-latin-wght-normal-CaVRRdDk.woff2, assets/hanken-grotesk-vietnamese-wght-normal-CHiFlh_0.woff2, favicon.ico, og-image.png\n\nCONTENT COMPLETENESS (the site must contain what it claims to)\n------------------------------------------------------------------------\n  manifest_present    ok\n                      snapshot/manifest.json parsed; quantlab 1.0.0 @ 20b50b5\n  endpoint_count      ok\n                      187 endpoints declared, listed, and present on disk\n  manifest_freshness  ok\n                      captured 2026-08-30T20:21:54.971870+00:00 \u2014 -0.0h old (limit 14d)\n  overview_has_data   ok\n                      4 of 4 account(s) carry a non-null equity figure\n  entry_bundle        ok\n                      1 entry script(s) referenced and present: index-BCCsWnsO.js\n\n  CONTENT PASS \u2014 5 assertion(s) satisfied.\n\n========================================================================\nGLASS BOX SNAPSHOT \u2014 SANITIZATION REPORT\n========================================================================\nfiles scanned : 212\nbytes scanned : 2,378,487\nverdict       : PASS\n\nFORBIDDEN PATTERNS (zero matches required to pass)\n------------------------------------------------------------------------\n  alpaca_account_id                                     0  ok\n  email_address                                         0  ok\n  apca_api_header                                       0  ok\n  authorization_header                                  0  ok\n  env_secret_prefix:ALPACA_API_KEY                      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok\n  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok\n  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok\n  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok\n  env_secret_prefix:SMTP_PASS                           0  ok\n  env_secret_prefix:TIINGO_API_KEY                      0  ok\n\nENV-SECRET CHECK\n------------------------------------------------------------------------\n  .env read locally; 10 value(s) reduced to 8-char prefixes and searched.\n  keys checked: ALPACA_API_KEY, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, SMTP_PASS, TIINGO_API_KEY\n  keys EXCLUDED as non-secret: ALERT_EMAIL_TO, ALPACA_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER\n  (public URLs and documented endpoints; see is_secret_bearing)\n  (prefixes themselves are never printed or stored)\n\nREDACTIONS PERFORMED (0)\n------------------------------------------------------------------------\n  (none)\n\n========================================================================\nPASS \u2014 no forbidden pattern matched. Snapshot may be written.\n========================================================================\n\nREDACTABLE CONTENT IN PUBLISHED BYTES (0)\n------------------------------------------------------------------------\n  (none \u2014 no local path leaked into the build)\n\n========================================================================\nDIST PASS \u2014 safe to deploy, subject to human review of this report.\n========================================================================\n\n========================================================================\nDEPLOYED\n========================================================================",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-08-30T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "RULING: the liveness allowance stays at 8 days, deliberately",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-30T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Two operational lessons from the day, kept because both were expensive",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-30T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "RULING: the battery kill switches are disarmed on all five tasks",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-30T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "RULING: the broker path opens three fields, and only three (PROP-5)",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-30T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "Divergence diagnosis #3: the ruling on `crypto_voltarget` week 2026-08-28",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-08-30T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "The Friday 2026-08-28 non-publish, and a watchdog that could never have caught it",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
     {
       "at": "2026-08-29T00:32:07.752724Z",
       "kind": "alert",
