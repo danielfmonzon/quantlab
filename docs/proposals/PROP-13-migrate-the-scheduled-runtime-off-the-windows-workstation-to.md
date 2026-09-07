@@ -1,6 +1,6 @@
 # PROP-13 — Migrate the scheduled runtime off the Windows workstation to an always-on VPS
 
-_proposed 2026-09-07  |  risk class: **infrastructure**  |  status: **AWAITING QUANT LEAD RULING — not written by `quantlab propose`**_
+_proposed 2026-09-07  |  risk class: **infrastructure**  |  status: **EXECUTION BEGUN — host-independent work implemented; host work pending**_
 
 > **This proposal is hand-authored, and that is not an irregularity — it is the pipeline
 > working.** `quantlab propose` was invoked with these affected paths and **REFUSED
@@ -25,6 +25,30 @@ _proposed 2026-09-07  |  risk class: **infrastructure**  |  status: **AWAITING Q
 > This is the second time the firewall has blocked a warranted change; the first was
 > PROP-5 (broker path, 2026-08-30 ruling), and this document follows that precedent
 > exactly. **Nothing here has been implemented.**
+
+## Ruling, and how this is being staged
+
+**Execution authorised 2026-09-07** (relayed by Daniel). The 2026-08-30 early-move trigger
+had already fired, so what was authorised is the *shape* of the move set out below, not
+whether to move.
+
+The work splits cleanly along one line — **what needs the host, and what does not** — and
+only the second half is implemented so far:
+
+| | status |
+|---|---|
+| §2 systemd units (every firing instant, `Persistent=true`, zone named) | **implemented** |
+| §3 death tripwire ported to systemd, behind one availability predicate | **implemented** |
+| §4 `.env` / `PROJECT_ROOT` resolution | **implemented** |
+| §1 provisioning the Hetzner CX22 | Daniel; host details Wednesday |
+| §4 `NETLIFY_AUTH_TOKEN` minted and installed | needs the host |
+| §5 cutover phases 0–2 | needs the host |
+| §7 the 14-day burn-in | begins at cutover |
+
+`tasks.py` is **not touched by this implementation.** The Windows `schtasks` builders stay
+exactly as they are, which is what makes the rollback in §6 cheap: until the cutover the
+workstation schedule is untouched and unaware anything has changed. Retiring those builders
+is host work, and a separate firewall question.
 
 ## Observation
 
@@ -530,3 +554,61 @@ every firing instant is preserved bit-for-bit; what moves is the machine, not th
 
 No branch, no commit of code, no PR. **This document is a request for a dated ruling in
 `docs/decisions.md`.** Nothing in §1–§7 may be provisioned before that ruling exists.
+
+---
+
+<!-- IMPLEMENTATION REPORT ANCHOR -->
+
+## Implementation report
+
+_implemented 2026-09-07T15:07:42.150999Z  |  branch `prop/13`  |  status: **GATES PASSED**_
+
+### Diff stat
+
+_`main..prop/13` — the whole series, not only this run's commit._
+
+```
+deploy/systemd/quantlab-crypto-paper-run.service   |  18 +
+ deploy/systemd/quantlab-crypto-paper-run.timer     |  11 +
+ deploy/systemd/quantlab-digest.service             |  18 +
+ deploy/systemd/quantlab-digest.timer               |  11 +
+ deploy/systemd/quantlab-glassbox-refresh.service   |  18 +
+ deploy/systemd/quantlab-glassbox-refresh.timer     |  11 +
+ deploy/systemd/quantlab-paper-run.service          |  18 +
+ deploy/systemd/quantlab-paper-run.timer            |  11 +
+ deploy/systemd/quantlab-weekly.service             |  18 +
+ deploy/systemd/quantlab-weekly.timer               |  11 +
+ ...duled-runtime-off-the-windows-workstation-to.md | 556 +++++++++++++++++++++
+ ...is-absent-from-schedule-so-a-missed-digest-c.md | 195 ++++++++
+ src/quantlab/config.py                             |  74 ++-
+ src/quantlab/glassbox/verify_dist.py               |   6 +-
+ src/quantlab/reporting/watchdog.py                 | 228 ++++++++-
+ src/quantlab/scheduling/systemd.py                 | 274 ++++++++++
+ tests/test_systemd_migration.py                    | 452 +++++++++++++++++
+ 17 files changed, 1912 insertions(+), 18 deletions(-)
+```
+
+### Firewall re-check (against the actual diff)
+
+```
+FIREWALL PASS — no forbidden path or change class touched.
+```
+
+### Gates
+
+| gate | result | detail |
+|---|---|---|
+| `ruff` | PASS | All checks passed! |
+| `mypy` | PASS | Success: no issues found in 73 source files |
+| `pytest` | PASS | 892 passed, 1 skipped, 1 warning in 143.30s (0:02:23) |
+| `frontend` | SKIP | no frontend/ path in the diff |
+| `verify-dist` | SKIP | site not touched |
+
+### Branch
+
+- branch: `prop/13`
+- commit and push: performed immediately after this report was written into the proposal, since the report is part of what gets committed. The resulting SHA and push result are in the run output, and the commit itself is the one carrying this file.
+
+### Merge gate — STOPPED HERE
+
+This pipeline does not merge. The change sits on `prop/13` and `main` is untouched. **Daniel merges via pull request after Quant Lead review.** There is no automated path to `main` in `quantlab implement` — verified by test, not by convention.

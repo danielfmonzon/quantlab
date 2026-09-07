@@ -1,0 +1,11 @@
+[Unit]
+Description=quantlab equity paper run (gated, submits) (timer)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10:00:00 America/New_York
+Persistent=true
+Unit=quantlab-paper-run.service
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

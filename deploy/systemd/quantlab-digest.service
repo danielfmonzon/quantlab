@@ -1,0 +1,18 @@
+[Unit]
+Description=quantlab daily paper digest and scheduled-task watchdog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=quantlab
+Group=quantlab
+WorkingDirectory=/opt/quantlab
+EnvironmentFile=/opt/quantlab/.env
+Environment=QUANTLAB_ENV_FILE=/opt/quantlab/.env
+ExecStart=/opt/quantlab/.venv/bin/quantlab digest
+TimeoutStartSec=20min
+MemoryMax=2G
+Restart=no
+StandardOutput=journal
+StandardError=journal

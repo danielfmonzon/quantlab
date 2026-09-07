@@ -25,6 +25,9 @@ from quantlab.constants import (
     SETTINGS_YAML,
     UNIVERSE_YAML,
 )
+from quantlab.logging_setup import get_logger
+
+log = get_logger("quantlab.config")
 
 
 class ConfigError(Exception):
@@ -41,6 +44,52 @@ def _is_live_alpaca_url(url: str) -> bool:
     return ALPACA_LIVE_HOST in url and f"paper-{ALPACA_LIVE_HOST}" not in url
 
 
+# Overrides where the env file is read from (PROP-13). It must be a REAL environment
+# variable -- systemd sets it with `Environment=`, a shell with `export` -- because it is
+# what tells the process where to find the env file, so it cannot itself live in one.
+ENV_FILE_VAR = "QUANTLAB_ENV_FILE"
+
+
+def env_file_path() -> Path:
+    """Where this process reads its ``.env`` from.
+
+    ANCHORED TO THE REPO ROOT BY DEFAULT, and that default is load-bearing rather than
+    incidental: a RELATIVE path here never resolves under a scheduler that supplies no
+    working directory, and the failure is silent in the worst direction. The env-secret
+    half of the published-bytes gate treats a missing file as "nothing to search for" and
+    PASSES, so a gate that should be looking for secret prefixes quietly looks for none.
+    See `glassbox.verify_dist.DEFAULT_ENV_PATH` for the incident that established the
+    anchoring rule and `glassbox.snapshot.DEFAULT_REPORT_DIR` for the one that preceded it.
+
+    The override exists for the migration (PROP-13). On the VPS the env file is deployed
+    outside the checkout on some layouts and inside it on others, and pinning the path to
+    `PROJECT_ROOT` in two separate modules made that a code change rather than a
+    deployment one. Resolved at CALL time, never captured at import, so a test or a unit
+    file can set it without reloading the module.
+    """
+    override = os.environ.get(ENV_FILE_VAR, "").strip()
+    if override:
+        return Path(override).expanduser()
+    return PROJECT_ROOT / ".env"
+
+
+def env_file_is_group_or_world_readable(path: Path | None = None) -> bool:
+    """Whether the env file's POSIX mode lets anyone but its owner read it (PROP-13).
+
+    Reported, never enforced: refusing to start because of a file mode would take the
+    trading path down over a permissions nit, and the failure this guards against is
+    disclosure, not corruption. Always False on Windows, where the mode bits do not carry
+    this meaning and reading them would produce a warning nobody can act on.
+    """
+    target = path if path is not None else env_file_path()
+    if os.name == "nt":
+        return False
+    try:
+        return bool(target.stat().st_mode & 0o077)
+    except OSError:
+        return False
+
+
 class Settings(BaseSettings):
     """Secret keys and endpoints loaded from the environment / ``.env``.
 
@@ -49,8 +98,13 @@ class Settings(BaseSettings):
     of use.
     """
 
+    # ABSOLUTE, not ".env". A relative path is resolved against the CWD, and under a
+    # scheduler that supplies none the CWD is not the checkout -- so this silently read
+    # nothing and only `load_env_file` (called explicitly at CLI startup) was doing the
+    # work. Resolved once at import: `QUANTLAB_ENV_FILE` is a real environment variable
+    # and is therefore already set by the time this module loads.
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(env_file_path()),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=True,
@@ -255,10 +309,12 @@ def account_for(strategy_name: str, settings: Settings | None = None) -> Account
     )
 
 
+# The un-overridden default, kept as a name because `test_path_anchoring` asserts every
+# default path in the package is anchored to the repo root.
 _DOTENV_PATH: Path = PROJECT_ROOT / ".env"
 
 
-def load_env_file(path: Path = _DOTENV_PATH) -> list[str]:
+def load_env_file(path: Path | None = None) -> list[str]:
     """Inject ``.env`` keys into ``os.environ`` (without overriding real env vars).
 
     pydantic-settings reads ``.env`` for the :class:`Settings` fields, but code
@@ -266,10 +322,17 @@ def load_env_file(path: Path = _DOTENV_PATH) -> list[str]:
     otherwise never see ``.env`` values. Call this once at CLI startup. Existing
     environment variables always win. Returns the names loaded (never values).
     """
-    if not path.exists():
+    target = path if path is not None else env_file_path()
+    if not target.exists():
         return []
+    if env_file_is_group_or_world_readable(target):
+        log.warning(
+            "env_file_permissive",
+            path=str(target),
+            detail="env file is readable beyond its owner; chmod 600 it",
+        )
     loaded: list[str] = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in target.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -298,6 +361,9 @@ __all__ = [
     "account_label",
     "get_settings",
     "load_env_file",
+    "env_file_path",
+    "env_file_is_group_or_world_readable",
+    "ENV_FILE_VAR",
     "load_settings",
     "load_universe",
     "load_crypto_universe",
