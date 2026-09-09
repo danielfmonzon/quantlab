@@ -6,6 +6,98 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-09-09 — PROP-13 CUTOVER EXECUTED: quantlab-prod is the operating host
+
+**`migration_completed_at` = 2026-09-09T16:40:43-04:00** (America/New_York), the instant the
+last Windows task was disabled and the VPS became the sole scheduler. **Approved by Quant Lead;
+relayed by Daniel, 2026-09-09.**
+
+**Decision.** The five schedules move from the Windows workstation to `quantlab-prod`
+(178.156.252.163). On the VPS the Phase 1 observe-only drop-ins are removed, so both paper-run
+units now execute their shipped `ExecStart` with `--submit`; `digest`, `weekly` and
+`glassbox-refresh` are unmasked; all five timers are enabled. On Windows all five tasks are
+**disabled, not deleted** — rollback is `Get-ScheduledTask -TaskName "quantlab-*" | Enable-ScheduledTask`,
+one command, with the units still on disk and unchanged.
+
+**The evidence the approval rested on**, from the audit of 2026-09-09
+(`reports/order_provenance_audit_20260909.txt`):
+
+* four unattended VPS timer firings, all **+1.5s** against `AccuracySec=1min` — 09-07 20:30:01.496,
+  09-08 10:00:01.492, 09-08 20:30:01.498, 09-09 10:00:01.492;
+* against which Windows deferred its 09-08 20:30 crypto run by **4h33m** (caught up 09-09 01:02:08,
+  submitting at 01:03:48 on by-then-different prices) and **missed its 09-09 10:00 equity run
+  entirely**, while the VPS fired that same instant on time;
+* 12 of 12 VPS run reports `dry_run:true` with zero orders, confirmed by three negative searches
+  across the host and by every `_CMDLINE` the journal has ever recorded.
+
+That is the trigger of the 2026-08-22 entry above, met on its own terms: the failure class recurred
+after hardening, and it recurred on the exact mechanism — host availability — that no amount of
+work on the workstation can fix.
+
+**`--submit` is now present because intended, not present-and-cancelled.** The audit flagged that
+the Phase 1 posture was held by two 0644 drop-in files sitting over shipped units that *did* say
+`--submit`, so the safety was one deletion deep, not two. That is now resolved in the honest
+direction: the drop-ins are gone, `--submit` appears in exactly the two enabled paper-run units,
+and the merged `ExecStart` systemd reports is the same string the file contains. **The unit
+`Description`s were left untouched deliberately** — `(gated, submits)` was false during Phase 1
+and is true now, so the mismatch the audit raised is closed by the cutover itself rather than by
+rewording. A journal line and the behaviour behind it now agree.
+
+**Every `OnCalendar` matches the Windows `/ST` it replaces, verified instant by instant:**
+
+| unit | VPS `OnCalendar` | Windows `/ST` | first firing after cutover |
+|---|---|---|---|
+| `quantlab-digest` | `Mon..Fri *-*-* 16:45 America/New_York` | 4:45:00 PM MON–FRI | Wed 2026-09-09 16:45 |
+| `quantlab-crypto-paper-run` | `*-*-* 20:30 America/New_York` | 8:30:00 PM daily | Wed 2026-09-09 20:30 |
+| `quantlab-paper-run` | `Mon..Fri *-*-* 10:00 America/New_York` | 10:00:00 AM MON–FRI | Thu 2026-09-10 10:00 |
+| `quantlab-weekly` | `Fri *-*-* 17:00 America/New_York` | 5:00:00 PM FRI | Fri 2026-09-11 17:00 |
+| `quantlab-glassbox-refresh` | `Fri *-*-* 17:30 America/New_York` | 5:30:00 PM FRI | Fri 2026-09-11 17:30 |
+
+The host clock is `America/New_York`, so every firing instant is preserved rather than translated.
+
+**Unmasking did NOT trigger a `Persistent=true` catch-up**, which was the one hazard in step 3
+worth checking rather than assuming: the three timers had no stamp files at all, and systemd wrote
+fresh stamps at 16:39 instead of firing three months of missed Friday jobs. Checked, not inferred —
+a spurious `glassbox-refresh` would have deployed the public site.
+
+**BURN-IN AND THE REVIEW DATE.** Per the 2026-08-22 amendment, the readiness clocks continue
+uninterrupted across the move and a **14-day operational burn-in on the new host** must complete
+before the day-90 review convenes: **review date = max(day-90, migration + 14)**.
+
+* `migration + 14` = **2026-09-23**
+* equity day-90 (clock start 2026-07-09) = 2026-10-07 → **review 2026-10-07**
+* crypto day-90 (clock restarted 2026-07-22) = 2026-10-20 → **review 2026-10-20**
+
+**The burn-in costs nothing**, which is exactly the common case that entry predicted: both day-90
+dates are already more than a fortnight past 2026-09-23, so the migration moves neither review.
+The fourteen days still have to be *clean* — two full weekly cycles, both Friday jobs and both
+weekend boundaries exercised twice — but they run inside a window the schedule already owned.
+
+**RULING ON THE 2026-09-04 GLASS BOX REFRESH DEATH.** `quantlab-glassbox-refresh` died at
+2026-09-04 17:30 with result `-1073741510` (`0xC000013A`, `STATUS_CONTROL_C_EXIT`) — the process
+killed from outside, not a fault in its own code. It is **post-hardening**, so it is *not* the
+class the 2026-08-30 ruling closed, and the watchdog was right to keep reporting it. The diagnosis
+is the same one this whole migration answers: the workstation went unavailable mid-run. **The fix
+is the cutover, not a change to the refresh.** The death is therefore acknowledged in
+`config/acknowledged_task_deaths.json` so it stops re-firing, keyed on all three of task, result
+code and instant — a future death of the same task with the same code at a different instant still
+alerts, which is the failure mode that file exists to avoid becoming.
+
+**What the burn-in has to prove**, and what it explicitly does not: not the strategies — same code,
+same literature-fixed parameters, same broker path, same `.env`, so the same marks — but the *host*.
+That its schedule fires unattended, that its alerts deliver, and that its runtime survives a reboot.
+The first two now have four firings and a live SMTP test behind them; the third is what a fortnight
+adds.
+
+**Not done at cutover, and deliberately left for a separate decision:** the 12 Phase-1 dry-run
+reports still in `/opt/quantlab/reports/paper/`. The Phase 1 report warned that a dry-run report is
+still a `run_{label}_{ts}.json` and would enter the record as a spurious mark if it survived into
+the consolidated history. They are harmless where they sit — nothing reads that directory as the
+record — but they must not be rsynced into it. Flagged here rather than acted on, because deleting
+run reports is not a step to take on inference.
+
+---
+
 ## 2026-09-07 — RULING: one added `SCHEDULE` entry for the digest, by exception (PROP-15)
 
 **Decision.** `src/quantlab/scheduling/tasks.py` gains a `PRODUCES_DIGEST` constant and **one**
