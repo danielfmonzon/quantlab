@@ -6,6 +6,63 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+## 2026-09-09 — LESSON: a verification that can pass vacuously has not verified anything
+
+**Rule. Every check that compares two sets must report its DENOMINATOR — the number of
+things it actually compared — alongside its verdict. A check that cannot say how many items
+it examined is not evidence, whatever it prints.**
+
+**Where this came from.** Verifying the PROP-13 record sync meant proving that all 356 files
+had arrived byte-identical. The first two attempts were written as shell one-liners that
+normalised `sha256sum` output (Windows marks binary mode with `*` before the filename; the
+VPS does not) and diffed the two lists with `comm`. Both attempts had their backslash escapes
+eaten by the shell layer, `sed` and `awk` errored, and the normalised files came out
+**empty**. The comparison then ran over nothing and printed:
+
+```
+=== Windows files MISSING or DIFFERENT on the VPS ===
+  NONE — all 0 Windows files arrived BYTE-IDENTICAL
+```
+
+**"NONE" was true. "Verified" was false.** Every element of the empty set satisfies every
+predicate, so a set-difference check over two empty lists reports a clean pass with total
+confidence. The error messages were three lines above the verdict and the verdict was the
+line that looked like the answer.
+
+**Why this is worth an entry rather than a fix.** The failure was not the escaping bug — that
+was a five-minute correction, redone in Python, which then compared 356 against 356 and
+reported no missing, no differing and no extra files. The failure was that **the check had no
+way to notice it had checked nothing.** A green result and an unrun result were rendered
+identically, and the thing standing between a bad sync and the record was a string that read
+"NONE".
+
+This is the same shape as the failure the watchdog exists for and the same shape as the one
+the digest hit hours earlier the same day: `check_schedule` ran a 7-day lookback against an
+empty `reports/paper/` and reported 18 missed firings with complete confidence. That one
+failed LOUD — an empty denominator produced a maximal alarm — and was caught in minutes.
+The checksum check failed SILENT, because an empty denominator produced a minimal one. **Of
+the two, silent is the one that reaches production.**
+
+**What this requires, concretely.**
+
+* A comparison prints the count of items on each side before its verdict: `Windows files
+  hashed: 356 / VPS files hashed: 356`, then the result. If either number is 0 or the two
+  disagree unexpectedly, the verdict is void regardless of what it says.
+* A verdict phrased as an absence — "no mismatches", "no missing files", "no deaths" —
+  states what it searched. "No mismatches among 356 compared" is evidence; "no mismatches"
+  is not.
+* Prefer a checker that can fail. The Python rewrite reports `len(win)` and `len(vps)` from
+  the parsed dicts, so an empty input surfaces as `0` in the output rather than as a pass.
+* This applies to test assertions too. `assert not mismatches` passes on an empty list; the
+  test should assert the denominator as well.
+
+**The bias, stated.** Reporting the denominator makes some checks noisier and none of them
+shorter. That is the correct trade. A verification exists to be trusted when nobody is
+reading it carefully, and the only version worth having is the one that cannot quietly
+succeed at nothing.
+
+---
+
 ## 2026-09-09 — RULING: Windows is the merge base; the record is synced and Windows is frozen cold
 
 **Decision (Quant Lead), relayed by Daniel 2026-09-09.** Windows is the merge base for the
