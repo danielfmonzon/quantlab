@@ -8,6 +8,12 @@
       "result_code": -2147023829,
       "recorded_at": "2026-08-28T17:30:00",
       "ruling": "2026-08-30 ruling — the Glass Box refresh died after writing its snapshot (ERROR_PROCESS_ABORTED); diagnosed, pre-hardening, and the incident this tripwire was built for"
+    },
+    {
+      "task": "quantlab-glassbox-refresh",
+      "result_code": -1073741510,
+      "recorded_at": "2026-09-04T17:30:00",
+      "ruling": "2026-09-09 ruling (PROP-13 cutover) — the 17:30 Friday refresh was killed by the workstation going unavailable mid-run (0xC000013A, STATUS_CONTROL_C_EXIT), post-hardening and so NOT the class the 2026-08-30 ruling closed; the diagnosis is host availability, the fix is the migration to quantlab-prod, and the Windows task that produced it is disabled as of this ruling"
     }
   ]
 }
