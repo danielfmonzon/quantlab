@@ -160,6 +160,40 @@
       "window_start": "2026-08-28",
       "window_end": "2026-09-03",
       "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-09-11",
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.014752317284446037,
+      "shadow_week_return": -0.01984089901690722,
+      "divergence_bps": 50.885817324611835,
+      "cumulative_divergence_bps": 0.7534617993409931,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-09-11"
+      ],
+      "window_start": "2026-09-03",
+      "window_end": "2026-09-10",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-09-18",
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.006525962979438749,
+      "shadow_week_return": -0.0022112591169402007,
+      "divergence_bps": -43.14703862498548,
+      "cumulative_divergence_bps": -5.014603570689946,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-09-18"
+      ],
+      "window_start": "2026-09-11",
+      "window_end": "2026-09-17",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
     }
   ],
   "corrections": [],
