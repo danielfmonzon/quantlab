@@ -364,12 +364,36 @@
           "equity": 102826.15,
           "provenance": "catch_up",
           "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-09-08T10:38:58.156603",
+          "equity": 101624.05,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-09-09T05:03:45.801837",
+          "equity": 102039.93,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-09-10T00:30:02.199634",
+          "equity": 101017.9,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-09-11T00:30:02.234589",
+          "equity": 99212.98,
+          "provenance": "on_schedule",
+          "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
         }
       ],
       "provenance_counts": {
-        "catch_up": 29,
+        "catch_up": 31,
         "leaked": 8,
-        "on_schedule": 23
+        "on_schedule": 25
       }
     }
   ],

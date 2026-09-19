@@ -1,7 +1,202 @@
 {
-  "count": 37,
+  "count": 40,
   "label": "trend",
   "runs": [
+    {
+      "run_id": "run_trend_20260911T140004Z",
+      "strategy": "trend",
+      "timestamp": "2026-09-11T14:00:04.089197Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 101894.31,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=101894.31 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-09-10 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.015805652971660145)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20260910T140004Z",
+      "strategy": "trend",
+      "timestamp": "2026-09-10T14:00:04.116960Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 100706.37,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=100706.37 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-09-09 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.027279932866276946)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20260908T140106Z",
+      "strategy": "trend",
+      "timestamp": "2026-09-08T14:01:06.637342Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102085.87,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102085.87 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-09-04 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.01395538018295639)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
     {
       "run_id": "run_trend_20260907T140008Z",
       "strategy": "trend",

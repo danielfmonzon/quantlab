@@ -568,6 +568,70 @@
       "window_start": "2026-08-29",
       "window_end": "2026-09-04",
       "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is MARK TIMING, and the 2026-07-24 diagnosis identified two mechanisms that dominate it. (1) Variable mark-window LENGTH: the shadow's sessions are uniform 24h UTC days, while consecutive paper marks are whatever the runs happened to land on - catch-up runs after a missed start produced windows from 10h to 33h in that week, so a paper 'daily' return can cover less than half or more than a third again of the day the shadow prices. (2) Mark-PHASE offset: a full 24h window struck at, say, 14:00 UTC still straddles two of the shadow's UTC days, so a trending stretch is split differently between them and both days show a gap. Weekend and overnight gaps are a secondary case of the same effect - a real but smaller contributor, since BTC trades 24/7 and no move is skipped, only attributed to a different mark. These gaps are largely self-cancelling in the WEEKLY aggregate the threshold is applied to, but individual days can swing well over 100 bps in either direction."
+    },
+    {
+      "week_ending": "2026-09-11",
+      "label": "voltarget",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.014752317284446037,
+      "shadow_week_return": -0.01984089901690722,
+      "divergence_bps": 50.885817324611835,
+      "cumulative_divergence_bps": 0.7534617993409931,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-09-11"
+      ],
+      "window_start": "2026-09-03",
+      "window_end": "2026-09-10",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-09-11",
+      "label": "trend",
+      "asset_class": "us_equity",
+      "paper_week_return": -0.014694409238548811,
+      "shadow_week_return": -0.019857824213526443,
+      "divergence_bps": 51.63414974977631,
+      "cumulative_divergence_bps": -10.85092919684838,
+      "verdict": "DIVERGING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [
+        "2026-09-11"
+      ],
+      "window_start": "2026-09-03",
+      "window_end": "2026-09-10",
+      "structural_note": "Alpaca paper does not credit cash dividends while the shadow uses dividend-adjusted (adj_close) returns, so paper is EXPECTED to lag the shadow by roughly the portfolio's dividend yield over time. A negative cumulative divergence of that order is expected dividend drag, not tracking error."
+    },
+    {
+      "week_ending": "2026-09-11",
+      "label": "crypto_trend",
+      "asset_class": "crypto",
+      "paper_week_return": -0.035603260595384656,
+      "shadow_week_return": -0.03941115372264148,
+      "divergence_bps": 38.07893127256823,
+      "cumulative_divergence_bps": -6.491077436686643,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-09-05",
+      "window_end": "2026-09-11",
+      "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is MARK TIMING, and the 2026-07-24 diagnosis identified two mechanisms that dominate it. (1) Variable mark-window LENGTH: the shadow's sessions are uniform 24h UTC days, while consecutive paper marks are whatever the runs happened to land on - catch-up runs after a missed start produced windows from 10h to 33h in that week, so a paper 'daily' return can cover less than half or more than a third again of the day the shadow prices. (2) Mark-PHASE offset: a full 24h window struck at, say, 14:00 UTC still straddles two of the shadow's UTC days, so a trending stretch is split differently between them and both days show a gap. Weekend and overnight gaps are a secondary case of the same effect - a real but smaller contributor, since BTC trades 24/7 and no move is skipped, only attributed to a different mark. These gaps are largely self-cancelling in the WEEKLY aggregate the threshold is applied to, but individual days can swing well over 100 bps in either direction."
+    },
+    {
+      "week_ending": "2026-09-11",
+      "label": "crypto_voltarget",
+      "asset_class": "crypto",
+      "paper_week_return": -0.01507637159824593,
+      "shadow_week_return": -0.015165874731363438,
+      "divergence_bps": 0.8950313311750779,
+      "cumulative_divergence_bps": 316.2057414953834,
+      "verdict": "TRACKING",
+      "threshold_bps": 50.0,
+      "excluded_tail_days": [],
+      "window_start": "2026-09-05",
+      "window_end": "2026-09-11",
+      "structural_note": "No dividend drag applies here - crypto pays no dividends, so the adj_close shadow and the paper account see the same total return. The structural gap is MARK TIMING, and the 2026-07-24 diagnosis identified two mechanisms that dominate it. (1) Variable mark-window LENGTH: the shadow's sessions are uniform 24h UTC days, while consecutive paper marks are whatever the runs happened to land on - catch-up runs after a missed start produced windows from 10h to 33h in that week, so a paper 'daily' return can cover less than half or more than a third again of the day the shadow prices. (2) Mark-PHASE offset: a full 24h window struck at, say, 14:00 UTC still straddles two of the shadow's UTC days, so a trending stretch is split differently between them and both days show a gap. Weekend and overnight gaps are a secondary case of the same effect - a real but smaller contributor, since BTC trades 24/7 and no move is skipped, only attributed to a different mark. These gaps are largely self-cancelling in the WEEKLY aggregate the threshold is applied to, but individual days can swing well over 100 bps in either direction."
     }
   ],
   "corrections": [
