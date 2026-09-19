@@ -68,6 +68,7 @@ pythonpath = ["src"]
 markers = [
     "live: hits the real Tiingo API; requires TIINGO_API_KEY, skipped otherwise",
     "allow_remote: this test may run git push / gh pr / gh api / gh issue. Opt-in only; see tests/conftest.py block_remote_calls",
+    "hostcheck: hits the real origin read-only (git ls-remote) to prove the HOST can reach GitHub; must pass on quantlab-prod, deselect in a credential-less CI runner with -m 'not hostcheck'",
 ]
 
 [tool.mypy]

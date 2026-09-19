@@ -18,12 +18,15 @@ from pathlib import Path
 
 import pytest
 
+from quantlab.constants import PROJECT_ROOT
 from quantlab.glassbox.refresh import (
     NETLIFY_SITE_ID,
+    PROTECTED_BRANCH,
     STEP_ORDER,
     RefreshResult,
     SnapshotBranchExists,
     _alert,
+    _default_git_runner,
     build_build_command,
     build_deploy_command,
     build_snapshot_branch,
@@ -530,22 +533,36 @@ class GitRecorder:
     reached git and was rejected.
     """
 
-    def __init__(self, fail: str | None = None, exists: bool = False) -> None:
+    def __init__(
+        self,
+        fail: str | None = None,
+        exists: bool = False,
+        raise_on: str | None = None,
+        fail_stderr: str = "boom",
+    ) -> None:
         self.calls: list[list[str]] = []
         self._fail = fail
         self._exists = exists
+        # A command whose invocation should RAISE (as subprocess.run does when the
+        # program cannot be found), rather than return nonzero. Models gh being absent.
+        self._raise_on = raise_on
+        # The stderr a `fail`ed command reports. Multi-line by choice in some tests, to
+        # prove the detail carries the whole failure and not just its last line.
+        self._fail_stderr = fail_stderr
 
     def __call__(self, cmd, cwd, env=None):  # noqa: ANN001, ANN204
         argv = list(cmd)
         self.calls.append(argv)
         joined = " ".join(argv)
+        if self._raise_on and self._raise_on in joined:
+            raise FileNotFoundError(2, "The system cannot find the file specified")
         if argv[:2] == ["git", "rev-parse"]:
             return subprocess.CompletedProcess(argv, 0 if self._exists else 1, "", "")
         if argv[:2] == ["git", "ls-remote"]:
             out = "abc123\trefs/heads/x\n" if self._exists else ""
             return subprocess.CompletedProcess(argv, 0, out, "")
         if self._fail and self._fail in joined:
-            return subprocess.CompletedProcess(argv, 1, "", "boom")
+            return subprocess.CompletedProcess(argv, 1, "", self._fail_stderr)
         if argv[:2] == ["git", "write-tree"]:
             return subprocess.CompletedProcess(argv, 0, "treesha\n", "")
         if argv[:2] == ["git", "commit-tree"]:
@@ -638,6 +655,131 @@ def test_a_failed_push_does_not_retroactively_fail_the_deploy(tmp_path: Path) ->
     assert result.deployed is True                       # unchanged
     assert result.deploy_url == "https://glassbox.danielmonzonautomation.com"
     assert result.aborted_at is None                     # not an abort
+
+
+def test_a_missing_gh_is_partial_success_not_not_recorded(tmp_path: Path) -> None:
+    """gh absent (subprocess RAISES) must not deny a branch that is already on origin.
+
+    This is the quantlab-prod failure exactly: commit-tree, branch and push all succeed,
+    then `gh pr create` raises FileNotFoundError because gh is not installed. The record
+    EXISTS at that point, so the outcome is PARTIAL SUCCESS, never "NOT RECORDED".
+    """
+    runner = GitRecorder(raise_on="gh pr create")
+    result = _deployed_result()
+    step = record_snapshot(result, root=tmp_path, day=DAY, runner=runner)
+
+    # The push happened, so the record landed.
+    assert runner.argv_for("git", "push")                # push was attempted...
+    assert step.ok                                       # ...and success was declared
+    assert result.snapshot_branch == "snapshot/deploy-20260904"
+    assert result.snapshot_pr_url is None                # the PR did not open
+    assert "PARTIAL SUCCESS" in step.detail
+    assert "NOT RECORDED" not in step.detail
+    assert "gh could not launch" in step.detail
+    assert "FileNotFoundError" in step.detail            # the full chain names the cause
+    # The chain still learns it must nudge a human, via the note.
+    assert result.snapshot_record_note == step.detail
+
+
+def test_ok_and_branch_are_set_before_gh_is_ever_called(tmp_path: Path) -> None:
+    """Ordering is the fix: success is declared after push, before the PR attempt.
+
+    Proven by the raise: if the assignments came AFTER gh (as they used to), a raising
+    gh would leave step.ok False and snapshot_branch None. They do not.
+    """
+    runner = GitRecorder(raise_on="gh pr create")
+    result = _deployed_result()
+    step = record_snapshot(result, root=tmp_path, day=DAY, runner=runner)
+    assert step.ok and result.snapshot_branch == "snapshot/deploy-20260904"
+    # gh WAS reached (and raised) -- so the ok/branch state was set strictly before it.
+    assert runner.argv_for("gh", "pr", "create")
+
+
+def test_a_gh_that_returns_nonzero_is_also_partial_success(tmp_path: Path) -> None:
+    """gh present but refusing (unauthenticated / no credential) -> same verdict."""
+    runner = GitRecorder(fail="gh pr create",
+                         fail_stderr="gh: not authenticated\nRun: gh auth login")
+    result = _deployed_result()
+    step = record_snapshot(result, root=tmp_path, day=DAY, runner=runner)
+
+    assert step.ok
+    assert result.snapshot_branch == "snapshot/deploy-20260904"
+    assert result.snapshot_pr_url is None
+    assert "PARTIAL SUCCESS" in step.detail
+    assert "NOT RECORDED" not in step.detail
+    assert "gh pr create failed" in step.detail
+
+
+def test_the_detail_carries_the_whole_failure_not_only_its_last_line(tmp_path: Path) -> None:
+    """PR #33's lesson: a report that hides depth conceals stacked blockers.
+
+    A failing command's stderr is multi-line; the detail must surface all of it, not just
+    the bottom line the way the old `_tail` did.
+    """
+    runner = GitRecorder(
+        fail="git push",
+        fail_stderr=(
+            "fatal: could not read Username for 'https://github.com'\n"
+            "fatal: authentication failed\n"
+            "hint: see gh auth or a credential helper"
+        ),
+    )
+    step = record_snapshot(_deployed_result(), root=tmp_path, day=DAY, runner=runner)
+    assert not step.ok
+    # First line AND last line both present -> the middle was not truncated away.
+    assert "could not read Username" in step.detail
+    assert "credential helper" in step.detail
+    assert "exit 1" in step.detail
+
+
+def test_partial_success_reports_a_warning_that_does_not_say_not_recorded(
+    tmp_path: Path,
+) -> None:
+    """The alert and the render must both tell the truth: recorded, PR pending."""
+    result = _deployed_result()
+    result.snapshot_branch = "snapshot/deploy-20260904"
+    result.snapshot_pr_url = None
+    result.snapshot_record_note = (
+        "PARTIAL SUCCESS: captures recorded on snapshot/deploy-20260904; PR NOT opened"
+    )
+    alerts: list[Alert] = []
+    _alert(result, alerts.append)
+
+    assert len(alerts) == 1
+    assert alerts[0].level == "WARNING"                  # a human owes one step
+    assert "NOT recorded" not in alerts[0].title         # ...but it WAS recorded
+    assert "PR was not opened" in alerts[0].title
+
+    rendered = result.render()
+    assert "RECORDED -> snapshot/deploy-20260904" in rendered
+    assert "PR NOT opened" in rendered
+    assert "NOT RECORDED" not in rendered                # the false statement is gone
+
+
+@pytest.mark.hostcheck
+def test_host_can_reach_github_via_a_real_ls_remote() -> None:
+    """A REAL `git ls-remote` against origin -- the one thing the stub cannot prove.
+
+    Every other record_snapshot test drives the injected GitRunner, so all of them verify
+    LOGIC against a simulation and none can observe that the host lacks gh, lacks a push
+    credential, or lacks a git identity. That is PR #33's lesson applied to this suite: a
+    verification that can pass vacuously has verified nothing. This runs the real
+    `_default_git_runner` against the real origin, so it FAILS on a host that cannot reach
+    GitHub.
+
+    ls-remote is read-only (the conftest guard blocks only `git push` / `gh`), so no
+    `allow_remote` opt-in is needed. It is marked `hostcheck` so a credential-less CI
+    runner can deselect it with `-m "not hostcheck"`; it MUST pass on quantlab-prod, which
+    is the whole point of adding it.
+    """
+    proc = _default_git_runner(["git", "ls-remote", "--heads", "origin"], PROJECT_ROOT)
+    assert proc.returncode == 0, (
+        f"git ls-remote origin failed on this host (exit {proc.returncode}): "
+        f"{proc.stderr or proc.stdout!r}"
+    )
+    assert proc.stdout.strip(), "origin returned no refs -- credentials or network?"
+    # The protected branch must be among what origin advertises.
+    assert f"refs/heads/{PROTECTED_BRANCH}" in proc.stdout
 
 
 def test_a_recording_failure_downgrades_the_run_to_a_warning(tmp_path: Path) -> None:

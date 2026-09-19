@@ -229,12 +229,20 @@ class RefreshResult(BaseModel):
             lines.append(f"      {finding}")
         if self.deployed:
             lines.append(f"  DEPLOYED -> {self.deploy_url or CANONICAL_URL}")
-            if self.snapshot_branch:
+            if self.snapshot_branch and self.snapshot_pr_url:
                 lines.append(f"  RECORDED -> {self.snapshot_branch}"
-                             + (f"  (PR: {self.snapshot_pr_url})"
-                                if self.snapshot_pr_url else ""))
+                             f"  (PR: {self.snapshot_pr_url})")
                 lines.append("  ^ one merge click closes the loop; the deploy is "
                              "already live either way")
+            elif self.snapshot_branch:
+                # The captures ARE recorded on the branch; only the PR-open convenience
+                # did not run. This must not read as "NOT RECORDED" -- the branch is on
+                # origin, and the note says why the PR is missing.
+                lines.append(f"  RECORDED -> {self.snapshot_branch}  (PR NOT opened)")
+                if self.snapshot_record_note:
+                    lines.append(f"  ^ {self.snapshot_record_note}")
+                lines.append("  ^ the captures are recorded; merge the branch or open "
+                             "the PR by hand. The deploy is already live either way.")
             elif self.snapshot_record_note:
                 lines.append(f"  NOT RECORDED — {self.snapshot_record_note}")
                 lines.append("  ^ the publish SUCCEEDED; only the record of it did "
@@ -375,11 +383,11 @@ def record_snapshot(
         ):
             done = run(argv, root, env)
             if done.returncode != 0:
-                step.detail = f"{' '.join(argv[:3])} failed: {_tail(done)}"
+                step.detail = f"{' '.join(argv[:3])} failed: {_fail_detail(done)}"
                 return step
         tree = run(["git", "write-tree"], root, env)
         if tree.returncode != 0:
-            step.detail = f"git write-tree failed: {_tail(tree)}"
+            step.detail = f"git write-tree failed: {_fail_detail(tree)}"
             return step
         tree_sha = (tree.stdout or "").strip()
 
@@ -391,39 +399,98 @@ def record_snapshot(
     )
     commit = run(["git", "commit-tree", tree_sha, "-p", "HEAD", "-m", message], root)
     if commit.returncode != 0:
-        step.detail = f"git commit-tree failed: {_tail(commit)}"
+        step.detail = f"git commit-tree failed: {_fail_detail(commit)}"
         return step
     commit_sha = (commit.stdout or "").strip()
 
     made = run(["git", "branch", branch, commit_sha], root)   # no --force, ever
     if made.returncode != 0:
-        step.detail = f"could not create {branch}: {_tail(made)}"
+        step.detail = f"could not create {branch}: {_fail_detail(made)}"
         return step
 
     pushed = run(["git", "push", "--set-upstream", "origin", branch], root)
     if pushed.returncode != 0:
-        step.detail = f"branch {branch} created but NOT pushed: {_tail(pushed)}"
+        step.detail = f"branch {branch} created but NOT pushed: {_fail_detail(pushed)}"
         return step
 
-    opened = run([
-        "gh", "pr", "create", "--base", PROTECTED_BRANCH, "--head", branch,
-        "--title", f"snapshot: captures from the {day:%Y-%m-%d} refresh",
-        "--body", message,
-    ], root)
-    if opened.returncode != 0:
-        step.detail = f"branch {branch} pushed but no PR opened: {_tail(opened)}"
-        return step
-
+    # THE RECORD NOW EXISTS ON ORIGIN. Everything past this point is a convenience laid
+    # on top of a record that already landed, so success is declared HERE -- before the
+    # PR is attempted -- not after. `gh` is not installed on quantlab-prod, and when the
+    # runner cannot resolve it `subprocess.run` RAISES FileNotFoundError rather than
+    # returning nonzero. On two consecutive Fridays that raise propagated out while the
+    # branch was already on GitHub, and the chain emailed "NOT RECORDED" about a record
+    # that plainly existed. A false statement about the system's own state is the one
+    # thing this step must never make, so the branch is recorded the instant the push
+    # returns and no later failure can retract that.
     step.ok = True
     result.snapshot_branch = branch
+
+    pr_title = f"snapshot: captures from the {day:%Y-%m-%d} refresh"
+    try:
+        opened = run([
+            "gh", "pr", "create", "--base", PROTECTED_BRANCH, "--head", branch,
+            "--title", pr_title, "--body", message,
+        ], root)
+    except OSError as exc:
+        # gh missing or not launchable (FileNotFoundError is an OSError). The captures
+        # are recorded; only the PR-open convenience did not run. PARTIAL SUCCESS, never
+        # "NOT RECORDED".
+        step.detail = (
+            f"PARTIAL SUCCESS: captures recorded on {branch}; PR NOT opened because "
+            f"gh could not launch: {_exc_chain(exc)}. Open the PR by hand, or merge "
+            f"{branch} into {PROTECTED_BRANCH} directly."
+        )
+        result.snapshot_record_note = step.detail
+        return step
+    if opened.returncode != 0:
+        # gh ran but refused (unauthenticated, no credential, API error). Same verdict:
+        # the branch is recorded; the PR is not.
+        step.detail = (
+            f"PARTIAL SUCCESS: captures recorded on {branch}; PR NOT opened because "
+            f"gh pr create failed: {_fail_detail(opened)}. Open the PR by hand, or "
+            f"merge {branch} into {PROTECTED_BRANCH} directly."
+        )
+        result.snapshot_record_note = step.detail
+        return step
+
     result.snapshot_pr_url = (opened.stdout or "").strip().splitlines()[-1] if opened.stdout else ""
     step.detail = f"recorded on {branch}; PR opened for human merge"
     return step
 
 
-def _tail(proc: subprocess.CompletedProcess[str]) -> str:
-    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
-    return detail[-1] if detail else "unknown error"
+def _fail_detail(proc: subprocess.CompletedProcess[str]) -> str:
+    """The whole failure, not just its last line.
+
+    ``_tail`` used to return only the final stderr line. Two consecutive Fridays then
+    mailed identical one-line "NOT RECORDED" notes that concealed three stacked blockers
+    -- no git identity, then no push credential, then no ``gh`` -- because each of those
+    surfaces as a MULTI-LINE diagnostic (git's "fatal:" cascade, gh's auth guidance) and
+    the reader only ever saw the bottom line. This renders the exit code and every
+    non-empty stderr (then stdout) line, so the depth survives into the email.
+    """
+    lines = [ln.rstrip() for ln in (proc.stderr or "").splitlines() if ln.strip()]
+    if not lines:
+        lines = [ln.rstrip() for ln in (proc.stdout or "").splitlines() if ln.strip()]
+    body = " | ".join(lines) if lines else "no output"
+    return f"exit {proc.returncode}: {body}"
+
+
+def _exc_chain(exc: BaseException) -> str:
+    """Render an exception AND everything it was raised from.
+
+    A bare ``FileNotFoundError`` from a missing ``gh`` is one link; a failure that was
+    re-raised while handling another is several. Walking ``__cause__``/``__context__``
+    means the report shows the root, not only the outermost wrapper -- the same "let the
+    reader see depth" rule ``_fail_detail`` applies to subprocess output.
+    """
+    parts: list[str] = []
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        parts.append(f"{type(cur).__name__}: {cur}")
+        cur = cur.__cause__ or cur.__context__
+    return " <- caused by ".join(parts)
 
 
 def extract_deploy_url(stdout: str) -> str | None:
@@ -463,10 +530,18 @@ def _alert(result: RefreshResult, alert_fn: AlertFn) -> None:
     The body is the whole report, not a summary: the point of mailing it every week is that
     the operator reads a real gate output rather than a green tick.
     """
-    if result.deployed and result.snapshot_record_note:
-        # Published, but the record of it did not land. WARNING, because the operator
-        # has one thing to do by hand -- and the report still says DEPLOYED, because
-        # it was.
+    if result.deployed and result.snapshot_record_note and result.snapshot_branch:
+        # PARTIAL: the branch IS on origin, only the PR did not open. WARNING because the
+        # operator owes one manual step (open the PR, or merge the branch) -- but the
+        # title must not say "NOT recorded", because it was.
+        level, title = (
+            "WARNING",
+            "glass box deployed and recorded, but the PR was not opened",
+        )
+    elif result.deployed and result.snapshot_record_note:
+        # Published, but the record of it did not land at all. WARNING, because the
+        # operator has one thing to do by hand -- and the report still says DEPLOYED,
+        # because it was.
         level, title = (
             "WARNING",
             "glass box deployed, but the snapshot was NOT recorded",
@@ -698,8 +773,10 @@ def refresh(
         except SnapshotBranchExists as exc:
             step = StepOutcome(name=STEP_RECORD, ran=True, detail=str(exc))
         except Exception as exc:  # noqa: BLE001 - see the docstring above
-            step = StepOutcome(name=STEP_RECORD, ran=True,
-                               detail=f"{type(exc).__name__}: {exc}")
+            # Full chain, not just the outermost wrapper: a git/gh failure that reaches
+            # here (e.g. git itself missing) is often re-raised from a lower cause, and
+            # the reader needs the root to tell three stacked blockers apart.
+            step = StepOutcome(name=STEP_RECORD, ran=True, detail=_exc_chain(exc))
         result.steps.append(step)
         if not step.ok:
             result.snapshot_record_note = step.detail
