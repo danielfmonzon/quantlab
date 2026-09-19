@@ -6,6 +6,35 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 ---
 
+
+## 2026-09-19 — The 2026-09-11 Glass Box record, reconstructed from published bytes
+
+The 2026-09-11 refresh published successfully and was never recorded. `record-snapshot`
+failed on an unset git identity (`quantlab@quantlab-prod.(none)`), and because
+`write_snapshot` unlinks every `*.json` in the snapshot directory before rewriting, the
+2026-09-18 run destroyed the 09-11 captures on disk before any commit existed. The same
+identity failure had already run silently for two consecutive Fridays.
+
+The bytes survived because they had been PUBLISHED. Netlify retains an immutable
+per-deploy permalink, so the exact bytes served on 2026-09-11 were still retrievable.
+229/229 endpoints fetched, 0 failures, 1,945,121 bytes — verified twice from two hosts
+over separate network paths, and a sample parsed as structured JSON rather than trusted
+on HTTP status alone.
+
+Recorded on branch `snapshot/deploy-20260911`, commit 3a406ab, parented on 4b48eba —
+the commit `manifest.json` itself declares for that capture, so the record points at the
+code that produced the bytes.
+
+**This branch must never be merged.** It carries 229 endpoints; `main` carries 253.
+Merging it would regress the published record by 24 endpoints. It is a record, not a
+merge candidate.
+
+The commit is dated 2026-09-19 and its message says so. A reconstruction recorded beside
+the record is a correction; a reconstruction presented as contemporaneous is a fiction.
+
+Root cause fixed in PR #34 (identity, first successful record) and PR #35 (`record_snapshot`
+now declares success after the push, before the PR, and reports failure depth).
+
 ## 2026-09-09 — LESSON: a verification that can pass vacuously has not verified anything
 
 **Rule. Every check that compares two sets must report its DENOMINATOR — the number of
