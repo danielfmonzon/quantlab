@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-09-18T21:30:02.642279Z",
+  "generated_at": "2026-09-25T21:30:02.679195Z",
   "accounts": [
     {
       "label": "voltarget",
       "asset_class": "us_equity",
-      "latest_equity": 101018.89,
-      "latest_snapshot_at": "2026-09-18T14:00:02.722195",
+      "latest_equity": 102395.74,
+      "latest_snapshot_at": "2026-09-25T14:00:02.751760",
       "latest_snapshot_provenance": "on_schedule",
-      "snapshot_count": 46,
+      "snapshot_count": 51,
       "risk": {
         "halted": false,
         "reason": null,
@@ -20,9 +20,9 @@
       "clock": {
         "asset_class": "us_equity",
         "paper_start_date": "2026-07-09",
-        "calendar_days_elapsed": 71,
+        "calendar_days_elapsed": 78,
         "target_days": 90,
-        "pct_complete": 78.88888888888889,
+        "pct_complete": 86.66666666666667,
         "start_note": null,
         "blockers": []
       }
@@ -30,10 +30,10 @@
     {
       "label": "trend",
       "asset_class": "us_equity",
-      "latest_equity": 101048.24,
-      "latest_snapshot_at": "2026-09-18T14:00:04.423082",
+      "latest_equity": 102375.87,
+      "latest_snapshot_at": "2026-09-25T14:00:04.327208",
       "latest_snapshot_provenance": "on_schedule",
-      "snapshot_count": 45,
+      "snapshot_count": 50,
       "risk": {
         "halted": false,
         "reason": null,
@@ -46,9 +46,9 @@
       "clock": {
         "asset_class": "us_equity",
         "paper_start_date": "2026-07-09",
-        "calendar_days_elapsed": 71,
+        "calendar_days_elapsed": 78,
         "target_days": 90,
-        "pct_complete": 78.88888888888889,
+        "pct_complete": 86.66666666666667,
         "start_note": null,
         "blockers": []
       }
@@ -56,10 +56,10 @@
     {
       "label": "crypto_trend",
       "asset_class": "crypto",
-      "latest_equity": 98441.97,
-      "latest_snapshot_at": "2026-09-18T00:30:02.193558",
+      "latest_equity": 109300.16,
+      "latest_snapshot_at": "2026-09-25T00:30:02.146917",
       "latest_snapshot_provenance": "on_schedule",
-      "snapshot_count": 71,
+      "snapshot_count": 78,
       "risk": {
         "halted": false,
         "reason": null,
@@ -72,9 +72,9 @@
       "clock": {
         "asset_class": "crypto",
         "paper_start_date": "2026-07-22",
-        "calendar_days_elapsed": 58,
+        "calendar_days_elapsed": 65,
         "target_days": 90,
-        "pct_complete": 64.44444444444444,
+        "pct_complete": 72.22222222222223,
         "start_note": "clock restarted 2026-07-22 by ruling; paper history back to 2026-07-12 is retained but does not count toward the gate",
         "blockers": []
       }
@@ -82,10 +82,10 @@
     {
       "label": "crypto_voltarget",
       "asset_class": "crypto",
-      "latest_equity": 119162.99,
-      "latest_snapshot_at": "2026-09-18T00:30:02.858131",
+      "latest_equity": 126353.65,
+      "latest_snapshot_at": "2026-09-25T00:30:02.763624",
       "latest_snapshot_provenance": "on_schedule",
-      "snapshot_count": 71,
+      "snapshot_count": 78,
       "risk": {
         "halted": false,
         "reason": null,
@@ -98,14 +98,14 @@
       "clock": {
         "asset_class": "crypto",
         "paper_start_date": "2026-07-22",
-        "calendar_days_elapsed": 58,
+        "calendar_days_elapsed": 65,
         "target_days": 90,
-        "pct_complete": 64.44444444444444,
+        "pct_complete": 72.22222222222223,
         "start_note": "clock restarted 2026-07-22 by ruling; paper history back to 2026-07-12 is retained but does not count toward the gate",
         "blockers": []
       }
     }
   ],
-  "week_ending": "2026-09-18",
+  "week_ending": "2026-09-25",
   "note": null
 }
