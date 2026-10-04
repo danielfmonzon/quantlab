@@ -7,6 +7,54 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 ---
 
 
+
+## 2026-10-04 — Divergence diagnosis #4: the 2026-09-11 equity verdict is withdrawn
+
+`voltarget` and `trend` were both reported DIVERGING for the week ending 2026-09-11,
+at +50.9 and +51.6 bps against a 50 bps threshold. Both verdicts are withdrawn as a
+measurement artifact. The threshold did not move.
+
+CAUSE. The 2026-09-09 session did not run on either equity account (watchdog alert,
+2026-09-10: two missed firings). `predicted_mark_phase_bps` reads a run report per mark
+date; 09-09 has none, so the prediction returned None, `residual_bps` became None, and
+weekly.py:535 routed the verdict onto the RAW divergence. The module docstring states
+the verdict is taken on the residual, not the raw figure. For one week it was not.
+
+EVIDENCE.
+- 09-11 is the ONLY week in the record with `residual_bps = null`, across both equity
+  accounts and all weeks examined (09-04, 09-11, 09-18, 09-25, 10-02).
+- Week 09-04 reported raw -96.4 (voltarget) and -105.0 (trend) bps — roughly double the
+  threshold — and verdicted TRACKING, because the decomposition ran and residuals were
+  -0.29 and +0.59 bps. The 09-11 raw figures are SMALLER than figures that passed.
+- Cumulative divergence at 09-11 was 0.75 bps across the whole track. An execution
+  difference compounds; this left no trace.
+- Residuals where measurable are sub-basis-point and stable: voltarget +0.79, +0.79,
+  +0.77 over three consecutive weeks.
+- Both crypto accounts, which had no missing session on 09-09, verdicted TRACKING that
+  week. The failure is common-mode in a shared equity input, not strategy behaviour.
+
+TWO PATHWAYS PROPOSED AND REFUTED, both pre-registered before the data was read.
+(1) That 09-09 corrupted the comparison by sitting unpaired in the window. Refuted: the
+weekly already excludes unpaired sessions from both sides; it is recorded in the
+artifact as `unpaired_sessions: ["2026-09-09"]`. The reported figures were already
+realigned.
+(2) That the window fallback to 2026-09-03 -> 2026-09-10 caused it. Refuted: EVERY
+equity week falls back by one day — the shadow series runs one session behind, so the
+requested week supplies 4 of 5 marks every time — and all four comparison weeks
+verdicted TRACKING. The fallback is structural, not pathological. Crypto never falls
+back (7 of 7).
+
+WHAT MADE THIS DIAGNOSABLE. weekly.py:536 carries the comment "so a reader never
+mistakes a fallback pass for an explained one", and the artifact records
+`decomposition_note` verbatim. The instrument reported its own blindness. Without that
+field this would have read as a genuine tracking failure.
+
+OPEN, NOT PART OF THIS RULING. `crypto_voltarget` carries cumulative divergence between
++290 and +357 bps across 09-04 through 10-02, while every other account sits between
+-84 and -2 bps. Its weekly residuals include +17.6 (09-18) and +46.4 (09-25) against
+sub-1 bps elsewhere. This is the outage scar already named in the day-90 inputs. The
+crypto gate is ~2026-10-20; it is diagnosed before then, separately.
+
 ## 2026-09-19 — The 2026-09-11 Glass Box record, reconstructed from published bytes
 
 The 2026-09-11 refresh published successfully and was never recorded. `record-snapshot`
