@@ -8,6 +8,76 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 
 
+
+## 2026-10-07 — RULING: the us_equity day-90 readiness review DOES NOT PASS; tier stays Probable
+
+Day 90 reached today (paper_start_date 2026-07-09). The review does not pass. Both equity
+accounts remain at validation tier **Probable**. No live capital is authorised, and no
+dollar amount is named. The 50 bps divergence threshold did not move.
+
+WHAT PASSES, on the record.
+- Zero aborted runs across all 114 equity run reports. Every run that fired completed.
+- No halt, no kill, no manual reset required — on any account, ever.
+- 57 of 65 weekdays carry a run on both accounts, with every gap accounted for:
+  2026-08-18..21 is the documented five-day silence (entry 2026-08-22); 2026-09-09 is the
+  known honest gap (watchdog alert 2026-09-10); 2026-07-10, 07-15, 07-17 are ramp-up
+  singletons in the track's first nine days.
+- All THREE DIVERGING weeks are diagnosed measurement artifacts, each re-ruled at the
+  time: week 2026-07-24 (entry 2026-07-25, `trend` -54.33 -> re-ruled TRACKING at
+  -6.06 bps); week 2026-08-07 (entry 2026-08-10, every figure reproduced exactly,
+  `trend` +101.39 predicted at +99.71 from endpoint remainders, residual +1.68 bps);
+  week 2026-09-11 (entry 2026-10-04, decomposition unavailable, verdict fell to raw).
+  Week 2026-08-21 verdicted INSUFFICIENT — the five-day-silence week.
+- Residuals are sub-basis-point wherever measurable: voltarget +0.79, +0.79, +0.77 over
+  three consecutive weeks. Cumulative divergence -2.4 bps (voltarget) and -22.6 bps
+  (trend), both consistent with the documented dividend-drag structure.
+- Four instrument diagnoses over the track. The threshold moved zero times.
+
+WHY IT DOES NOT PASS. Three grounds, each sufficient alone.
+
+1. THE FILL STUDY IS NOT VALID. `quantlab fills` captures 9 fills against 79 submitted
+   orders — 11% coverage; 70 orders predate instrumentation (live 2026-09-01) and cannot
+   be retrofitted. Mean +43.3 bps against a median of +0.0 bps: the mean describes two
+   outliers, not a central tendency. Seven SPY fills land within 0.1 bps of their mark,
+   which is evidence the 5 bps backtest cost assumption is conservative FOR SPY, AT THESE
+   SIZES, IN PAPER — a simulator that fills at the mark cannot demonstrate real slippage,
+   and the largest order observed is $7,716 on a ~$102k book. For BTC n=2. The 5 bps
+   assumption therefore remains unvalidated, and an unvalidated cost assumption makes the
+   backtest's returns a hypothesis rather than a result.
+
+2. CONVERGE-TO-TARGET TURNOVER COST vs the monthly-rebalance backtest has not been
+   computed. Named as a day-90 input in September; not started.
+
+3. FOUR RUNS PER WEEK WAS NOT SUSTAINED. The system's own upgrade condition requires at
+   least four completed runs per week sustained to the gate. Per-week counts for
+   `voltarget`: 2026-W29 = 3 and 2026-W34 = 1 (the five-day silence). W28 is a mid-week
+   start and W41 is the gate week itself, measured on a Wednesday; neither is counted
+   against. Ten of fourteen full weeks met the bar. Ten of fourteen is not sustained.
+
+NEW FINDING, carried to the crypto gate. Three large favourable crypto fills are now on
+record, not one: +198.0 bps (2026-09-04 05:35Z), +192.1 bps (2026-09-09 05:03Z), and the
++172.6 bps of 2026-08-22 that predates instrumentation and stays annotated as unexplained.
+All three are `crypto_voltarget`; the two captured ones fired off-schedule (05:35Z, 05:03Z)
+rather than at 00:30Z. `crypto_voltarget` also carries cumulative divergence between +290
+and +357 bps across 2026-09-04..10-02 while every other account sits between -84 and -2 bps.
+Whether these are one phenomenon is NOT asserted here. A systematically favourable fill is
+not good news: it means the mark is wrong, and a mark wrong in the account's favour in paper
+is a mark that can be wrong against it live. The crypto clock reads 75/90 with a gate of
+~2026-10-20 (clock restarted 2026-07-22 by ruling). This is diagnosed before that gate.
+
+PATH TO A PASS. Ground 1 resolves with elapsed time: instrumentation went live 2026-09-01
+and equity trades 3-4 times a week, so ~20 captured SPY fills arrives around early November.
+Grounds 2 and 3 are work and history respectively. The review is re-run when ground 1 has a
+real denominator; it is not re-run early to obtain a better answer.
+
+CORRECTION TO THE 2026-10-04 ENTRY. That entry presents week 2026-09-11 as the anomaly in
+the record. The full verdict history is three DIVERGING weeks and one INSUFFICIENT, listed
+above. The Quant Lead asserted on 2026-09-19 and again on 2026-10-04 that 09-11 was the only
+DIVERGING verdict on record, having read five of fourteen weekly artifacts. That claim was
+made from a partial denominator and happened to be favourable; it was not verified. It is
+corrected here rather than edited there, per the append-only rule. The 2026-10-04 diagnosis
+itself stands unchanged — its mechanism was read from source and its evidence re-derived.
+
 ## 2026-10-04 — Divergence diagnosis #4: the 2026-09-11 equity verdict is withdrawn
 
 `voltarget` and `trend` were both reported DIVERGING for the week ending 2026-09-11,
