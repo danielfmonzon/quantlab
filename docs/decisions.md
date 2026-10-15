@@ -9,6 +9,82 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 
 
+
+## 2026-10-14 — CRITICAL: crypto_voltarget reached negative cash on a cash-only account; the abort gate held
+
+First CRITICAL in the project's history. At 2026-10-15 00:30:05 UTC the `crypto_voltarget`
+paper run aborted at the `account` stage with `non-positive equity (-43404.91)`. No order
+was planned, priced or submitted. The cause is a defect on the broker side, not in
+quantlab. The account remains in that state and Alpaca support ticket #374501 is open.
+
+WHAT THE GATE DID. The run reached stage `account` with `risk_state`, `ingest`, `validate`
+and `health` all ok, then stopped: `plan: null`, `target_weights: {}`, `submitted_orders:
+[]`, `abort_retryable: false`. The guard refused to compute a plan against an account state
+it could not make sense of. This is the first time that path has fired on real input and it
+behaved exactly as specified.
+
+A LIMITATION THE EVENT EXPOSED. The `account` guard sits UPSTREAM of the risk engine, which
+needs an equity figure to evaluate `max_daily_loss`, `max_weekly_loss` and
+`max_drawdown_kill`. Because no usable equity reached it, no kill switch armed: all four
+accounts still read `halted: false`, `requires_manual_reset: false`. The system is therefore
+fail-closed but not fail-latched — it will re-attempt nightly and re-abort identically,
+emitting a CRITICAL each time, until a human intervenes. That is safe. It is not the same as
+halted, and the record should not claim it is.
+
+THE STATE, AS REPORTED BY THE BROKER.
+Account PA3IOSS2WGUI, created 2026-07-12, BTC/USD only.
+- `multiplier: 1`, `shorting_enabled: false`, `buying_power: 0`, `status: ACTIVE`,
+  `account_blocked: false`, `trading_blocked: false`. A cash account with no borrowing.
+- `cash: -144,461.68`, `equity: -43,597.08`.
+- Position: 1.237559467 BTC, avg entry $81,240.05, market value $100,916.46 — roughly flat
+  against cost basis. The account is not losing money on BTC.
+
+A cash account with multiplier 1 has no mechanism to reach a negative cash balance.
+
+WHAT RECONCILES, AND WHAT DOES NOT.
+- Orders: 50 since 2026-07-01, every one filled, none rejected or cancelled. Net quantity
+  bought minus sold is 1.245302305 BTC against a position of 1.237559467 — a 0.6% gap
+  consistent with fees. Every BTC in the account was bought by an order quantlab submitted.
+  No phantom trades.
+- Fills match notionals. The 2026-10-12 buy of $42,416.20 filled 0.496463289 at
+  $83,784.97; the 2026-10-13 sell of $6,816.71 filled 0.085536174 at $81,349.03.
+- Activities: `GET /v2/account/activities?after=2026-10-10` returns 11 records — 5 FILL and
+  6 CFEE. The largest non-trade amount is -$9.51; total fees under $16. No journal,
+  withdrawal, transfer or adjustment of any kind.
+- Cash does NOT reconcile. Net cash spent on trading is $77,721.98 against a $100,000
+  start, which should leave approximately +$22,278. The 2026-10-14 run recorded cash
+  $21,922.96 — consistent. Twenty-four hours later, with zero orders in the window, cash
+  read -$144,461.68. An unexplained movement of roughly $166,740.
+
+ISOLATION. `crypto_trend` runs on the same timer, through the same API, at the same instant,
+on a separate account. It reported equity $105,435.22 that night and $104,976.51 on live
+query. The fault is specific to PA3IOSS2WGUI, not to the broker connection, the credentials
+or the parsing.
+
+HYPOTHESES PROPOSED AND REFUTED, in order, each by evidence rather than argument.
+(1) A corrupt equity read. Refuted: cash, market value and equity are internally consistent
+with each other; the account is reporting a coherent state, not garbage.
+(2) A broker-wide outage. Refuted by `crypto_trend` in the same second.
+(3) Trades quantlab never submitted. Refuted: 50 orders, all ours, all filled.
+(4) A notional-sizing defect — the hypothesis that would have linked this to the account's
+existing favourable-fill record. Refuted: fills match their notionals exactly.
+
+WHAT IS NOT ASSERTED. The mechanism that moved the cash is unknown and is not named here.
+The data available through `get_account`, `get_positions`, `get_orders` and
+`/v2/account/activities` does not contain it.
+
+CARRIED, NOT MERGED. This is the same account that carries cumulative divergence between
++290 and +357 bps across 2026-09-04..10-02 while every other account sits between -84 and
+-2 bps, and the three large favourable fills (+198.0 bps 2026-09-04, +192.1 bps 2026-09-09,
++172.6 bps 2026-08-22). Whether those and this are one fault is NOT asserted. They are no
+longer treated as separate questions.
+
+CONSEQUENCE FOR THE CRYPTO GATE. The crypto day-90 review falls ~2026-10-20. On this
+evidence `crypto_voltarget` does not pass: an account whose reported equity history may be
+unreliable cannot corroborate a backtest, and a six-day window is not enough to resolve a
+broker-side defect. `crypto_trend` is assessed on its own record, separately. No risk
+threshold moved, and none will move on the basis of this event.
+
 ## 2026-10-07 — RULING: the us_equity day-90 readiness review DOES NOT PASS; tier stays Probable
 
 Day 90 reached today (paper_start_date 2026-07-09). The review does not pass. Both equity
