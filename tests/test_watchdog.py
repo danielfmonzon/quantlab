@@ -542,12 +542,14 @@ def _results(*rows: tuple[str, int, datetime | None]) -> list[TaskResult]:
     return [TaskResult(task=n, last_result=c, recorded_at=w) for n, c, w in rows]
 
 
-def _failure_record(t: Tree, day: date, source: str) -> None:
+def _failure_record(
+    t: Tree, day: date, source: str, strategy: str | None = None,
+) -> None:
     """An in-code failure record: the task alerting in its OWN voice."""
     with t.alerts.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps({
             "timestamp": f"{day}T21:05:00+00:00", "level": "CRITICAL",
-            "title": "aborted", "body": "...", "source": source,
+            "title": "aborted", "body": "...", "source": source, "strategy": strategy,
         }) + "\n")
 
 
@@ -580,7 +582,7 @@ def test_a_nonzero_result_with_a_matching_record_raises_nothing_extra(
     interesting -- an abort produces one too, and has already been reported.
     """
     t = Tree(tmp_path)
-    _failure_record(t, date(2026, 8, 28), "paper.runner")
+    _failure_record(t, date(2026, 8, 28), "paper.runner", strategy="voltarget")
     deaths = unexplained_task_deaths(
         _results(("quantlab-paper-run", 3, datetime(2026, 8, 28, 10, 0))),
         t.alerts, None,
@@ -1501,11 +1503,15 @@ def _pin_eastern(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(watchdog, "_HOST_TZ", ZoneInfo("America/New_York"))
 
 
-def _crypto_alert(t: Tree, stamp: str) -> None:
+def _crypto_alert(
+    t: Tree, stamp: str, *, level: str = "CRITICAL",
+    strategy: str | None = "crypto_voltarget",
+) -> None:
+    """A `paper.runner` alert as `paper/runner.py` writes it: always with `strategy`."""
     with t.alerts.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps({
-            "timestamp": stamp, "level": "WARNING", "title": "crypto run aborted",
-            "body": "...", "source": "paper.runner",
+            "timestamp": stamp, "level": level, "title": f"paper {strategy} aborted",
+            "body": "...", "source": "paper.runner", "strategy": strategy,
         }) + "\n")
 
 
@@ -1536,6 +1542,7 @@ def test_an_evening_error_log_after_utc_midnight_is_explained(
     log_path.write_text(json.dumps({
         "timestamp": "2026-10-15T00:30:05.120Z", "level": "error",
         "logger": "quantlab.paper.runner", "event": "run_aborted",
+        "strategy": "crypto_voltarget",
     }) + "\n", encoding="utf-8")
     audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1014), t.alerts, log_path)
     assert audit.deaths == []
@@ -1565,4 +1572,89 @@ def test_the_next_evenings_record_does_not_explain_this_exit(
     t = Tree(tmp_path)
     _crypto_alert(t, "2026-10-16T00:30:06Z")
     audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1014), t.alerts, None)
+    assert len(audit.deaths) == 1
+
+
+# --------------------------------------------------------------------------- #
+# A failure record must be a failure, from the right task (PROP-19)           #
+# --------------------------------------------------------------------------- #
+
+# The crypto run killed outright on Mon 2026-10-19 -- the case the tripwire exists for.
+_CRYPTO_KILLED_1019 = """Id=quantlab-crypto-paper-run.service
+Result=signal
+ExecMainStatus=9
+ExecMainCode=2
+ExecMainExitTimestamp=Mon 2026-10-19 20:30:07 EDT
+ActiveState=failed
+SubState=failed
+"""
+
+# The same evening's run, aborting through its own handler instead.
+_CRYPTO_ABORT_1019 = _CRYPTO_KILLED_1019.replace(
+    "Result=signal\nExecMainStatus=9\nExecMainCode=2",
+    "Result=exit-code\nExecMainStatus=1\nExecMainCode=1",
+)
+
+
+def test_an_equity_info_alert_does_not_hide_a_killed_crypto_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PROP-18 finding: the equity run's success alert explained a crypto death.
+
+    Both runs alert as `paper.runner` and alerts were not filtered by level, so 10-19's
+    "voltarget: 1 order(s) submitted" counted as a crypto failure record for 10-19.
+    """
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-19T14:00:15Z", level="INFO", strategy="voltarget")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_KILLED_1019), t.alerts, None)
+    assert [d.task for d in audit.deaths] == ["quantlab-crypto-paper-run"]
+    assert audit.deaths[0].result_kind == "signal"
+
+
+def test_a_sibling_accounts_success_does_not_hide_the_tasks_death(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Attribution alone is not enough: the crypto task runs BOTH crypto accounts.
+
+    `crypto_trend` submitting its orders and the process then being killed while running
+    `crypto_voltarget` leaves a correctly attributed INFO record beside a real death.
+    """
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-20T00:30:04Z", level="INFO", strategy="crypto_trend")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_KILLED_1019), t.alerts, None)
+    assert [d.task for d in audit.deaths] == ["quantlab-crypto-paper-run"]
+
+
+def test_a_clean_crypto_abort_with_its_own_critical_is_explained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tightening must not stop the crypto run's own abort from explaining its exit."""
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-20T00:30:05Z", strategy="crypto_trend")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1019), t.alerts, None)
+    assert audit.deaths == []
+
+
+def test_an_equity_abort_does_not_explain_a_crypto_death(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Severity alone is not enough: the equity run's real CRITICAL is still not crypto's."""
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-19T14:00:15Z", strategy="voltarget")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_KILLED_1019), t.alerts, None)
+    assert [d.task for d in audit.deaths] == ["quantlab-crypto-paper-run"]
+
+
+def test_an_unattributable_paper_record_explains_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No `strategy`, no attribution -- and an unattributed record biases toward raising."""
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-20T00:30:05Z", strategy=None)
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_KILLED_1019), t.alerts, None)
     assert len(audit.deaths) == 1

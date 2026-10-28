@@ -112,6 +112,10 @@ _FAILURE_SOURCES_BY_TASK: dict[str, tuple[str, ...]] = {
 # Log levels that count as the system saying "I failed" in its own voice.
 _FAILURE_LEVELS = frozenset({"error", "critical"})
 
+# The same, for alerts (PROP-19). `Alert.level` is one of INFO / WARNING / CRITICAL; a
+# paper abort alerts at WARNING or CRITICAL, and INFO is a success report.
+_FAILURE_ALERT_LEVELS = frozenset({"warning", "critical"})
+
 _TASK_NAME_PREFIX = "quantlab-"
 
 # The scheduler's STATUS family: HRESULTs whose severity bits are clear, which is to say
@@ -652,6 +656,14 @@ def _labels_for(task: ScheduledTask) -> list[str]:
     return [s for s in APPROVED_STRATEGIES if account_asset_class(s) == task.asset_class]
 
 
+def _accounts_of(task_name: str) -> frozenset[str] | None:
+    """The account labels ``task_name`` runs, or None when it is not account-scoped."""
+    for task in SCHEDULE:
+        if task.name == task_name and task.asset_class is not None:
+            return frozenset(_labels_for(task))
+    return None
+
+
 def _run_report_days(paper_reports_dir: Path, label: str) -> set[date]:
     """Days on which ``label`` has at least one run report, aborted or not."""
     days: set[date] = set()
@@ -732,17 +744,24 @@ def _failure_record_days(
 ) -> set[date]:
     """Days on which ``task`` reported a failure IN ITS OWN VOICE.
 
-    Two witnesses, either sufficient: an alert whose ``source`` belongs to this task, or
-    a log record at error/critical level from one of its loggers. Both are things only
-    running code can write, which is exactly the point — their absence beside a non-zero
-    scheduler result is what distinguishes "it failed and said so" from "it was killed".
+    Two witnesses, either sufficient: an alert at WARNING/CRITICAL whose ``source``
+    belongs to this task, or a log record at error/critical level from one of its loggers.
+    Both are things only running code can write, which is exactly the point — their
+    absence beside a non-zero scheduler result is what distinguishes "it failed and said
+    so" from "it was killed".
 
-    A malformed line is skipped, not fatal. This decides whether to RAISE an alert, so
-    an unreadable record biases toward raising one, which is the safe direction.
+    For an account-scoped task (a paper run) the record must also carry a ``strategy``
+    naming one of that task's accounts (PROP-19): the equity and crypto runs share their
+    sources, and the equity run's record must not explain a crypto death.
+
+    A malformed or unattributable line is skipped, not fatal. This decides whether to
+    RAISE an alert, so an unreadable record biases toward raising one, which is the safe
+    direction.
     """
     sources = _FAILURE_SOURCES_BY_TASK.get(task, ())
     if not sources:
         return set()
+    accounts = _accounts_of(task)
     days: set[date] = set()
 
     def _harvest(path: Path, is_log: bool) -> None:
@@ -767,9 +786,20 @@ def _failure_record_days(
                     continue
                 origin = str(record.get("logger", ""))
             else:
+                # SEVERITY (PROP-19). An INFO alert is the system reporting success; the
+                # equity run's "orders submitted" counted as a failure record here.
+                if str(record.get("level", "")).lower() not in _FAILURE_ALERT_LEVELS:
+                    continue
                 origin = str(record.get("source", ""))
             if not any(origin == s or origin.startswith(f"{s}.") for s in sources):
                 continue
+            if accounts is not None:
+                # ATTRIBUTION (PROP-19). Both paper tasks speak as `paper.runner`, so the
+                # source names a module, not a task. The structured `strategy` field names
+                # the account, and the account names the task. No such field, no match.
+                strategy = record.get("strategy")
+                if not isinstance(strategy, str) or strategy not in accounts:
+                    continue
             stamp = record.get("timestamp")
             if not isinstance(stamp, str):
                 continue
