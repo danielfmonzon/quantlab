@@ -32,7 +32,10 @@ emitting a CRITICAL each time, until a human intervenes. That is safe. It is not
 halted, and the record should not claim it is.
 
 THE STATE, AS REPORTED BY THE BROKER.
-Account PA3IOSS2WGUI, created 2026-07-12, BTC/USD only.
+The `crypto_voltarget` paper account, created 2026-07-12, BTC/USD only. (Its account
+number was written here on 2026-10-14 and removed on 2026-10-28: it matches the
+sanitizer's `alpaca_account_id` pattern and blocked the 10-16 and 10-23 publishes. The
+identifier lives in Alpaca ticket #374501, not in the published record.)
 - `multiplier: 1`, `shorting_enabled: false`, `buying_power: 0`, `status: ACTIVE`,
   `account_blocked: false`, `trading_blocked: false`. A cash account with no borrowing.
 - `cash: -144,461.68`, `equity: -43,597.08`.
@@ -58,7 +61,7 @@ WHAT RECONCILES, AND WHAT DOES NOT.
 
 ISOLATION. `crypto_trend` runs on the same timer, through the same API, at the same instant,
 on a separate account. It reported equity $105,435.22 that night and $104,976.51 on live
-query. The fault is specific to PA3IOSS2WGUI, not to the broker connection, the credentials
+query. The fault is specific to that one account, not to the broker connection, the credentials
 or the parsing.
 
 HYPOTHESES PROPOSED AND REFUTED, in order, each by evidence rather than argument.
