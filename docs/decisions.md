@@ -10,6 +10,44 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 
 
+
+## 2026-10-28 — RULING: the crypto day-90 readiness review DOES NOT PASS; both accounts stay Probable
+
+The crypto clock started 2026-07-22 (restarted by ruling) and reached day 90 on 2026-10-20.
+This review is written eight days late; the gate fell inside the crypto_voltarget abort
+streak. Neither crypto account passes. Both remain at tier Probable. No live capital is
+authorised. No threshold moved.
+
+CRYPTO_TREND — clean operations, unmet bar.
+- 86 of 91 days carry a run; zero aborts. The five missing days are documented: 2026-08-01
+  (entry 2026-08-10, Finding 3) and 2026-08-18..21 (the five-day silence, entry 2026-08-22).
+- TRACKING every week from 2026-07-24 to 2026-10-23. Zero DIVERGING. One INSUFFICIENT
+  (week 2026-08-21, the silence week). No halt, no kill, ever.
+- DOES NOT PASS on two grounds. (1) The fill ledger captures 0 of 2 orders. The account
+  holds BTC at weight 1.0 and rarely trades, so the 5 bps cost assumption has a denominator
+  of zero. (2) Four runs per week was not sustained: ISO week 34 carried 3 (the silence).
+  Week 43 carried 2 because the gate fell on its Tuesday and is not counted against.
+
+CRYPTO_VOLTARGET — does not pass on every ground.
+- Six aborted runs inside the window (the negative-cash streak, entry 2026-10-14), and a
+  broker-side account state that remains unexplained (Alpaca ticket #374501, no reply).
+- Five DIVERGING weekly verdicts: 07-22, 07-24, 08-02, 08-07, 08-28. Week 07-22 predates
+  the clock. Weeks 07-24, 08-02 and 08-07 were diagnosed as measurement artifacts (entries
+  2026-07-25 and 2026-08-10). Week 08-28 is ruled in entry 2026-08-30 (diagnosis #3); its
+  outcome is not restated here and this verdict does not depend on it.
+- Fills: n=2, both near +195 bps favourable. Four runs per week not sustained (week 34).
+
+ON "NO KILL". No kill switch fired on either account, so the condition is met as written.
+It is not met in substance: the 10-14 event showed the account guard stops a run before
+the risk engine sees an equity figure, so the kill switch could not have fired.
+
+OPEN. Week 2026-10-16 reads TRACKING for crypto_voltarget although the account aborted
+every night of it. Likely a window fallback past sessions with no equity mark. Not asserted.
+
+PATH TO A PASS. crypto_trend needs a real fill denominator and a sustained run record;
+both are time. crypto_voltarget needs the broker to explain the account first. The review
+is re-run when the evidence exists, not early to obtain a better answer.
+
 ## 2026-10-14 — CRITICAL: crypto_voltarget reached negative cash on a cash-only account; the abort gate held
 
 First CRITICAL in the project's history. At 2026-10-15 00:30:05 UTC the `crypto_voltarget`
