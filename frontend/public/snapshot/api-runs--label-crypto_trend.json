@@ -1,7 +1,462 @@
 {
-  "count": 85,
+  "count": 92,
   "label": "crypto_trend",
   "runs": [
+    {
+      "run_id": "run_crypto_trend_20261009T003004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-09T00:30:04.757879Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 105408.12,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=105408.12 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-08 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.05551275524055954)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261008T003004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-08T00:30:04.756964Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 107481.6,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=107481.60 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-07 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.036933774681340625)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261007T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-07T00:30:02.263654Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 110315.14,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=110315.14 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-06 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.011544436672886849)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261006T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-06T00:30:02.233215Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 110868.79,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=110868.79 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-05 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.006583572528254922)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261005T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-05T00:30:02.274953Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 111379.98,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=111379.98 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-04 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.002003162265282965)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261004T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-04T00:30:02.178617Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 109474.66,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=109474.66 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-03 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.019075380583805757)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261003T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-03T00:30:02.559627Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 109115.79,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=109115.79 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-02 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.022290959587840997)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
     {
       "run_id": "run_crypto_trend_20261002T003002Z",
       "strategy": "crypto_trend",

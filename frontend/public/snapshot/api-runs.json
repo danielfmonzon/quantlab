@@ -1,7 +1,1751 @@
 {
-  "count": 281,
+  "count": 305,
   "label": null,
   "runs": [
+    {
+      "run_id": "run_trend_20261009T140010Z",
+      "strategy": "trend",
+      "timestamp": "2026-10-09T14:00:10.674461Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103229.92,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103229.92 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-08 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.005026149529177348)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_voltarget_20261009T140005Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-10-09T14:00:05.015886Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103218.22,
+      "target_weights": {
+        "SPY": 0.964143300208457
+      },
+      "no_trades": false,
+      "est_turnover": 0.012572214405969784,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103218.22 cash=4997.49"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-08 -> {'SPY': 0.964143300208457}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.004398873510274126)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0126"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 1297.6815924425584,
+          "current_w": 0.9515710858024872,
+          "target_w": 0.964143300208457
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 1297.68,
+          "status": "filled",
+          "client_order_id": "ql-voltarget-20261009-SPY-buy",
+          "submitted_at": "2026-10-09T14:00:07.104954Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261009T003005Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-09T00:30:05.349108Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 124195.67,
+      "target_weights": {
+        "BTC-USD": 0.5461842063036376
+      },
+      "no_trades": false,
+      "est_turnover": 0.08860637052240627,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=124195.67 cash=67366.48"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-08 -> {'BTC-USD': 0.5461842063036376}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.02598269968893885)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0886"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "buy",
+          "notional": 11004.527553298498,
+          "current_w": 0.45757783578123135,
+          "target_w": 0.5461842063036376
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "buy",
+          "notional": 11004.53,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_voltarget-20261009-BTC-USD-buy",
+          "submitted_at": "2026-10-09T00:30:05.907706Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_trend_20261009T003004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-09T00:30:04.757879Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 105408.12,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=105408.12 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-08 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.05551275524055954)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20261008T140012Z",
+      "strategy": "trend",
+      "timestamp": "2026-10-08T14:00:12.465135Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103131.47,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103131.47 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-07 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.005975052478814913)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_voltarget_20261008T140005Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-10-08T14:00:05.146475Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103120.86,
+      "target_weights": {
+        "SPY": 0.9515375428275407
+      },
+      "no_trades": false,
+      "est_turnover": 0.018702916186529306,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103120.86 cash=6926.15"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-07 -> {'SPY': 0.9515375428275407}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.00533796862037228)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0187"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 1928.6608016628225,
+          "current_w": 0.9328346266410114,
+          "target_w": 0.9515375428275407
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 1928.66,
+          "status": "filled",
+          "client_order_id": "ql-voltarget-20261008-SPY-buy",
+          "submitted_at": "2026-10-08T14:00:06.875347Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261008T003005Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-08T00:30:05.551740Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 125321.07,
+      "target_weights": {
+        "BTC-USD": 0.46279882190112265
+      },
+      "no_trades": false,
+      "est_turnover": 0.01956646541249507,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=125321.07 cash=64870.54"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-07 -> {'BTC-USD': 0.46279882190112265}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.017156634579180374)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0196"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 2452.090381611874,
+          "current_w": 0.4823652873136177,
+          "target_w": 0.46279882190112265
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 2452.09,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_voltarget-20261008-BTC-USD-sell",
+          "submitted_at": "2026-10-08T00:30:06.118243Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_trend_20261008T003004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-08T00:30:04.756964Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 107481.6,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=107481.60 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-07 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.036933774681340625)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20261007T140004Z",
+      "strategy": "trend",
+      "timestamp": "2026-10-07T14:00:04.531572Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103049.0,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103049.00 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-06 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.006769933395591177)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_voltarget_20261007T140002Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-10-07T14:00:02.580956Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103055.1,
+      "target_weights": {
+        "SPY": 0.9403068521297789
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103055.10 cash=6926.15"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-06 -> {'SPY': 0.9403068521297789}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.005972262934670236)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261007T003002Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-07T00:30:02.902999Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 126915.28,
+      "target_weights": {
+        "BTC-USD": 0.4887161082326941
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=126915.28 cash=64870.54"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-06 -> {'BTC-USD': 0.4887161082326941}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.004653878884647078)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261007T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-07T00:30:02.263654Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 110315.14,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=110315.14 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-06 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.011544436672886849)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20261006T140011Z",
+      "strategy": "trend",
+      "timestamp": "2026-10-06T14:00:11.859854Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103751.39,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103751.39 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-05 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=0.0)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_voltarget_20261006T140002Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-10-06T14:00:02.656458Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 103674.27,
+      "target_weights": {
+        "SPY": 0.933192580801253
+      },
+      "no_trades": false,
+      "est_turnover": 0.0167616532917384,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=103674.27 cash=5188.46"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-05 -> {'SPY': 0.933192580801253}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=0.0)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0168"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "sell",
+          "notional": 1737.7521690140757,
+          "current_w": 0.9499542340929914,
+          "target_w": 0.933192580801253
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "sell",
+          "notional": 1737.75,
+          "status": "filled",
+          "client_order_id": "ql-voltarget-20261006-SPY-sell",
+          "submitted_at": "2026-10-06T14:00:04.637946Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261006T003002Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-06T00:30:02.831683Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 127237.0,
+      "target_weights": {
+        "BTC-USD": 0.4908309353069124
+      },
+      "no_trades": false,
+      "est_turnover": 0.034804375988475134,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=127237.00 cash=69213.55"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-05 -> {'BTC-USD': 0.4908309353069124}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.0021307567350900003)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0348"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "buy",
+          "notional": 4428.404387645611,
+          "current_w": 0.4560265593184373,
+          "target_w": 0.4908309353069124
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "buy",
+          "notional": 4428.4,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_voltarget-20261006-BTC-USD-buy",
+          "submitted_at": "2026-10-06T00:30:03.481544Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_trend_20261006T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-06T00:30:02.233215Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 110868.79,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=110868.79 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-05 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.006583572528254922)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_trend_20261005T140014Z",
+      "strategy": "trend",
+      "timestamp": "2026-10-05T14:00:14.356180Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102518.21,
+      "target_weights": {
+        "SPY": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY, IEF"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY, IEF"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102518.21 cash=0.00"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-02 -> {'SPY': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.009779419974832448)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_voltarget_20261005T140002Z",
+      "strategy": "voltarget",
+      "timestamp": "2026-10-05T14:00:02.830868Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 102489.07,
+      "target_weights": {
+        "SPY": 0.9494581797930322
+      },
+      "no_trades": false,
+      "est_turnover": 0.037502136480316084,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested SPY"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated SPY"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=102489.07 cash=9032.02"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-02 -> {'SPY': 0.9494581797930322}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.006610572787396074)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0375"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 3843.559090880669,
+          "current_w": 0.9119560433127161,
+          "target_w": 0.9494581797930322
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "SPY",
+          "side": "buy",
+          "notional": 3843.56,
+          "status": "filled",
+          "client_order_id": "ql-voltarget-20261005-SPY-buy",
+          "submitted_at": "2026-10-05T14:00:04.662560Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261005T003002Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-05T00:30:02.893231Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 127508.69,
+      "target_weights": {
+        "BTC-USD": 0.45737599903553533
+      },
+      "no_trades": false,
+      "est_turnover": 0.010748481915527686,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=127508.69 cash=67818.75"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-04 -> {'BTC-USD': 0.45737599903553533}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=0.0)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0107"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 1370.524848537626,
+          "current_w": 0.468124480951063,
+          "target_w": 0.45737599903553533
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 1370.52,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_voltarget-20261005-BTC-USD-sell",
+          "submitted_at": "2026-10-05T00:30:03.506625Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_trend_20261005T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-05T00:30:02.274953Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 111379.98,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=111379.98 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-04 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.002003162265282965)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261004T003002Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-04T00:30:02.804703Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 126487.27,
+      "target_weights": {
+        "BTC-USD": 0.4592829644359952
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=126487.27 cash=67818.75"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-03 -> {'BTC-USD': 0.4592829644359952}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.007485100185042115)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261004T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-04T00:30:02.178617Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 109474.66,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=109474.66 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-03 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.019075380583805757)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261003T003003Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-03T00:30:03.171651Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 126294.88,
+      "target_weights": {
+        "BTC-USD": 0.4566259078050659
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=126294.88 cash=67818.75"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-02 -> {'BTC-USD': 0.4566259078050659}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.00899473780766935)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261003T003002Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-10-03T00:30:02.559627Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 109115.79,
+      "target_weights": {
+        "BTC-USD": 1.0
+      },
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=109115.79 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-02 -> {'BTC-USD': 1.0}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.022290959587840997)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
     {
       "run_id": "run_trend_20261002T140004Z",
       "strategy": "trend",
