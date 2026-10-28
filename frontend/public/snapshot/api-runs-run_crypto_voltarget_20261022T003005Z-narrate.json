@@ -1,0 +1,34 @@
+{
+  "run_id": "run_crypto_voltarget_20261022T003005Z",
+  "strategy": "crypto_voltarget",
+  "narration": "Run run_crypto_voltarget_20261022T003005Z: account crypto_voltarget executed at 2026-10-22T00:30:05.425908Z as a LIVE SUBMIT against the paper broker. The gated pipeline ABORTED at stage 'account' and placed no orders. Reason as recorded: non-positive equity (-40311.09) Rule: crypto_voltarget sizes exposure as its target volatility (20%) divided by trailing 20-day realized volatility, annualized on a 365-day year, capped at 100% of equity; the remainder is held in cash. That rule produced a target of 100% cash (no positions).",
+  "rule_sentences": [
+    "Rule: crypto_voltarget sizes exposure as its target volatility (20%) divided by trailing 20-day realized volatility, annualized on a 365-day year, capped at 100% of equity; the remainder is held in cash."
+  ],
+  "counterfactuals": [],
+  "facts": [
+    {
+      "rendered": "20%",
+      "value": 0.2,
+      "source": "rule_constant.crypto_voltarget.target_vol"
+    },
+    {
+      "rendered": "20",
+      "value": 20,
+      "source": "rule_constant.crypto_voltarget.lookback_days"
+    },
+    {
+      "rendered": "365",
+      "value": 365,
+      "source": "rule_constant.crypto_voltarget.periods_per_year"
+    },
+    {
+      "rendered": "100%",
+      "value": 1.0,
+      "source": "rule_constant.crypto_voltarget.max_weight"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}
