@@ -11,8 +11,12 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pytest
 
 from quantlab.data.calendar import TradingCalendar
+from quantlab.reporting import watchdog
 from quantlab.reporting.watchdog import (
     ACKNOWLEDGED_DEATHS_PATH,
     BATTERY_HARDENING_APPLIED_AT,
@@ -25,6 +29,7 @@ from quantlab.reporting.watchdog import (
     check_schedule,
     load_acknowledged_deaths,
     parse_schtasks_list,
+    parse_systemctl_show,
     previous_digest_date,
     previous_digest_deferrals,
     tasks_in_flight,
@@ -1473,3 +1478,91 @@ def test_the_other_four_schedule_entries_are_untouched() -> None:
     assert existing[TASK_WEEKLY].utc_minute_of_day == 21 * 60
     assert existing[TASK_GLASSBOX_REFRESH].utc_minute_of_day == 21 * 60 + 30
     assert len(SCHEDULE) == 5
+
+
+# --------------------------------------------------------------------------- #
+# One clock for both sides of the match (PROP-18)                             #
+# --------------------------------------------------------------------------- #
+
+# The 2026-10-14 crypto abort exactly as the VPS recorded it: systemd stamps the exit in
+# local time with a zone abbreviation, the alert record is stamped in UTC.
+_CRYPTO_ABORT_1014 = """Id=quantlab-crypto-paper-run.service
+Result=exit-code
+ExecMainStatus=1
+ExecMainCode=1
+ExecMainExitTimestamp=Wed 2026-10-14 20:30:07 EDT
+ActiveState=failed
+SubState=failed
+"""
+
+
+def _pin_eastern(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the conversion as the VPS does, whatever zone this machine is in."""
+    monkeypatch.setattr(watchdog, "_HOST_TZ", ZoneInfo("America/New_York"))
+
+
+def _crypto_alert(t: Tree, stamp: str) -> None:
+    with t.alerts.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "timestamp": stamp, "level": "WARNING", "title": "crypto run aborted",
+            "body": "...", "source": "paper.runner",
+        }) + "\n")
+
+
+def test_an_evening_abort_alerted_after_utc_midnight_is_explained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 2026-10-14 false CRITICAL: an abort that alerted, read as a death.
+
+    20:30 EDT is 00:30Z the next day. Dating the record in UTC and the exit in local time
+    put them on 10-15 and 10-14, so a run that logged, alerted and exited 1 was reported as
+    dying outside its own error handling.
+    """
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-15T00:30:06Z")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1014), t.alerts, None)
+    assert audit.deaths == []
+    assert audit.acknowledged == []
+
+
+def test_an_evening_error_log_after_utc_midnight_is_explained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The log witness is dated in the same clock as the alert witness."""
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    log_path = tmp_path / "quantlab.jsonl"
+    log_path.write_text(json.dumps({
+        "timestamp": "2026-10-15T00:30:05.120Z", "level": "error",
+        "logger": "quantlab.paper.runner", "event": "run_aborted",
+    }) + "\n", encoding="utf-8")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1014), t.alerts, log_path)
+    assert audit.deaths == []
+
+
+def test_the_same_evening_exit_with_no_record_is_still_a_death(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control: the fix moves a date, it does not mute the tripwire."""
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1014), t.alerts, None)
+    assert len(audit.deaths) == 1
+    assert audit.deaths[0].task == "quantlab-crypto-paper-run"
+    assert audit.deaths[0].recorded_at == datetime(2026, 10, 14, 20, 30, 7)
+
+
+def test_the_next_evenings_record_does_not_explain_this_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control: 2026-10-16T00:30Z is the 10-15 run's alert, not the 10-14 run's.
+
+    The old UTC dating would have matched this record to a 10-16 exit; the local dating
+    must not stretch to cover the night before either.
+    """
+    _pin_eastern(monkeypatch)
+    t = Tree(tmp_path)
+    _crypto_alert(t, "2026-10-16T00:30:06Z")
+    audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_ABORT_1014), t.alerts, None)
+    assert len(audit.deaths) == 1

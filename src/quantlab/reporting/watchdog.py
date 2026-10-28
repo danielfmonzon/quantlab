@@ -66,7 +66,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Callable, Sequence
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -773,10 +773,15 @@ def _failure_record_days(
             stamp = record.get("timestamp")
             if not isinstance(stamp, str):
                 continue
+            # ONE CLOCK (PROP-18). Records are stamped in UTC; the scheduler's instant is
+            # host-local and naive. Dating the record in UTC put every failure between
+            # 20:00 and 24:00 ET on the next day, so the 2026-10-14 20:30 crypto abort --
+            # logged and alerted -- read as a death. Convert first, then take the date.
             try:
-                days.add(datetime.fromisoformat(stamp.replace("Z", "+00:00")).date())
+                moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
             except ValueError:
                 continue
+            days.add(_local_naive(moment).date())
 
     _harvest(alerts_path, is_log=False)
     if log_path is not None:
@@ -821,9 +826,15 @@ def tasks_in_flight(results: Sequence[TaskResult]) -> set[str]:
     return out
 
 
+# The zone `_local_naive` converts into. None means the host's own, which is the frame
+# both schedulers write in; tests pin it so a check about the ET evening does not depend
+# on the zone of whatever machine runs them.
+_HOST_TZ: tzinfo | None = None
+
+
 def _local_naive(moment: datetime) -> datetime:
     """``moment`` on the host's own wall clock, naive — the frame schtasks writes in."""
-    return (moment.astimezone() if moment.tzinfo is not None else moment).replace(
+    return (moment.astimezone(_HOST_TZ) if moment.tzinfo is not None else moment).replace(
         tzinfo=None
     )
 
