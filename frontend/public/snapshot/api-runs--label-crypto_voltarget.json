@@ -1,7 +1,183 @@
 {
-  "count": 111,
+  "count": 113,
   "label": "crypto_voltarget",
   "runs": [
+    {
+      "run_id": "run_crypto_voltarget_20261030T003005Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-30T00:30:05.344124Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 117172.79,
+      "target_weights": {
+        "BTC-USD": 0.6641120310825619
+      },
+      "no_trades": false,
+      "est_turnover": 0.13751700380685228,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=117172.79 cash=23243.68"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-29 -> {'BTC-USD': 0.6641120310825619}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.08106035753327878)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.1375"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 16113.251008489502,
+          "current_w": 0.8016290348894142,
+          "target_w": 0.6641120310825619
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 16113.25,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_voltarget-20261030-BTC-USD-sell",
+          "submitted_at": "2026-10-30T00:30:05.915289Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_voltarget_20261029T003005Z",
+      "strategy": "crypto_voltarget",
+      "timestamp": "2026-10-29T00:30:05.505553Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 122327.31,
+      "target_weights": {
+        "BTC-USD": 0.8106603415632618
+      },
+      "no_trades": false,
+      "est_turnover": 0.03451692676079454,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=122327.31 cash=27383.77"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-10-28 -> {'BTC-USD': 0.8106603415632618}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.040635504921272436)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.0345"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "buy",
+          "notional": 4222.36280011501,
+          "current_w": 0.7761434148024673,
+          "target_w": 0.8106603415632618
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "buy",
+          "notional": 4222.36,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_voltarget-20261029-BTC-USD-buy",
+          "submitted_at": "2026-10-29T00:30:06.265338Z",
+          "was_duplicate": false
+        }
+      ]
+    },
     {
       "run_id": "run_crypto_voltarget_20261028T003005Z",
       "strategy": "crypto_voltarget",
