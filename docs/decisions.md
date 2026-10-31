@@ -11,6 +11,49 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 
 
+
+## 2026-10-31 — The crypto_voltarget cash defect was the broker's, and crypto fees run 24 bps, not 5
+
+RESOLUTION OF THE 2026-10-14 CRITICAL. Alpaca support (ticket #374501, 2026-10-29)
+confirmed a known paper-environment defect: crypto cash was mishandled during overnight
+balance updates around 2026-10-12..13 on multiple accounts, producing cash drops with no
+activity record. Alpaca reports it resolved. The account resumed trading on its own on
+2026-10-22.
+
+THE REPAIR LEFT NO RECORD. On 2026-10-31 cash reads $39,639.27 and equity $117,606.31,
+yet the activities ledger since 2026-10-12 holds no journal, adjustment or transfer. The
+balance was corrected directly. Both October cash movements — down roughly $166,740 and
+back — are absent from the account's own history.
+
+UNRELIABLE WINDOW. Alpaca names 2026-10-13..15. This account reported non-positive equity
+on every run from 2026-10-15 through 2026-10-22 (UTC run dates). That observed window, not
+the broker's, is the one treated as unreliable for this account's equity history.
+
+THE REPAIR RECONCILES. Across 55 orders since 2026-07-01, all filled, trading implies cash
+of $40,073.37 before fees; actual cash is $39,639.27, a gap of $434.10. The account's 88
+CFEE records sum to $434.08 in dollar fees — two cents from the gap, from an independent
+source. The remaining fees were taken in BTC: net quantity traded 1.014966515 against a
+position of 1.006735618. The broker restored exactly what trading and fees imply.
+
+FINDING: THE 5 BPS COST ASSUMPTION IS FALSIFIED FOR CRYPTO. Fees total $1,020.98 ($434.08
+in USD plus $586.90 in BTC, valued at the price when charged) on $424,092.42 traded:
+24.1 bps per unit traded, against the backtest's 5.0. This is commission only; slippage is
+additional and remains unmeasured (fill-vs-mark n=2). The crypto backtests therefore
+overstate returns. crypto_trend trades rarely and is lightly affected; crypto_voltarget,
+which turned over roughly twelve times its book a year in this window, is heavily affected
+(rough estimate: ~2.8% a year in fees against ~0.6% charged).
+
+SCOPE. This does not extend to equity: US equity trades carry no commission on this broker,
+and seven SPY fills landed within 0.1 bps of mark. Equity's assumption remains unvalidated,
+not falsified. No strategy parameter, risk threshold or cadence moves. The cost model is an
+instrument; the correction owed is a report-only re-run of the crypto backtests at the
+measured cost, recorded beside the originals.
+
+RETRACTION. The 2026-10-14 entry said the cumulative divergence (+290 to +357 bps) and the
+three large favourable fills on this account were no longer treated as separate from the
+cash defect. That is withdrawn: the defect began 2026-10-12 and those observations date from
+August and September. They remain open and unexplained.
+
 ## 2026-10-28 — RULING: the crypto day-90 readiness review DOES NOT PASS; both accounts stay Probable
 
 The crypto clock started 2026-07-22 (restarted by ruling) and reached day 90 on 2026-10-20.
