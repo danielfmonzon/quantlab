@@ -460,10 +460,40 @@
           "equity": 101186.21,
           "provenance": "on_schedule",
           "provenance_rationale": "Mark landed within 30 minutes of this account's scheduled run time."
+        },
+        {
+          "timestamp": "2026-11-02T15:00:05.116372",
+          "equity": 101100.99,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-03T15:00:05.092929",
+          "equity": 100328.02,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-04T15:00:05.082890",
+          "equity": 101933.8,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-05T15:00:05.105928",
+          "equity": 100427.19,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-06T15:00:05.238516",
+          "equity": 98998.99,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
         }
       ],
       "provenance_counts": {
-        "catch_up": 10,
+        "catch_up": 15,
         "on_schedule": 66
       }
     }
