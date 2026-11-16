@@ -1,0 +1,86 @@
+{
+  "run_id": "run_voltarget_20261110T150005Z",
+  "strategy": "voltarget",
+  "narration": "Run run_voltarget_20261110T150005Z: account voltarget executed at 2026-11-10T15:00:05.042211Z as a LIVE SUBMIT against the paper broker. The gated pipeline completed 10 stages without aborting. Account equity was read as $99,665.63. Rule: voltarget sizes exposure as its target volatility (10%) divided by trailing 20-day realized volatility, annualized on a 252-day year, capped at 100% of equity; the remainder is held in cash. That rule produced a target of SPY at 45.37%. Planned orders: SELL SPY for $4,745.99 notional moving weight from 50.13% to 45.37%. Estimated turnover for the plan was 0.0476 of equity. Submitted to the broker: sell SPY for $4,745.99 \u2014 broker status 'filled'. Branches the rule did not take: SPY: traded because drift was 4.76%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order.",
+  "rule_sentences": [
+    "Rule: voltarget sizes exposure as its target volatility (10%) divided by trailing 20-day realized volatility, annualized on a 252-day year, capped at 100% of equity; the remainder is held in cash."
+  ],
+  "counterfactuals": [
+    "SPY: traded because drift was 4.76%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order."
+  ],
+  "facts": [
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$99,665.63",
+      "value": 99665.63,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "10%",
+      "value": 0.1,
+      "source": "rule_constant.voltarget.target_vol"
+    },
+    {
+      "rendered": "20",
+      "value": 20,
+      "source": "rule_constant.voltarget.lookback_days"
+    },
+    {
+      "rendered": "252",
+      "value": 252,
+      "source": "rule_constant.voltarget.periods_per_year"
+    },
+    {
+      "rendered": "100%",
+      "value": 1.0,
+      "source": "rule_constant.voltarget.max_weight"
+    },
+    {
+      "rendered": "45.37%",
+      "value": 0.45368397542663097,
+      "source": "report.target_weights.SPY"
+    },
+    {
+      "rendered": "$4,745.99",
+      "value": 4745.9870902003,
+      "source": "report.plan.intents[0].notional"
+    },
+    {
+      "rendered": "50.13%",
+      "value": 0.5013030702961492,
+      "source": "report.plan.intents[0].current_w"
+    },
+    {
+      "rendered": "45.37%",
+      "value": 0.45368397542663097,
+      "source": "report.plan.intents[0].target_w"
+    },
+    {
+      "rendered": "4.76%",
+      "value": 0.04761909486951821,
+      "source": "derived.abs(report.plan.intents[0].target_w - report.plan.intents[0].current_w)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "0.0476",
+      "value": 0.04761909486951821,
+      "source": "report.plan.est_turnover"
+    },
+    {
+      "rendered": "$4,745.99",
+      "value": 4745.99,
+      "source": "report.submitted_orders[0].notional"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}
