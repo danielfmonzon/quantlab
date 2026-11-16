@@ -68,6 +68,7 @@ import subprocess
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
@@ -643,11 +644,30 @@ def _runs_on(task: ScheduledTask, day: date, calendar: MarketCalendar) -> bool:
     return False
 
 
+# The zone every timer fires in (`OnCalendar=... America/New_York` on each unit).
+_SCHEDULE_TZ = ZoneInfo("America/New_York")
+# `SCHEDULE.utc_minute_of_day` is written on the EDT offset (its DOCUMENTED LIMITATION in
+# `scheduling.tasks`). Undoing exactly that offset recovers the wall-clock time the timer
+# was installed with, which is the thing that does not move across DST.
+_SCHEDULE_TABLE_UTC_OFFSET = timedelta(hours=-4)
+
+
 def _due_at(task: ScheduledTask, day: date) -> datetime:
-    """The UTC instant ``task`` was scheduled to fire on ``day``."""
-    return datetime.combine(day, time(0, 0), tzinfo=UTC) + timedelta(
+    """The UTC instant ``task`` was scheduled to fire on ``day``.
+
+    Follows New York wall-clock time across DST, as the timers do. Reading the table's
+    UTC minute literally put every firing one hour EARLY under EST: on Friday 2026-11-06
+    the 16:45 EST digest (21:45Z) saw the 17:00 weekly as due at 21:00Z and the 17:30
+    refresh at 21:30Z, and reported both missed before either had fired.
+
+    ``day`` keeps its meaning: the date the table keys the firing to (the UTC date under
+    EDT), so the crypto run stays keyed to the day after its 20:30 local firing.
+    """
+    table_instant = datetime.combine(day, time(0, 0), tzinfo=UTC) + timedelta(
         minutes=task.utc_minute_of_day
     )
+    wall = (table_instant + _SCHEDULE_TABLE_UTC_OFFSET).replace(tzinfo=None)
+    return wall.replace(tzinfo=_SCHEDULE_TZ).astimezone(UTC)
 
 
 def _labels_for(task: ScheduledTask) -> list[str]:

@@ -1658,3 +1658,80 @@ def test_an_unattributable_paper_record_explains_nothing(
     _crypto_alert(t, "2026-10-20T00:30:05Z", strategy=None)
     audit = audit_task_deaths(parse_systemctl_show(_CRYPTO_KILLED_1019), t.alerts, None)
     assert len(audit.deaths) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Expected firings follow New York wall-clock across DST (PROP-21)            #
+# --------------------------------------------------------------------------- #
+
+# DST ended Sunday 2026-11-01. The two Fridays the false "missed firings" fired on, and
+# the last Friday before the change, which never did.
+_EST_FRIDAY = date(2026, 11, 13)
+_EDT_FRIDAY = date(2026, 10, 30)
+_EASTERN = ZoneInfo("America/New_York")
+
+
+def _eastern(day: date, hh: int, mm: int) -> datetime:
+    return datetime(day.year, day.month, day.day, hh, mm, tzinfo=_EASTERN)
+
+
+def _friday_before_its_evening_jobs(t: Tree, friday: date) -> None:
+    """Thursday's 16:45-local digest, plus every Friday firing due before 16:45 local."""
+    thursday = friday - timedelta(days=1)
+    ran = _eastern(thursday, 16, 45).astimezone(UTC)
+    t.digest(thursday, at=ran.strftime("%H:%M:%S+00:00"))
+    for label in CRYPTO:
+        t.run_report(label, friday, "013006")
+    for label in EQUITY:
+        t.run_report(label, friday)
+
+
+@pytest.mark.parametrize("friday", [_EST_FRIDAY, _EDT_FRIDAY], ids=["EST", "EDT"])
+def test_the_1645_friday_digest_does_not_see_weekly_or_refresh_as_due(
+    tmp_path: Path, friday: date,
+) -> None:
+    """The 2026-11-06 / 11-13 false alarm: at 16:45 local neither Friday job has fired.
+
+    Under EST 16:45 is 21:45Z. Read literally, the table's 21:00Z / 21:30Z put both jobs
+    before that, so the digest reported them missed every Friday after DST ended.
+    """
+    t = Tree(tmp_path)
+    _friday_before_its_evening_jobs(t, friday)
+    report = t.check(_eastern(friday, 16, 45))
+    assert report.missed == [], [m.render() for m in report.missed]
+
+
+def test_after_1730_est_a_refresh_with_no_artifact_is_still_missed(tmp_path: Path) -> None:
+    """The control: the fix moves the expectation an hour, it does not drop it."""
+    t = Tree(tmp_path)
+    _friday_before_its_evening_jobs(t, _EST_FRIDAY)
+    t.weekly_review(_EST_FRIDAY)           # weekly ran at 17:00; the refresh never did
+    report = t.check(_eastern(_EST_FRIDAY, 17, 40))
+    assert [(m.day, m.task) for m in report.missed] == [
+        (_EST_FRIDAY, "quantlab-glassbox-refresh")
+    ]
+
+
+def test_due_instants_match_the_timers_wall_clock_on_both_sides_of_dst() -> None:
+    """Every SCHEDULE entry lands on its installed local time in both offsets."""
+    from quantlab.scheduling.tasks import (
+        SCHEDULE,
+        TASK_CRYPTO_PAPER_RUN,
+        TASK_DIGEST,
+        TASK_GLASSBOX_REFRESH,
+        TASK_PAPER_RUN,
+        TASK_WEEKLY,
+    )
+
+    by_name = {t.name: t for t in SCHEDULE}
+    local = {
+        TASK_PAPER_RUN: (10, 0), TASK_DIGEST: (16, 45), TASK_WEEKLY: (17, 0),
+        TASK_GLASSBOX_REFRESH: (17, 30),
+    }
+    for friday in (_EDT_FRIDAY, _EST_FRIDAY):
+        for name, (hh, mm) in local.items():
+            due = watchdog._due_at(by_name[name], friday)
+            assert due == _eastern(friday, hh, mm).astimezone(UTC), (name, friday)
+        # Crypto is keyed to the day AFTER its 20:30 local firing.
+        crypto = watchdog._due_at(by_name[TASK_CRYPTO_PAPER_RUN], friday + timedelta(days=1))
+        assert crypto == _eastern(friday, 20, 30).astimezone(UTC)
