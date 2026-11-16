@@ -101,7 +101,7 @@ def _broker(equity: float = 100_000.0) -> MagicMock:
         account_blocked=False, trading_blocked=False,
     )
     broker.get_positions.return_value = []
-    broker.submit_order.side_effect = lambda symbol, side, notional, coid: OrderInfo(
+    broker.submit_order.side_effect = lambda symbol, side, notional, coid, qty=None: OrderInfo(
         id=f"oid-{symbol}", client_order_id=coid, symbol=symbol, side=side,
         notional=notional, status="accepted", submitted_at=None,
     )

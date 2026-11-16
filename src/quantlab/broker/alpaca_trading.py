@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 import requests
@@ -234,9 +235,14 @@ class AlpacaTradingClient:
     # -- Orders --------------------------------------------------------------
 
     def submit_order(
-        self, symbol: str, side: str, notional: float, client_order_id: str
+        self, symbol: str, side: str, notional: float | None, client_order_id: str,
+        *, qty: float | None = None,
     ) -> OrderInfo:
-        """Submit a fractional market DAY order sized by ``notional`` (dollars).
+        """Submit a fractional market DAY order sized by ``notional`` (dollars) or ``qty``.
+
+        Exactly one of ``notional`` and ``qty`` must be given. ``qty`` exists for full
+        exits (2026-11-16 ruling): a dollar-sized sell is converted to a quantity at the
+        broker's execution price, which can exceed the quantity held.
 
         On a duplicate ``client_order_id`` Alpaca errors; we look up and return
         the existing order with ``was_duplicate=True`` (idempotent by design).
@@ -245,12 +251,23 @@ class AlpacaTradingClient:
         ``time_in_force="gtc"`` (Alpaca rejects "day" for crypto); equities keep
         the bare symbol and "day" exactly as before.
         """
+        if (notional is None) == (qty is None):
+            raise ValueError("submit_order takes exactly one of notional or qty")
+        if qty is not None:
+            if not (math.isfinite(qty) and qty > 0.0):
+                raise ValueError(f"submit_order qty must be positive and finite, got {qty!r}")
+            # repr() is the shortest round-trip of the float the positions endpoint parsed;
+            # Decimal formatting keeps it in plain notation (never "1e-05").
+            sizing = {"qty": format(Decimal(repr(float(qty))), "f")}
+        else:
+            assert notional is not None
+            sizing = {"notional": f"{notional:.2f}"}
         body = {
             "symbol": to_alpaca_symbol(symbol),
             "side": side,
             "type": "market",
             "time_in_force": "gtc" if asset_class(symbol) == "crypto" else "day",
-            "notional": f"{notional:.2f}",
+            **sizing,
             "client_order_id": client_order_id,
         }
         try:

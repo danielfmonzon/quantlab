@@ -74,7 +74,7 @@ def _happy_broker() -> MagicMock:
     broker.get_positions.return_value = [
         Position(symbol="IEF", qty=1000.0, market_value=100_000.0, avg_entry_price=100.0)
     ]
-    broker.submit_order.side_effect = lambda symbol, side, notional, coid: OrderInfo(
+    broker.submit_order.side_effect = lambda symbol, side, notional, coid, qty=None: OrderInfo(
         id=f"oid-{symbol}", client_order_id=coid, symbol=symbol, side=side,
         notional=notional, status="accepted", submitted_at=None,
     )
@@ -370,10 +370,13 @@ def test_fill_evidence_does_not_disturb_what_the_run_asked_for(tmp_path) -> None
     assert by_symbol["SPY"].side == "buy"
     assert by_symbol["IEF"].client_order_id == "ql-trend-20260709-IEF-sell"
     assert by_symbol["SPY"].client_order_id == "ql-trend-20260709-SPY-buy"
-    # The notionals are the plan's, not the poll's view of them.
-    submitted = {c.args[0]: c.args[2] for c in broker.submit_order.call_args_list}
-    assert by_symbol["IEF"].notional == submitted["IEF"]
-    assert by_symbol["SPY"].notional == submitted["SPY"]
+    # The sizing is the plan's, not the poll's view of it. IEF is a full exit and is sent
+    # by quantity (2026-11-16 ruling); its recorded notional is the plan's dollar figure.
+    calls = {c.args[0]: c for c in broker.submit_order.call_args_list}
+    intents = {i.symbol: i for i in report.plan.intents}
+    assert calls["IEF"].kwargs["qty"] == 1000.0
+    assert by_symbol["IEF"].notional == intents["IEF"].notional
+    assert by_symbol["SPY"].notional == calls["SPY"].args[2]
 
 
 def test_a_poll_that_never_resolves_leaves_fill_fields_null(tmp_path) -> None:

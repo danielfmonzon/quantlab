@@ -9,6 +9,12 @@ Design points:
   notional may not exceed available cash + proceeds of the planned sells. If it
   would, every buy is scaled down proportionally and the scale factor is recorded.
 * Diffs at or below ``min_trade_frac`` are skipped (no churn on tiny drift).
+* FULL EXITS ARE SIZED IN QUANTITY (2026-11-16 ruling). A sell to target 0, or one
+  that would leave less than ``min_trade_frac`` of equity behind, carries ``qty`` =
+  the held ``Position.qty`` and sells the whole position. A dollar-sized exit is
+  converted at the broker's execution price, and when that price is below the
+  price the position is valued at, the order asks for more than is held and is rejected.
+  Buys and every other sell keep the notional path unchanged.
 """
 
 from __future__ import annotations
@@ -27,6 +33,10 @@ class OrderIntent(BaseModel):
     notional: float
     current_w: float
     target_w: float
+    # Set only on a full exit: sell exactly this held quantity instead of ``notional``
+    # dollars. ``notional`` then stays as the position's value, for reporting and the
+    # cash-feasibility arithmetic.
+    qty: float | None = None
 
 
 class SkippedDiff(BaseModel):
@@ -63,6 +73,7 @@ def plan_rebalance(
         raise ValueError("plan_rebalance requires positive equity")
 
     current_mv = {p.symbol: float(p.market_value) for p in positions}
+    held_qty = {p.symbol: float(p.qty) for p in positions}
     invested = sum(current_mv.values())
     cash = equity - invested
 
@@ -86,11 +97,17 @@ def plan_rebalance(
                     SkippedDiff(symbol=sym, current_w=cur, target_w=tgt, diff=diff)
                 )
             continue
-        est_turnover += abs(diff)
-        notional = abs(diff) * equity
+        qty = held_qty.get(sym, 0.0)
+        # A sell whose remainder would fall below the existing trade threshold is a
+        # full exit: the leftover could never be traded away on its own.
+        full_exit = diff < 0 and (tgt <= 0.0 or tgt < min_trade_frac) and qty > 0.0
+        traded_w = cur if full_exit else abs(diff)
+        est_turnover += traded_w
+        notional = traded_w * equity
         intent = OrderIntent(
             symbol=sym, side=_SIDE_BUY if diff > 0 else _SIDE_SELL,
             notional=notional, current_w=cur, target_w=tgt,
+            qty=qty if full_exit else None,
         )
         (buys if diff > 0 else sells).append(intent)
 
