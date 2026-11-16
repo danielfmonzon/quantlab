@@ -12,6 +12,15 @@ compiled on 2026-07-10 (v1.0.0). Newest entries first.
 
 
 
+## 2026-11-16 — RULING: a broker/ exception for quantity-based full exits
+
+crypto_trend aborted at submit every night from 2026-11-12 with HTTP 403 "insufficient
+balance": full exits were sent as dollar amounts, which the broker converts at a price
+~2.2% below its valuation price, so each exit asked for more BTC than was held. The
+account stayed long BTC against its own signal. The exception is scoped to an optional
+qty on `submit_order`; a full exit now sells exactly `Position.qty`. No strategy,
+threshold or cadence changed. No manual trade was placed.
+
 ## 2026-10-31 — The crypto_voltarget cash defect was the broker's, and crypto fees run 24 bps, not 5
 
 RESOLUTION OF THE 2026-10-14 CRITICAL. Alpaca support (ticket #374501, 2026-10-29)

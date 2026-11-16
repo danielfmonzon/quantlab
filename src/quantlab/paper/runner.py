@@ -61,7 +61,7 @@ from quantlab.data.health import HealthReport, preflight
 from quantlab.data.store import ParquetStore
 from quantlab.data.validate import ValidationReport, validate
 from quantlab.logging_setup import get_logger
-from quantlab.paper.rebalance import RebalancePlan, plan_rebalance
+from quantlab.paper.rebalance import OrderIntent, RebalancePlan, plan_rebalance
 from quantlab.reporting.alerts import Alert, dispatch
 from quantlab.risk.engine import (
     HALT_DAILY_LOSS,
@@ -646,10 +646,7 @@ def _submit_plan(
 
     sell_ids: list[str] = []
     for intent in sells:
-        order = broker.submit_order(
-            intent.symbol, intent.side, intent.notional,
-            _coid(strategy, day, intent.symbol, intent.side),
-        )
+        order = _submit_intent(broker, strategy, day, intent)
         submitted.append(order)
         sell_ids.append(order.id)
 
@@ -657,10 +654,7 @@ def _submit_plan(
         _await_terminal(broker, sell_ids, day, poll_timeout, poll_interval, sleep_fn, monotonic_fn)
 
     for intent in buys:
-        order = broker.submit_order(
-            intent.symbol, intent.side, intent.notional,
-            _coid(strategy, day, intent.symbol, intent.side),
-        )
+        order = _submit_intent(broker, strategy, day, intent)
         submitted.append(order)
 
     if submitted:
@@ -671,6 +665,25 @@ def _submit_plan(
         submitted = [_with_fill_evidence(o, resolved.get(o.id)) for o in submitted]
 
     return submitted
+
+
+def _submit_intent(
+    broker: AlpacaTradingClient, strategy: str, day: date, intent: OrderIntent,
+) -> OrderInfo:
+    """Place one intent: a full exit by quantity, everything else by notional, as before.
+
+    A quantity order comes back from Alpaca with ``notional: null``. The recorded order
+    then carries the plan's dollar figure (the position's value), so weekly attribution
+    (``markphase._signed_notional``) and the fill ledger, which both skip orders with no
+    notional, still see the exit. The requested quantity is in ``plan.intents[].qty``.
+    """
+    coid = _coid(strategy, day, intent.symbol, intent.side)
+    if intent.qty is None:
+        return broker.submit_order(intent.symbol, intent.side, intent.notional, coid)
+    order = broker.submit_order(intent.symbol, intent.side, None, coid, qty=intent.qty)
+    if order.notional is None:
+        order = order.model_copy(update={"notional": intent.notional})
+    return order
 
 
 def _with_fill_evidence(submitted: OrderInfo, resolved: OrderInfo | None) -> OrderInfo:

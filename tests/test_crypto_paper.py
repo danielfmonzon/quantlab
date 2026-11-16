@@ -62,7 +62,7 @@ def _broker(positions: list[Position] | None = None, **acct: object) -> MagicMoc
     broker = MagicMock()
     broker.get_account.return_value = _account(**acct)
     broker.get_positions.return_value = positions if positions is not None else []
-    broker.submit_order.side_effect = lambda symbol, side, notional, coid: OrderInfo(
+    broker.submit_order.side_effect = lambda symbol, side, notional, coid, qty=None: OrderInfo(
         id=f"oid-{symbol}", client_order_id=coid, symbol=symbol, side=side,
         notional=notional, status="accepted", submitted_at=None,
     )

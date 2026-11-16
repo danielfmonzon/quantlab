@@ -65,7 +65,7 @@ def _broker() -> MagicMock:
     b.get_positions.return_value = [
         Position(symbol="IEF", qty=1000.0, market_value=100_000.0, avg_entry_price=100.0)
     ]
-    b.submit_order.side_effect = lambda symbol, side, notional, coid: OrderInfo(
+    b.submit_order.side_effect = lambda symbol, side, notional, coid, qty=None: OrderInfo(
         id=f"oid-{symbol}", client_order_id=coid, symbol=symbol, side=side,
         notional=notional, status="accepted", submitted_at=None,
     )
