@@ -1,7 +1,510 @@
 {
-  "count": 127,
+  "count": 134,
   "label": "crypto_trend",
   "runs": [
+    {
+      "run_id": "run_crypto_trend_20261120T013004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-20T01:30:04.737808Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 83033.07,
+      "target_weights": {},
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=83033.07 cash=83033.07"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-19 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.2559996752791174)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261119T013004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-19T01:30:04.683898Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 83033.07,
+      "target_weights": {},
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=83033.07 cash=83033.07"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-18 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.2559996752791174)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261118T013004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-18T01:30:04.690899Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 83033.07,
+      "target_weights": {},
+      "no_trades": true,
+      "est_turnover": 0.0,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=83033.07 cash=83033.07"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-17 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.2559996752791174)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "in-band, no trades"
+        }
+      ],
+      "intents": [],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261117T013004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-17T01:30:04.817426Z",
+      "dry_run": false,
+      "aborted": false,
+      "abort_stage": null,
+      "abort_reason": null,
+      "equity": 83322.53,
+      "target_weights": {},
+      "no_trades": false,
+      "est_turnover": 0.9995610543870906,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=83322.53 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-16 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.2534060299520965)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.9996"
+        },
+        {
+          "stage": "submit",
+          "ok": true,
+          "detail": "submitted 1 order(s), 0 duplicate(s)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 83285.955941,
+          "current_w": 0.9995610543870906,
+          "target_w": 0.0
+        }
+      ],
+      "submitted_orders": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 83285.955941,
+          "status": "pending_new",
+          "client_order_id": "ql-crypto_trend-20261117-BTC-USD-sell",
+          "submitted_at": "2026-11-17T01:30:05.414148Z",
+          "was_duplicate": false
+        }
+      ]
+    },
+    {
+      "run_id": "run_crypto_trend_20261116T013004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-16T01:30:04.696563Z",
+      "dry_run": false,
+      "aborted": true,
+      "abort_stage": "submit",
+      "abort_reason": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.315495215, available: 1.290730834)",
+      "equity": 83690.0,
+      "target_weights": {},
+      "no_trades": false,
+      "est_turnover": 0.9995629944915762,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=83690.00 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-15 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.25011339246049)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.9996"
+        },
+        {
+          "stage": "submit",
+          "ok": false,
+          "detail": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.315495215, available: 1.290730834)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 83653.427009,
+          "current_w": 0.9995629944915762,
+          "target_w": 0.0
+        }
+      ],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261115T013004Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-15T01:30:04.753477Z",
+      "dry_run": false,
+      "aborted": true,
+      "abort_stage": "submit",
+      "abort_reason": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.318760685, available: 1.290730834)",
+      "equity": 80790.63,
+      "target_weights": {},
+      "no_trades": false,
+      "est_turnover": 0.9995473279141405,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=80790.63 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-14 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.2760925863104342)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.9995"
+        },
+        {
+          "stage": "submit",
+          "ok": false,
+          "detail": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.318760685, available: 1.290730834)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 80754.058337,
+          "current_w": 0.9995473279141405,
+          "target_w": 0.0
+        }
+      ],
+      "submitted_orders": []
+    },
+    {
+      "run_id": "run_crypto_trend_20261114T013005Z",
+      "strategy": "crypto_trend",
+      "timestamp": "2026-11-14T01:30:05.114951Z",
+      "dry_run": false,
+      "aborted": true,
+      "abort_stage": "submit",
+      "abort_reason": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.319148199, available: 1.290730834)",
+      "equity": 88237.12,
+      "target_weights": {},
+      "no_trades": false,
+      "est_turnover": 0.9995855970933776,
+      "min_trade_frac": 0.01,
+      "stages": [
+        {
+          "stage": "risk_state",
+          "ok": true,
+          "detail": "not halted"
+        },
+        {
+          "stage": "ingest",
+          "ok": true,
+          "detail": "ingested BTC-USD"
+        },
+        {
+          "stage": "validate",
+          "ok": true,
+          "detail": "validated BTC-USD"
+        },
+        {
+          "stage": "health",
+          "ok": true,
+          "detail": "data fresh"
+        },
+        {
+          "stage": "account",
+          "ok": true,
+          "detail": "equity=88237.12 cash=36.57"
+        },
+        {
+          "stage": "target_weights",
+          "ok": true,
+          "detail": "signal@2026-11-13 -> {}"
+        },
+        {
+          "stage": "check_weights",
+          "ok": true,
+          "detail": "no adjustment"
+        },
+        {
+          "stage": "evaluate_portfolio",
+          "ok": true,
+          "detail": "ALLOW (dd=-0.20936988199478257)"
+        },
+        {
+          "stage": "plan",
+          "ok": true,
+          "detail": "1 intent(s), buy_scale=1.0000, turnover=0.9996"
+        },
+        {
+          "stage": "submit",
+          "ok": false,
+          "detail": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.319148199, available: 1.290730834)"
+        }
+      ],
+      "intents": [
+        {
+          "symbol": "BTC-USD",
+          "side": "sell",
+          "notional": 88200.554281,
+          "current_w": 0.9995855970933776,
+          "target_w": 0.0
+        }
+      ],
+      "submitted_orders": []
+    },
     {
       "run_id": "run_crypto_trend_20261113T013004Z",
       "strategy": "crypto_trend",

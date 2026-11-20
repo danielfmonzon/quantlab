@@ -1,0 +1,102 @@
+{
+  "run_id": "run_trend_20261119T150007Z",
+  "strategy": "trend",
+  "narration": "Run run_trend_20261119T150007Z: account trend executed at 2026-11-19T15:00:07.835725Z as a LIVE SUBMIT against the paper broker. The gated pipeline completed 10 stages without aborting. Account equity was read as $97,916.77. Rule: trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise. That rule produced a target of IEF at 100.00%. Planned orders: SELL SPY for $97,916.77 notional moving weight from 100.00% to 0.00%. BUY IEF for $97,916.77 notional moving weight from 0.00% to 100.00%. Estimated turnover for the plan was 2.0000 of equity. Submitted to the broker: sell SPY for $97,916.77 \u2014 broker status 'filled'; buy IEF for $97,916.77 \u2014 broker status 'filled'. Branches the rule did not take: SPY: traded because drift was 100.00%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order. IEF: traded because drift was 100.00%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order.",
+  "rule_sentences": [
+    "Rule: trend holds the risk asset while its price is above its 10-month simple moving average, and rotates to the safe asset or cash otherwise."
+  ],
+  "counterfactuals": [
+    "SPY: traded because drift was 100.00%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order.",
+    "IEF: traded because drift was 100.00%, above the 1.00% minimum-trade band; had drift been at or below that band the runner would have left the position to drift untouched, placing no order."
+  ],
+  "facts": [
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "report.stages[*].ok"
+    },
+    {
+      "rendered": "$97,916.77",
+      "value": 97916.77,
+      "source": "report.equity"
+    },
+    {
+      "rendered": "10",
+      "value": 10,
+      "source": "rule_constant.trend.n_months"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.target_weights.IEF"
+    },
+    {
+      "rendered": "$97,916.77",
+      "value": 97916.767731,
+      "source": "report.plan.intents[0].notional"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 0.9999999768272585,
+      "source": "report.plan.intents[0].current_w"
+    },
+    {
+      "rendered": "0.00%",
+      "value": 0.0,
+      "source": "report.plan.intents[0].target_w"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 0.9999999768272585,
+      "source": "derived.abs(report.plan.intents[0].target_w - report.plan.intents[0].current_w)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "$97,916.77",
+      "value": 97916.77,
+      "source": "report.plan.intents[1].notional"
+    },
+    {
+      "rendered": "0.00%",
+      "value": 0.0,
+      "source": "report.plan.intents[1].current_w"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "report.plan.intents[1].target_w"
+    },
+    {
+      "rendered": "100.00%",
+      "value": 1.0,
+      "source": "derived.abs(report.plan.intents[1].target_w - report.plan.intents[1].current_w)"
+    },
+    {
+      "rendered": "1.00%",
+      "value": 0.01,
+      "source": "report.plan.min_trade_frac"
+    },
+    {
+      "rendered": "2.0000",
+      "value": 1.9999999768272585,
+      "source": "report.plan.est_turnover"
+    },
+    {
+      "rendered": "$97,916.77",
+      "value": 97916.767731,
+      "source": "report.submitted_orders[0].notional"
+    },
+    {
+      "rendered": "$97,916.77",
+      "value": 97916.77,
+      "source": "report.submitted_orders[1].notional"
+    }
+  ],
+  "disclaimer": "Generated from this run's structured fields and the strategy's pre-registered rule parameters only. It contains no market commentary, no news, and no inferred reasoning: every number above is traceable to a named source field.",
+  "available": true,
+  "note": null
+}
