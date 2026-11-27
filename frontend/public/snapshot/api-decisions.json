@@ -1,6 +1,11 @@
 {
-  "count": 62,
+  "count": 63,
   "entries": [
+    {
+      "date": "2026-11-16",
+      "title": "RULING: a broker/ exception for quantity-based full exits",
+      "body": "crypto_trend aborted at submit every night from 2026-11-12 with HTTP 403 \"insufficient\nbalance\": full exits were sent as dollar amounts, which the broker converts at a price\n~2.2% below its valuation price, so each exit asked for more BTC than was held. The\naccount stayed long BTC against its own signal. The exception is scoped to an optional\nqty on `submit_order`; a full exit now sells exactly `Position.qty`. No strategy,\nthreshold or cadence changed. No manual trade was placed."
+    },
     {
       "date": "2026-10-31",
       "title": "The crypto_voltarget cash defect was the broker's, and crypto fees run 24 bps, not 5",
