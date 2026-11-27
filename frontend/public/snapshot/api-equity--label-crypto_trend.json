@@ -766,10 +766,94 @@
           "equity": 91853.07,
           "provenance": "catch_up",
           "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-14T01:30:05.114951",
+          "equity": 88237.12,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-15T01:30:04.753477",
+          "equity": 80790.63,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-16T01:30:04.696563",
+          "equity": 83690.0,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-17T01:30:04.817426",
+          "equity": 83322.53,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-18T01:30:04.690899",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-19T01:30:04.683898",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-20T01:30:04.737808",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-21T01:30:05.095864",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-22T01:30:04.734481",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-23T01:30:04.736515",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-24T01:30:04.756391",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-25T01:30:04.719355",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-26T01:30:04.706807",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
+        },
+        {
+          "timestamp": "2026-11-27T01:30:04.744744",
+          "equity": 83033.07,
+          "provenance": "catch_up",
+          "provenance_rationale": "Mark landed well outside the scheduled window \u2014 a StartWhenAvailable catch-up run after a missed start. The mark is real; its SPACING from the neighbouring marks is not one uniform session."
         }
       ],
       "provenance_counts": {
-        "catch_up": 43,
+        "catch_up": 57,
         "leaked": 8,
         "on_schedule": 76
       }

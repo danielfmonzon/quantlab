@@ -1,6 +1,350 @@
 {
-  "count": 626,
+  "count": 669,
   "events": [
+    {
+      "at": "2026-11-27T22:01:40.795518Z",
+      "kind": "alert",
+      "label": "trend",
+      "title": "weekly review: trend DIVERGING",
+      "detail": "trend paper-vs-shadow residual -459 bps this week exceeds the 50 bps threshold (raw +50 bps, predicted mark-phase +509 bps).",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-11-27T22:00:05.079276Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-11-27: voltarget TRACKING",
+      "detail": "divergence -173 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-27T22:00:05.079276Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-11-27: trend DIVERGING",
+      "detail": "divergence +50 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-27T22:00:05.079276Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_trend",
+      "title": "week 2026-11-27: crypto_trend TRACKING",
+      "detail": "divergence +0 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-27T22:00:05.079276Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_voltarget",
+      "title": "week 2026-11-27: crypto_voltarget TRACKING",
+      "detail": "divergence +10 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-26T01:32:06.410761Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $2,147.84 notional",
+      "detail": "weights={'BTC-USD': 0.44606157420882997}; turnover=0.0204",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-26T01:30:05.866834Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $2,147.84",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261126T013005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-25T01:32:06.416990Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $5,279.84 notional",
+      "detail": "weights={'BTC-USD': 0.421356064274296}; turnover=0.0507",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-25T01:30:05.889913Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $5,279.84",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261125T013005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-24T15:00:16.888491Z",
+      "kind": "alert",
+      "label": "voltarget",
+      "title": "paper voltarget: 1 order(s) submitted, $6,515.64 notional",
+      "detail": "weights={'SPY': 0.31366938893501234}; turnover=0.0666",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-24T15:00:07.845418Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "sell SPY $6,515.64",
+      "detail": "status=filled run=run_voltarget_20261124T150005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-23T15:00:20.503211Z",
+      "kind": "alert",
+      "label": "voltarget",
+      "title": "paper voltarget: 1 order(s) submitted, $4,810.63 notional",
+      "detail": "weights={'SPY': 0.38075297482408343}; turnover=0.0491",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-23T15:00:07.416422Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "sell SPY $4,810.63",
+      "detail": "status=filled run=run_voltarget_20261123T150005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-23T01:34:06.940581Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $1,479.44 notional",
+      "detail": "weights={'BTC-USD': 0.37688027780201183}; turnover=0.0141",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-23T01:30:05.929183Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $1,479.44",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261123T013005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-22T01:34:06.995356Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $1,980.99 notional",
+      "detail": "weights={'BTC-USD': 0.38786837558978565}; turnover=0.0189",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-22T01:30:05.876862Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $1,980.99",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261122T013005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-20T22:30:52.073321Z",
+      "kind": "alert",
+      "label": null,
+      "title": "glass box refreshed and deployed",
+      "detail": "========================================================================\nGLASS BOX REFRESH \u2014 CHAIN REPORT\n========================================================================\nstarted    : 2026-11-20T22:30:04.918245+00:00\nmode       : LIVE\nsite       : monzonautomation-glassbox (be63f48c-4949-4603-b8dd-a6ccfdd996e7)\n\nCHAIN (each step runs only if every earlier step passed)\n------------------------------------------------------------------------\n  snapshot     PASS     469 endpoint(s) captured, 470 file(s) written, 0 redaction(s)\n  build        PASS     public bundle built into frontend/dist\n  verify-dist  PASS     494 published file(s) scanned, 0 forbidden, 0 redactable finding(s)\n  deploy       PASS     published to <https://6b00c9ffd58b8fa4007102a1--monzonautomation-glassbox.netlify.app>\n  record-snapshot PASS     recorded on snapshot/deploy-20261120; PR opened for human merge\n\nPROVENANCE\n------------------------------------------------------------------------\n  repo state    : clean (main == origin/main)\n\nDEPLOY DECISION\n------------------------------------------------------------------------\n  forbidden matches : 0 ok\n  redactions        : 0 ok\n  redactable found  : 0 ok\n  env-secret check  : ran\n  DEPLOYED -> <https://6b00c9ffd58b8fa4007102a1--monzonautomation-glassbox.netlify.app>\n  RECORDED -> snapshot/deploy-20261120  (PR: https://github.com/danielfmonzon/quantlab/pull/57)\n  ^ one merge click closes the loop; the deploy is already live either way\n\nSNAPSHOT SANITIZATION REPORT\n------------------------------------------------------------------------\n========================================================================\nGLASS BOX SNAPSHOT \u2014 SANITIZATION REPORT\n========================================================================\nfiles scanned : 470\nbytes scanned : 3,947,413\nverdict       : PASS\n\nFORBIDDEN PATTERNS (zero matches required to pass)\n------------------------------------------------------------------------\n  alpaca_account_id                                     0  ok\n  email_address                                         0  ok\n  apca_api_header                                       0  ok\n  authorization_header                                  0  ok\n  env_secret_prefix:ALPACA_API_KEY                      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok\n  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok\n  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok\n  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok\n  env_secret_prefix:NETLIFY_AUTH_TOKEN                  0  ok\n  env_secret_prefix:SMTP_PASS                           0  ok\n  env_secret_prefix:TIINGO_API_KEY                      0  ok\n\nENV-SECRET CHECK\n------------------------------------------------------------------------\n  .env read locally; 11 value(s) reduced to 8-char prefixes and searched.\n  keys checked: ALPACA_API_KEY, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, NETLIFY_AUTH_TOKEN, SMTP_PASS, TIINGO_API_KEY\n  keys EXCLUDED as non-secret: ALERT_EMAIL_TO, ALPACA_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER\n  (public URLs and documented endpoints; see is_secret_bearing)\n  (prefixes themselves are never printed or stored)\n\nREDACTIONS PERFORMED (0)\n------------------------------------------------------------------------\n  (none)\n\n========================================================================\nPASS \u2014 no forbidden pattern matched. Snapshot may be written.\n========================================================================\n\nPUBLISHED-BYTES GATE (verify-dist)\n------------------------------------------------------------------------\n========================================================================\nGLASS BOX DIST VERIFICATION \u2014 published bytes\n========================================================================\ndirectory      : ./frontend/dist\ntext files     : 494 scanned\nbinary files   : 12 skipped (not text-scannable)\n                 assets/fraunces-latin-ext-standard-italic-CGbN9UgK.woff2, assets/fraunces-latin-ext-standard-normal-CJcjJNj7.woff2, assets/fraunces-latin-standard-italic-lSdLDfvT.woff2, assets/fraunces-latin-standard-normal-DihXLNYH.woff2, assets/fraunces-vietnamese-standard-italic-DxWqP7Ku.woff2, assets/fraunces-vietnamese-standard-normal-Czevyj-6.woff2, assets/hanken-grotesk-cyrillic-ext-wght-normal-D_UHSL_T.woff2, assets/hanken-grotesk-latin-ext-wght-normal-Dg-wlmqe.woff2, assets/hanken-grotesk-latin-wght-normal-CaVRRdDk.woff2, assets/hanken-grotesk-vietnamese-wght-normal-CHiFlh_0.woff2, favicon.ico, og-image.png\n\nCONTENT COMPLETENESS (the site must contain what it claims to)\n------------------------------------------------------------------------\n  manifest_present    ok\n                      snapshot/manifest.json parsed; quantlab 1.0.0 @ 69424f5\n  endpoint_count      ok\n                      469 endpoints declared, listed, and present on disk\n  manifest_freshness  ok\n                      captured 2026-11-20T22:30:06.933335+00:00 \u2014 -0.0h old (limit 14d)\n  overview_has_data   ok\n                      4 of 4 account(s) carry a non-null equity figure\n  entry_bundle        ok\n                      1 entry script(s) referenced and present: index-BCCsWnsO.js\n\n  CONTENT PASS \u2014 5 assertion(s) satisfied.\n\n========================================================================\nGLASS BOX SNAPSHOT \u2014 SANITIZATION REPORT\n========================================================================\nfiles scanned : 494\nbytes scanned : 4,665,201\nverdict       : PASS\n\nFORBIDDEN PATTERNS (zero matches required to pass)\n------------------------------------------------------------------------\n  alpaca_account_id                                     0  ok\n  email_address                                         0  ok\n  apca_api_header                                       0  ok\n  authorization_header                                  0  ok\n  env_secret_prefix:ALPACA_API_KEY                      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok\n  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok\n  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok\n  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok\n  env_secret_prefix:NETLIFY_AUTH_TOKEN                  0  ok\n  env_secret_prefix:SMTP_PASS                           0  ok\n  env_secret_prefix:TIINGO_API_KEY                      0  ok\n\nENV-SECRET CHECK\n------------------------------------------------------------------------\n  .env read locally; 11 value(s) reduced to 8-char prefixes and searched.\n  keys checked: ALPACA_API_KEY, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, NETLIFY_AUTH_TOKEN, SMTP_PASS, TIINGO_API_KEY\n  keys EXCLUDED as non-secret: ALERT_EMAIL_TO, ALPACA_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER\n  (public URLs and documented endpoints; see is_secret_bearing)\n  (prefixes themselves are never printed or stored)\n\nREDACTIONS PERFORMED (0)\n------------------------------------------------------------------------\n  (none)\n\n========================================================================\nPASS \u2014 no forbidden pattern matched. Snapshot may be written.\n========================================================================\n\nREDACTABLE CONTENT IN PUBLISHED BYTES (0)\n------------------------------------------------------------------------\n  (none \u2014 no local path leaked into the build)\n\n========================================================================\nDIST PASS \u2014 safe to deploy, subject to human review of this report.\n========================================================================\n\n========================================================================\nDEPLOYED\n========================================================================",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-20T22:02:02.266866Z",
+      "kind": "alert",
+      "label": "crypto_trend",
+      "title": "weekly review: crypto_trend DIVERGING",
+      "detail": "crypto_trend paper-vs-shadow raw divergence -590 bps this week exceeds the 50 bps threshold (raw -590 bps, predicted mark-phase n/a).",
+      "level": "WARNING"
+    },
+    {
+      "at": "2026-11-20T22:00:04.982621Z",
+      "kind": "weekly_verdict",
+      "label": "voltarget",
+      "title": "week 2026-11-20: voltarget TRACKING",
+      "detail": "divergence +121 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-20T22:00:04.982621Z",
+      "kind": "weekly_verdict",
+      "label": "trend",
+      "title": "week 2026-11-20: trend TRACKING",
+      "detail": "divergence +285 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-20T22:00:04.982621Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_trend",
+      "title": "week 2026-11-20: crypto_trend DIVERGING",
+      "detail": "divergence -590 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-20T22:00:04.982621Z",
+      "kind": "weekly_verdict",
+      "label": "crypto_voltarget",
+      "title": "week 2026-11-20: crypto_voltarget TRACKING",
+      "detail": "divergence +19 bps",
+      "level": null
+    },
+    {
+      "at": "2026-11-19T15:00:33.798050Z",
+      "kind": "alert",
+      "label": "trend",
+      "title": "paper trend: 2 order(s) submitted, $195,833.54 notional",
+      "detail": "weights={'IEF': 1.0}; turnover=2.0000",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-19T15:00:21.669479Z",
+      "kind": "order",
+      "label": "trend",
+      "title": "buy IEF $97,916.77",
+      "detail": "status=filled run=run_trend_20261119T150007Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-19T15:00:12.531187Z",
+      "kind": "order",
+      "label": "trend",
+      "title": "sell SPY $97,916.77",
+      "detail": "status=filled run=run_trend_20261119T150007Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-19T01:32:06.347907Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $3,025.56 notional",
+      "detail": "weights={'BTC-USD': 0.41767105663202947}; turnover=0.0284",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-19T01:30:05.820936Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "buy BTC-USD $3,025.56",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261119T013005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-17T15:00:07.992484Z",
+      "kind": "alert",
+      "label": "voltarget",
+      "title": "paper voltarget: 1 order(s) submitted, $1,400.15 notional",
+      "detail": "weights={'SPY': 0.4357753606161415}; turnover=0.0141",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-17T15:00:07.437119Z",
+      "kind": "order",
+      "label": "voltarget",
+      "title": "sell SPY $1,400.15",
+      "detail": "status=filled run=run_voltarget_20261117T150005Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-17T01:34:06.463846Z",
+      "kind": "alert",
+      "label": "crypto_trend",
+      "title": "paper crypto_trend: 1 order(s) submitted, $83,285.96 notional",
+      "detail": "weights={}; turnover=0.9996",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-17T01:30:05.414148Z",
+      "kind": "order",
+      "label": "crypto_trend",
+      "title": "sell BTC-USD $83,285.96",
+      "detail": "status=pending_new run=run_crypto_trend_20261117T013004Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-16T01:34:08.193759Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $2,124.46 notional",
+      "detail": "weights={'BTC-USD': 0.3979014609752732}; turnover=0.0197",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-16T01:30:07.064553Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $2,124.46",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261116T013006Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-16T01:30:05.315824Z",
+      "kind": "alert",
+      "label": "crypto_trend",
+      "title": "paper crypto_trend aborted at 'submit'",
+      "detail": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.315495215, available: 1.290730834)",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-11-16T00:00:00Z",
+      "kind": "decision",
+      "label": null,
+      "title": "RULING: a broker/ exception for quantity-based full exits",
+      "detail": "docs/decisions.md",
+      "level": null
+    },
+    {
+      "at": "2026-11-15T01:34:08.408054Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $3,039.93 notional",
+      "detail": "weights={'BTC-USD': 0.40961635010754965}; turnover=0.0286",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-15T01:30:07.205114Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $3,039.93",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261115T013006Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-15T01:30:05.395011Z",
+      "kind": "alert",
+      "label": "crypto_trend",
+      "title": "paper crypto_trend aborted at 'submit'",
+      "detail": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.318760685, available: 1.290730834)",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-11-14T01:34:08.807621Z",
+      "kind": "alert",
+      "label": "crypto_voltarget",
+      "title": "paper crypto_voltarget: 1 order(s) submitted, $2,729.39 notional",
+      "detail": "weights={'BTC-USD': 0.4605166956688363}; turnover=0.0247",
+      "level": "INFO"
+    },
+    {
+      "at": "2026-11-14T01:30:07.497189Z",
+      "kind": "order",
+      "label": "crypto_voltarget",
+      "title": "sell BTC-USD $2,729.39",
+      "detail": "status=pending_new run=run_crypto_voltarget_20261114T013006Z",
+      "level": null
+    },
+    {
+      "at": "2026-11-14T01:30:05.762629Z",
+      "kind": "alert",
+      "label": "crypto_trend",
+      "title": "paper crypto_trend aborted at 'submit'",
+      "detail": "order submission failed: Alpaca POST https://paper-api.alpaca.markets/v2/orders failed with HTTP 403: insufficient balance for BTC (requested: 1.319148199, available: 1.290730834)",
+      "level": "CRITICAL"
+    },
+    {
+      "at": "2026-11-13T22:30:53.088682Z",
+      "kind": "alert",
+      "label": null,
+      "title": "glass box refreshed and deployed",
+      "detail": "========================================================================\nGLASS BOX REFRESH \u2014 CHAIN REPORT\n========================================================================\nstarted    : 2026-11-13T22:30:04.979007+00:00\nmode       : LIVE\nsite       : monzonautomation-glassbox (be63f48c-4949-4603-b8dd-a6ccfdd996e7)\n\nCHAIN (each step runs only if every earlier step passed)\n------------------------------------------------------------------------\n  snapshot     PASS     445 endpoint(s) captured, 446 file(s) written, 0 redaction(s)\n  build        PASS     public bundle built into frontend/dist\n  verify-dist  PASS     470 published file(s) scanned, 0 forbidden, 0 redactable finding(s)\n  deploy       PASS     published to <https://6af78f805a70363c59f941ec--monzonautomation-glassbox.netlify.app>\n  record-snapshot PASS     recorded on snapshot/deploy-20261113; PR opened for human merge\n\nPROVENANCE\n------------------------------------------------------------------------\n  repo state    : WARNING\n                  working tree is DIRTY: 44 path(s) differ from HEAD [frontend/public/snapshot/api-decisions.json, frontend/public/snapshot/api-divergence--label-crypto_trend.json, frontend/public/snapshot/api-divergence--label-crypto_voltarget.json, frontend/public/snapshot/api-divergence--label-trend.json, frontend/public/snapshot/api-divergence--label-voltarget.json (+39 more)] \u2014 artifacts will record a commit that does not contain them\n\nDEPLOY DECISION\n------------------------------------------------------------------------\n  forbidden matches : 0 ok\n  redactions        : 0 ok\n  redactable found  : 0 ok\n  env-secret check  : ran\n  DEPLOYED -> <https://6af78f805a70363c59f941ec--monzonautomation-glassbox.netlify.app>\n  RECORDED -> snapshot/deploy-20261113  (PR: https://github.com/danielfmonzon/quantlab/pull/54)\n  ^ one merge click closes the loop; the deploy is already live either way\n\nSNAPSHOT SANITIZATION REPORT\n------------------------------------------------------------------------\n========================================================================\nGLASS BOX SNAPSHOT \u2014 SANITIZATION REPORT\n========================================================================\nfiles scanned : 446\nbytes scanned : 3,740,368\nverdict       : PASS\n\nFORBIDDEN PATTERNS (zero matches required to pass)\n------------------------------------------------------------------------\n  alpaca_account_id                                     0  ok\n  email_address                                         0  ok\n  apca_api_header                                       0  ok\n  authorization_header                                  0  ok\n  env_secret_prefix:ALPACA_API_KEY                      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok\n  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok\n  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok\n  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok\n  env_secret_prefix:NETLIFY_AUTH_TOKEN                  0  ok\n  env_secret_prefix:SMTP_PASS                           0  ok\n  env_secret_prefix:TIINGO_API_KEY                      0  ok\n\nENV-SECRET CHECK\n------------------------------------------------------------------------\n  .env read locally; 11 value(s) reduced to 8-char prefixes and searched.\n  keys checked: ALPACA_API_KEY, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, NETLIFY_AUTH_TOKEN, SMTP_PASS, TIINGO_API_KEY\n  keys EXCLUDED as non-secret: ALERT_EMAIL_TO, ALPACA_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER\n  (public URLs and documented endpoints; see is_secret_bearing)\n  (prefixes themselves are never printed or stored)\n\nREDACTIONS PERFORMED (0)\n------------------------------------------------------------------------\n  (none)\n\n========================================================================\nPASS \u2014 no forbidden pattern matched. Snapshot may be written.\n========================================================================\n\nPUBLISHED-BYTES GATE (verify-dist)\n------------------------------------------------------------------------\n========================================================================\nGLASS BOX DIST VERIFICATION \u2014 published bytes\n========================================================================\ndirectory      : ./frontend/dist\ntext files     : 470 scanned\nbinary files   : 12 skipped (not text-scannable)\n                 assets/fraunces-latin-ext-standard-italic-CGbN9UgK.woff2, assets/fraunces-latin-ext-standard-normal-CJcjJNj7.woff2, assets/fraunces-latin-standard-italic-lSdLDfvT.woff2, assets/fraunces-latin-standard-normal-DihXLNYH.woff2, assets/fraunces-vietnamese-standard-italic-DxWqP7Ku.woff2, assets/fraunces-vietnamese-standard-normal-Czevyj-6.woff2, assets/hanken-grotesk-cyrillic-ext-wght-normal-D_UHSL_T.woff2, assets/hanken-grotesk-latin-ext-wght-normal-Dg-wlmqe.woff2, assets/hanken-grotesk-latin-wght-normal-CaVRRdDk.woff2, assets/hanken-grotesk-vietnamese-wght-normal-CHiFlh_0.woff2, favicon.ico, og-image.png\n\nCONTENT COMPLETENESS (the site must contain what it claims to)\n------------------------------------------------------------------------\n  manifest_present    ok\n                      snapshot/manifest.json parsed; quantlab 1.0.0 @ f14dc03\n  endpoint_count      ok\n                      445 endpoints declared, listed, and present on disk\n  manifest_freshness  ok\n                      captured 2026-11-13T22:30:06.785128+00:00 \u2014 -0.0h old (limit 14d)\n  overview_has_data   ok\n                      4 of 4 account(s) carry a non-null equity figure\n  entry_bundle        ok\n                      1 entry script(s) referenced and present: index-BCCsWnsO.js\n\n  CONTENT PASS \u2014 5 assertion(s) satisfied.\n\n========================================================================\nGLASS BOX SNAPSHOT \u2014 SANITIZATION REPORT\n========================================================================\nfiles scanned : 470\nbytes scanned : 4,458,112\nverdict       : PASS\n\nFORBIDDEN PATTERNS (zero matches required to pass)\n------------------------------------------------------------------------\n  alpaca_account_id                                     0  ok\n  email_address                                         0  ok\n  apca_api_header                                       0  ok\n  authorization_header                                  0  ok\n  env_secret_prefix:ALPACA_API_KEY                      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_API_KEY         0  ok\n  env_secret_prefix:ALPACA_CRYPTO_TREND_SECRET_KEY      0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_API_KEY     0  ok\n  env_secret_prefix:ALPACA_CRYPTO_VOLTARGET_SECRET_KEY  0  ok\n  env_secret_prefix:ALPACA_SECRET_KEY                   0  ok\n  env_secret_prefix:ALPACA_TREND_API_KEY                0  ok\n  env_secret_prefix:ALPACA_TREND_SECRET_KEY             0  ok\n  env_secret_prefix:NETLIFY_AUTH_TOKEN                  0  ok\n  env_secret_prefix:SMTP_PASS                           0  ok\n  env_secret_prefix:TIINGO_API_KEY                      0  ok\n\nENV-SECRET CHECK\n------------------------------------------------------------------------\n  .env read locally; 11 value(s) reduced to 8-char prefixes and searched.\n  keys checked: ALPACA_API_KEY, ALPACA_CRYPTO_TREND_API_KEY, ALPACA_CRYPTO_TREND_SECRET_KEY, ALPACA_CRYPTO_VOLTARGET_API_KEY, ALPACA_CRYPTO_VOLTARGET_SECRET_KEY, ALPACA_SECRET_KEY, ALPACA_TREND_API_KEY, ALPACA_TREND_SECRET_KEY, NETLIFY_AUTH_TOKEN, SMTP_PASS, TIINGO_API_KEY\n  keys EXCLUDED as non-secret: ALERT_EMAIL_TO, ALPACA_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER\n  (public URLs and documented endpoints; see is_secret_bearing)\n  (prefixes themselves are never printed or stored)\n\nREDACTIONS PERFORMED (0)\n------------------------------------------------------------------------\n  (none)\n\n========================================================================\nPASS \u2014 no forbidden pattern matched. Snapshot may be written.\n========================================================================\n\nREDACTABLE CONTENT IN PUBLISHED BYTES (0)\n------------------------------------------------------------------------\n  (none \u2014 no local path leaked into the build)\n\n========================================================================\nDIST PASS \u2014 safe to deploy, subject to human review of this report.\n========================================================================\n\n========================================================================\nDEPLOYED\n========================================================================",
+      "level": "INFO"
+    },
     {
       "at": "2026-11-13T22:00:05.136865Z",
       "kind": "weekly_verdict",
